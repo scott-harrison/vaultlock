@@ -1,0 +1,15 @@
+{
+  "name": "vaultlock-extension",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "plasmo dev",
+    "build": "plasmo build",
+    "lint": "biome lint .",
+    "format": "biome format --write ."
+  },
+  "dependencies": {
+    "plasmo": "^0.89.0"
+  }
+}
