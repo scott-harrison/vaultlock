@@ -61,17 +61,22 @@ vaultlock/
 
 ## Code Quality & Formatting Standards
 
-To maintain strict coding standards across the entire monorepo:
+To maintain strict coding standards across the entire monorepo we use **Biome.js** as the single source of truth for:
 
-- **Primary Tool**: **Biome.js** — used for linting, formatting, and import sorting for all JavaScript/TypeScript, JSON, and Markdown files.
-- **Secondary / Compatibility**: **Prettier** — used as fallback for files Biome does not yet support perfectly, and for teams that prefer its output style.
-- **Enforcement**:
-  - Pre-commit hooks (via `husky` or `lint-staged`)
-  - Required CI check on every PR (fails if linting or formatting issues exist)
-  - Strict rules: no `any`, consistent import order, no unused variables, maximum line length 100
-- **Rust side**: `cargo clippy` + `rustfmt` enforced in the same CI job.
+- Linting
+- Formatting
+- Import sorting
 
-This ensures a consistent, professional codebase that supports our high testing bar.
+**Scope**: All JavaScript/TypeScript, JSON, Markdown, and CSS files.
+
+**Enforcement**:
+- Pre-commit hooks (via `husky` + `lint-staged`)
+- Required CI check on every PR (fails the build on any lint or formatting issues)
+- Strict configuration: no `any`, consistent import order, no unused variables, max line length 100, etc.
+
+**Rust side**: `cargo clippy` (linting) + `rustfmt` (formatting) are enforced in the same CI pipeline.
+
+This ensures a consistent, professional, and high-quality codebase that directly supports our rigorous testing standards.
 
 ## Alternatives Considered
 
@@ -97,7 +102,7 @@ This ensures a consistent, professional codebase that supports our high testing 
 - Easy to run full test suite locally and in CI
 - Consistent developer experience
 - Supports our strong testing focus (shared test utilities, coverage reporting across packages)
-- Strict, automated code quality via Biome + Prettier + Clippy
+- Strict, automated code quality via Biome + Clippy + rustfmt
 
 **Negative / Risks:**
 - Larger repo size (mitigated by good `.gitignore` and sparse checkout if needed)
@@ -109,7 +114,7 @@ This ensures a consistent, professional codebase that supports our high testing 
 - Use Cargo workspaces in `backend/Cargo.toml` for any internal crates.
 - Use npm workspaces in root `package.json` if needed for frontend/mobile.
 - Add root-level scripts: `npm run test:all`, `npm run coverage`, `npm run lint`, `npm run format`.
-- Enforce `TESTING.md` standards and Biome/Prettier rules in every package from the first commit.
+- Enforce `TESTING.md` standards and Biome rules in every package from the first commit.
 
 ---
 
