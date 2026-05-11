@@ -3,5 +3,5 @@ set -e
 
 pnpm exec biome check .
 cargo fmt --all --manifest-path backend/Cargo.toml -- --check
-cargo clippy --manifest-path backend/Cargo.toml --all-targets -- -D warnings
-cargo test --manifest-path backend/Cargo.toml
+cargo clippy --locked --manifest-path backend/Cargo.toml --all-targets -- -D warnings
+cargo test --locked --manifest-path backend/Cargo.toml
