@@ -69,6 +69,20 @@ To maintain strict coding standards across the entire monorepo we use **Biome.js
 
 **Scope**: All JavaScript/TypeScript, JSON, Markdown, and CSS files.
 
+### Shared Biome Configuration
+
+We will use a **single root-level `biome.json`** that defines all rules. Each TypeScript app (`frontend/`, `mobile/`, `extension/`) will extend this root config:
+
+```json
+// frontend/biome.json
+{
+  "$schema": "https://biomejs.dev/schemas/1.9.4/schema.json",
+  "extends": ["../biome.json"]
+}
+```
+
+This guarantees that **all TypeScript apps follow exactly the same rules** with zero duplication.
+
 **Enforcement**:
 - Pre-commit hooks (via `husky` + `lint-staged`)
 - Required CI check on every PR (fails the build on any lint or formatting issues)
@@ -103,6 +117,7 @@ This ensures a consistent, professional, and high-quality codebase that directly
 - Consistent developer experience
 - Supports our strong testing focus (shared test utilities, coverage reporting across packages)
 - Strict, automated code quality via Biome + Clippy + rustfmt
+- Zero duplication of linting rules across apps
 
 **Negative / Risks:**
 - Larger repo size (mitigated by good `.gitignore` and sparse checkout if needed)
