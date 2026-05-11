@@ -1,9 +1,5 @@
 # Testing Standards for Vaultlock
 
-**Document Owner:** Project Manager & Architect  
-**Version:** 1.0  
-**Last Updated:** May 10, 2026
-
 ---
 
 ## 1. Testing Philosophy
@@ -122,5 +118,3 @@ Special requirements for security-sensitive code:
 ---
 
 *This document is a living standard. Changes require a PR with at least one security reviewer approval.*
-
-**Maintained by the Vaultlock Project Manager & Architect**
