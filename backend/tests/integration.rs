@@ -9,9 +9,7 @@ async fn health_check_works() -> Result<(), Box<dyn Error>> {
     let app = app();
     let request = Request::builder().uri("/health").body(Body::empty())?;
 
-    let response = app
-        .oneshot(request)
-        .await?;
+    let response = app.oneshot(request).await?;
 
     assert_eq!(response.status(), StatusCode::OK);
 
