@@ -4,10 +4,15 @@
   "private": true,
   "packageManager": "pnpm@11.0.9",
   "scripts": {
-    "format": "biome format --write .",
-    "lint": "biome lint ."
+    "prepare": "husky",
+    "format": "biome format --write . && cargo fmt --all --manifest-path backend/Cargo.toml",
+    "lint": "biome lint . && cargo clippy --manifest-path backend/Cargo.toml --all-targets -- -D warnings",
+    "lint:fix": "biome lint --apply . && cargo clippy --manifest-path backend/Cargo.toml --all-targets --fix --allow-dirty --allow-staged -- -D warnings",
+    "test": "cargo test --manifest-path backend/Cargo.toml",
+    "ci": "biome check . && cargo fmt --all --manifest-path backend/Cargo.toml -- --check && cargo clippy --manifest-path backend/Cargo.toml --all-targets -- -D warnings"
   },
   "devDependencies": {
-    "@biomejs/biome": "^1.9.4"
+    "@biomejs/biome": "^1.9.4",
+    "husky": "^9.1.7"
   }
 }
