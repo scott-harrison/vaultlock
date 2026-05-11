@@ -1,8 +1,8 @@
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
-use tower::ServiceExt; // for `oneshot`
 use testcontainers::{clients, images::postgres::Postgres};
 use tokio::sync::OnceCell;
+use tower::ServiceExt; // for `oneshot`
 use vaultlock_backend::app; // we'll expose the router from main later
 
 static DB: OnceCell<String> = OnceCell::const_new();
@@ -23,7 +23,12 @@ async fn health_check_works() {
     let app = app(); // placeholder - we'll wire this properly
 
     let response = app
-        .oneshot(Request::builder().uri("/health").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::builder()
+                .uri("/health")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
 
