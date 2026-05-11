@@ -47,6 +47,7 @@ vaultlock/
 │   └── testing/
 ├── docs/
 │   └── adr/
+│       └── api/             # Bruno API collections
 ├── .github/
 │   └── workflows/           # Shared CI (tests, coverage, security, linting)
 ├── docker-compose.yml
@@ -92,6 +93,20 @@ This guarantees that **all TypeScript apps follow exactly the same rules** with 
 
 This ensures a consistent, professional, and high-quality codebase that directly supports our rigorous testing standards.
 
+## API Documentation & Testing (Bruno)
+
+We will use **Bruno** for API documentation and automated API testing.
+
+**Location**: `docs/api/bruno/`
+
+**Benefits**:
+- Git-native (collections stored as plain text files)
+- No cloud dependency (perfect for self-hosted project)
+- Built-in test assertions (can be run in CI)
+- Easy to keep in sync with the actual API
+
+Bruno collections will be versioned alongside the code and used for both manual exploration and automated integration testing.
+
 ## Alternatives Considered
 
 1. **Separate repositories** (backend, frontend, mobile, extension)
@@ -118,6 +133,7 @@ This ensures a consistent, professional, and high-quality codebase that directly
 - Supports our strong testing focus (shared test utilities, coverage reporting across packages)
 - Strict, automated code quality via Biome + Clippy + rustfmt
 - Zero duplication of linting rules across apps
+- Professional, version-controlled API documentation with Bruno
 
 **Negative / Risks:**
 - Larger repo size (mitigated by good `.gitignore` and sparse checkout if needed)
@@ -128,8 +144,9 @@ This ensures a consistent, professional, and high-quality codebase that directly
 
 - Use Cargo workspaces in `backend/Cargo.toml` for any internal crates.
 - Use npm workspaces in root `package.json` if needed for frontend/mobile.
-- Add root-level scripts: `npm run test:all`, `npm run coverage`, `npm run lint`, `npm run format`.
+- Add root-level scripts: `npm run test:all`, `npm run coverage`, `npm run lint`, `npm run format`
 - Enforce `TESTING.md` standards and Biome rules in every package from the first commit.
+- Bruno collections will be added under `docs/api/bruno/` starting in Phase 1
 
 ---
 
