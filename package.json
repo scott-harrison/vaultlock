@@ -1,13 +1,13 @@
 {
-    "name": "vaultlock",
-    "version": "0.1.0",
-    "private": true,
-    "packageManager": "pnpm@11.0.9",
-    "scripts": {
-      "format": "biome format --write .",
-      "lint": "biome lint ."
-    },
-    "devDependencies": {
-      "@biomejs/biome": "^1.9.4"
-    }
+  "name": "vaultlock",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@11.0.9",
+  "scripts": {
+    "format": "biome format --write .",
+    "lint": "biome lint ."
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4"
   }
+}
