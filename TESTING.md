@@ -2,8 +2,7 @@
 
 **Document Owner:** Project Manager & Architect  
 **Version:** 1.0  
-**Last Updated:** May 10, 2026  
-**Status:** Draft (for review)
+**Last Updated:** May 10, 2026
 
 ---
 
