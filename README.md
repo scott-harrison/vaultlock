@@ -2,77 +2,87 @@
 
 **Secure. Simple. Yours.**
 
-A self-hosted, zero-knowledge, end-to-end encrypted password and secure notes manager.
+A self-hosted, zero-knowledge, end-to-end encrypted password manager and secure notes vault.
 
-Take full control of your digital life — no subscriptions, no vendor lock-in, no data leaks.
+Stop paying subscriptions — take full control of your data.
 
-## Features
+## Features (MVP)
 
-- **Passwords, Cards, Identities & Secure Notes**: Full vault with rich Markdown notes support.
-- **Zero-Knowledge Encryption**: Client-side only (Argon2id + AES-256-GCM). Server sees nothing.
-- **Password Generator**: Strong, entropy-aware generator with custom rules.
-- **TOTP & Passkeys**: Built-in authenticator and WebAuthn support.
-- **Browser Extension**: Autofill, context menu, and secure clipboard.
-- **Desktop App**: Native Tauri application (macOS, Windows, Linux).
-- **Mobile Apps**: React Native (iOS & Android) with Expo.
-- **Self-Hosted**: One-command Docker Compose deploy with Caddy for HTTPS.
-- **Future**: Encrypted sharing, family organizations, breach monitoring.
+- Passwords, secure notes, and TOTP
+- Zero-knowledge E2EE (Argon2id + AES-256-GCM)
+- Strong password generator
+- Browser extension (autofill)
+- Desktop app (Tauri)
+- Mobile app (React Native)
+- Easy self-hosting with Docker Compose
 
-## Quick Start (Self-Host)
+## Local Development
 
+### Prerequisites
+
+#### 1. Rust
 ```bash
-git clone https://github.com/scott-harrison/vaultlock.git
-cd vaultlock
-docker compose up -d
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 ```
 
-Open http://localhost:8080 (configure your domain in .env for production).
+Verify:
+```bash
+rustc --version
+cargo --version
+```
 
-## Tech Stack
+#### 2. pnpm
+```bash
+npm install -g pnpm
+```
 
-| Layer      | Technology                          | Notes                          |
-|------------|-------------------------------------|--------------------------------|
-| Frontend   | React (Next.js or Vite) + Tailwind + shadcn/ui | Modern, accessible UI         |
-| Backend    | Rust (Axum) + SQLx + PostgreSQL    | High performance, safe         |
-| Crypto     | Argon2id, AES-256-GCM              | Audited primitives             |
-| Desktop    | Tauri                              | Lightweight native shell       |
-| Mobile     | React Native (Expo)                | Cross-platform native          |
-| Extension  | Plasmo (Manifest V3)               | Seamless browser integration   |
-| Hosting    | Docker + Caddy                     | Automatic HTTPS & reverse proxy|
+#### 3. Docker + Docker Compose
 
-## Architecture
+### Quick Start
 
-See the full system diagram and zero-knowledge flow in [PROJECT_PLAN.md](./PROJECT_PLAN.md).
+```bash
+# Clone repo
+git clone https://github.com/scott-harrison/vaultlock.git
+cd vaultlock
 
-## Roadmap & Tickets
+# Install dependencies
+pnpm install
 
-This project follows a structured 5-phase roadmap:
+# Start development environment
+docker compose up --build
+```
 
-- **Phase 1 (Foundation)**: Monorepo, backend skeleton, crypto core, basic web vault, Docker setup (~12-15 tickets)
-- **Phase 2 (Core Vault)**: Full CRUD, search, sync, offline support, export (~18-22 tickets)
-- **Phase 3 (Polish & Self-Host)**: Production UI, admin panel, docs, security hardening (~10-12 tickets)
-- **Phase 4 (Browser Extension)**: Autofill, permissions, context actions (~15-18 tickets)
-- **Phase 5 (Desktop + Mobile)**: Tauri app, React Native builds (later)
+Backend will be available at `http://localhost:8080`.
 
-All work is tracked via GitHub Issues with labels (`phase-1`, `backend`, `frontend`, `crypto`, `security`, `devops`, `docs`).
+### Development Commands
 
-**Current Focus**: Phase 1 tickets are being created now.
+```bash
+# Format code (Biome + Rust)
+pnpm format
 
-## Contributing
+# Lint code
+pnpm lint
 
-1. Read [PROJECT_PLAN.md](./PROJECT_PLAN.md) for ticket structure and acceptance criteria.
-2. Pick an open issue labeled with the current phase.
-3. Follow conventional commits and Rust/React best practices.
-4. All crypto-related changes require extra review.
+# Run backend tests
+pnpm test
+```
 
-## Security
+## Project Structure
 
-This is a high-security project. Please report vulnerabilities responsibly via GitHub Security Advisories.
+See [ADR-0001: Monorepo Layout](./docs/adr/0001-monorepo-layout.md)
+
+## Testing Standards
+
+See [TESTING.md](./TESTING.md)
+
+## Self Hosting
+
+See [SELF_HOSTING.md](./SELF_HOSTING.md)
+
+## Architecture Decision Records
+
+- [ADR-0001: Monorepo Layout](./docs/adr/0001-monorepo-layout.md)
 
 ## License
 
-MIT License — see LICENSE file (to be added).
-
----
-
-Built with ❤️ for privacy-conscious users. Star the repo if you believe in open-source secure tools!
+MIT
