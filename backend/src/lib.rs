@@ -1,3 +1,5 @@
+mod auth;
+
 use axum::{routing::{get, post}, Router};
 use crate::auth::{login, register};
 
