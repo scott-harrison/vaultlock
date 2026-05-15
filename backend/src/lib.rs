@@ -1,8 +1,11 @@
-use axum::{routing::get, Router};
+use axum::{routing::{get, post}, Router};
+use crate::auth::{login, register};
 
 pub fn app() -> Router {
     Router::new()
         .route("/health", get(health_check))
+        .route("/register", post(register))
+        .route("/login", post(login))
         .layer(tower_http::cors::CorsLayer::permissive())
 }
 
