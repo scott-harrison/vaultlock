@@ -36,17 +36,19 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_hash_and_verify() {
+    fn test_hash_and_verify() -> Result<(), argon2::password_hash::Error> {
         let password = "correct horse battery staple";
-        let hash = hash_login_password(password).unwrap();
-        assert!(verify_login_password(password, &hash).unwrap());
-        assert!(!verify_login_password("wrong password", &hash).unwrap());
+        let hash = hash_login_password(password)?;
+        assert!(verify_login_password(password, &hash)?);
+        assert!(!verify_login_password("wrong password", &hash)?);
+        Ok(())
     }
 
     #[test]
-    fn test_different_passwords_produce_different_hashes() {
-        let hash1 = hash_login_password("password1").unwrap();
-        let hash2 = hash_login_password("password2").unwrap();
+    fn test_different_passwords_produce_different_hashes() -> Result<(), argon2::password_hash::Error> {
+        let hash1 = hash_login_password("password1")?;
+        let hash2 = hash_login_password("password2")?;
         assert_ne!(hash1, hash2);
+        Ok(())
     }
 }

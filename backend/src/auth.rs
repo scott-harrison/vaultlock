@@ -22,8 +22,19 @@ pub struct AuthResponse {
 }
 
 pub async fn register(Json(payload): Json<RegisterRequest>) -> Json<AuthResponse> {
+    tracing::debug!(email = %payload.email, "register attempt");
+
     // TODO: Check if user exists in DB
-    let _hash = hash_login_password(&payload.password).expect("Failed to hash password");
+    let _hash = match hash_login_password(&payload.password) {
+        Ok(hash) => hash,
+        Err(e) => {
+            tracing::warn!(?e, "password hashing failed");
+            return Json(AuthResponse {
+                token: String::new(),
+                message: "Failed to hash password".to_string(),
+            });
+        }
+    };
 
     // TODO: Store user in database with hash
 
@@ -34,6 +45,8 @@ pub async fn register(Json(payload): Json<RegisterRequest>) -> Json<AuthResponse
 }
 
 pub async fn login(Json(payload): Json<LoginRequest>) -> Json<AuthResponse> {
+    tracing::debug!(email = %payload.email, "login attempt");
+
     // TODO: Fetch user hash from DB
     let stored_hash = "$argon2id$v=19$m=19456,t=2,p=1$..."; // placeholder
 
@@ -46,7 +59,7 @@ pub async fn login(Json(payload): Json<LoginRequest>) -> Json<AuthResponse> {
         })
     } else {
         Json(AuthResponse {
-            token: "".to_string(),
+            token: String::new(),
             message: "Invalid credentials".to_string(),
         })
     }

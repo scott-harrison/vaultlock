@@ -1,4 +1,5 @@
 mod auth;
+mod crypto;
 
 use axum::{
     routing::{get, post},
