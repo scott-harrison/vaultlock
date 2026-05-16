@@ -23,6 +23,7 @@ jsonwebtoken = "9"
 [dev-dependencies]
 testcontainers = "0.15"
 tokio-test = "0.4"
+proptest = "1"
 
 [lints.clippy]
 pedantic = "warn"
