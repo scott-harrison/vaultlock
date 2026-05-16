@@ -1,6 +1,7 @@
+pub mod jwt;
+
 use axum::{extract::State, Json};
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 
 use crate::{
     auth::jwt::{generate_access_token, generate_refresh_token, JwtConfig},
@@ -62,17 +63,21 @@ pub async fn register(
     };
 
     match repo.create(create_user).await {
-        Ok(user) => {
-            let config = JwtConfig::default();
-            let access_token = generate_access_token(user.id, &config).unwrap();
-            let refresh_token = generate_refresh_token(user.id, &config).unwrap();
-
-            Json(AuthResponse {
+        Ok(user) => match issue_tokens(user.id) {
+            Ok((access_token, refresh_token)) => Json(AuthResponse {
                 access_token,
                 refresh_token,
                 message: "User registered successfully".to_string(),
-            })
-        }
+            }),
+            Err(e) => {
+                tracing::warn!(?e, "failed to issue tokens");
+                Json(AuthResponse {
+                    access_token: String::new(),
+                    refresh_token: String::new(),
+                    message: "Failed to issue tokens".to_string(),
+                })
+            }
+        },
         Err(e) => {
             tracing::warn!(?e, "failed to create user");
             Json(AuthResponse {
@@ -113,15 +118,21 @@ pub async fn login(
     let is_valid = verify_login_password(&payload.password, &user.login_hash).unwrap_or(false);
 
     if is_valid {
-        let config = JwtConfig::default();
-        let access_token = generate_access_token(user.id, &config).unwrap();
-        let refresh_token = generate_refresh_token(user.id, &config).unwrap();
-
-        Json(AuthResponse {
-            access_token,
-            refresh_token,
-            message: "Login successful".to_string(),
-        })
+        match issue_tokens(user.id) {
+            Ok((access_token, refresh_token)) => Json(AuthResponse {
+                access_token,
+                refresh_token,
+                message: "Login successful".to_string(),
+            }),
+            Err(e) => {
+                tracing::warn!(?e, "failed to issue tokens");
+                Json(AuthResponse {
+                    access_token: String::new(),
+                    refresh_token: String::new(),
+                    message: "Failed to issue tokens".to_string(),
+                })
+            }
+        }
     } else {
         Json(AuthResponse {
             access_token: String::new(),
@@ -129,4 +140,13 @@ pub async fn login(
             message: "Invalid credentials".to_string(),
         })
     }
+}
+
+fn issue_tokens(
+    user_id: uuid::Uuid,
+) -> Result<(String, String), Box<dyn std::error::Error + Send + Sync>> {
+    let config = JwtConfig::from_env()?;
+    let access_token = generate_access_token(user_id, &config)?;
+    let refresh_token = generate_refresh_token(user_id, &config)?;
+    Ok((access_token, refresh_token))
 }

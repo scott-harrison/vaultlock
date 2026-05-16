@@ -5,9 +5,9 @@ use uuid::Uuid;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Claims {
-    pub sub: Uuid,           // user_id
-    pub exp: usize,          // expiration time
-    pub iat: usize,          // issued at
+    pub sub: Uuid,
+    pub exp: i64,
+    pub iat: i64,
 }
 
 pub struct JwtConfig {
@@ -16,24 +16,27 @@ pub struct JwtConfig {
     pub refresh_token_expiry_days: i64,
 }
 
-impl Default for JwtConfig {
-    fn default() -> Self {
-        Self {
-            secret: std::env::var("JWT_SECRET").expect("JWT_SECRET must be set"),
+impl JwtConfig {
+    pub fn from_env() -> Result<Self, std::env::VarError> {
+        Ok(Self {
+            secret: std::env::var("JWT_SECRET")?,
             access_token_expiry_minutes: 15,
             refresh_token_expiry_days: 7,
-        }
+        })
     }
 }
 
-pub fn generate_access_token(user_id: Uuid, config: &JwtConfig) -> Result<String, jsonwebtoken::errors::Error> {
+pub fn generate_access_token(
+    user_id: Uuid,
+    config: &JwtConfig,
+) -> Result<String, jsonwebtoken::errors::Error> {
     let now = Utc::now();
     let exp = now + Duration::minutes(config.access_token_expiry_minutes);
 
     let claims = Claims {
         sub: user_id,
-        exp: exp.timestamp() as usize,
-        iat: now.timestamp() as usize,
+        exp: exp.timestamp(),
+        iat: now.timestamp(),
     };
 
     encode(
@@ -43,14 +46,17 @@ pub fn generate_access_token(user_id: Uuid, config: &JwtConfig) -> Result<String
     )
 }
 
-pub fn generate_refresh_token(user_id: Uuid, config: &JwtConfig) -> Result<String, jsonwebtoken::errors::Error> {
+pub fn generate_refresh_token(
+    user_id: Uuid,
+    config: &JwtConfig,
+) -> Result<String, jsonwebtoken::errors::Error> {
     let now = Utc::now();
     let exp = now + Duration::days(config.refresh_token_expiry_days);
 
     let claims = Claims {
         sub: user_id,
-        exp: exp.timestamp() as usize,
-        iat: now.timestamp() as usize,
+        exp: exp.timestamp(),
+        iat: now.timestamp(),
     };
 
     encode(
@@ -60,6 +66,7 @@ pub fn generate_refresh_token(user_id: Uuid, config: &JwtConfig) -> Result<Strin
     )
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 pub fn validate_token(token: &str, secret: &str) -> Result<Claims, jsonwebtoken::errors::Error> {
     let token_data = decode::<Claims>(
         token,
@@ -67,4 +74,27 @@ pub fn validate_token(token: &str, secret: &str) -> Result<Claims, jsonwebtoken:
         &Validation::default(),
     )?;
     Ok(token_data.claims)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn test_config() -> JwtConfig {
+        JwtConfig {
+            secret: "test-secret".to_string(),
+            access_token_expiry_minutes: 15,
+            refresh_token_expiry_days: 7,
+        }
+    }
+
+    #[test]
+    fn access_token_round_trip() -> Result<(), jsonwebtoken::errors::Error> {
+        let user_id = Uuid::new_v4();
+        let config = test_config();
+        let token = generate_access_token(user_id, &config)?;
+        let claims = validate_token(&token, &config.secret)?;
+        assert_eq!(claims.sub, user_id);
+        Ok(())
+    }
 }
