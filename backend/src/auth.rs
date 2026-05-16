@@ -1,7 +1,4 @@
-use axum::{
-    extract::State,
-    Json,
-};
+use axum::{extract::State, Json};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -33,28 +30,27 @@ pub async fn register(
     State(state): State<AppState>,
     Json(payload): Json<RegisterRequest>,
 ) -> Json<AuthResponse> {
+    tracing::debug!(email = %payload.email, "register attempt");
     let repo = UserRepository::new(state.db.clone());
 
-    // Check if email already exists
     if repo.email_exists(&payload.email).await.unwrap_or(false) {
         return Json(AuthResponse {
-            token: "".to_string(),
+            token: String::new(),
             message: "Email already registered".to_string(),
         });
     }
 
-    // Hash the password
     let login_hash = match hash_login_password(&payload.password) {
         Ok(hash) => hash,
-        Err(_) => {
+        Err(e) => {
+            tracing::warn!(?e, "password hashing failed");
             return Json(AuthResponse {
-                token: "".to_string(),
+                token: String::new(),
                 message: "Failed to hash password".to_string(),
-            })
+            });
         }
     };
 
-    // Create user
     let create_user = CreateUser {
         email: payload.email,
         login_hash,
@@ -65,10 +61,13 @@ pub async fn register(
             token: "fake-jwt-token".to_string(),
             message: "User registered successfully".to_string(),
         }),
-        Err(_) => Json(AuthResponse {
-            token: "".to_string(),
-            message: "Failed to create user".to_string(),
-        }),
+        Err(e) => {
+            tracing::warn!(?e, "failed to create user");
+            Json(AuthResponse {
+                token: String::new(),
+                message: "Failed to create user".to_string(),
+            })
+        }
     }
 }
 
@@ -76,26 +75,26 @@ pub async fn login(
     State(state): State<AppState>,
     Json(payload): Json<LoginRequest>,
 ) -> Json<AuthResponse> {
+    tracing::debug!(email = %payload.email, "login attempt");
     let repo = UserRepository::new(state.db.clone());
 
-    // Fetch user by email
     let user = match repo.find_by_email(&payload.email).await {
         Ok(Some(user)) => user,
         Ok(None) => {
             return Json(AuthResponse {
-                token: "".to_string(),
+                token: String::new(),
                 message: "Invalid credentials".to_string(),
-            })
+            });
         }
-        Err(_) => {
+        Err(e) => {
+            tracing::warn!(?e, "database error during login");
             return Json(AuthResponse {
-                token: "".to_string(),
+                token: String::new(),
                 message: "Database error".to_string(),
-            })
+            });
         }
     };
 
-    // Verify password
     let is_valid = verify_login_password(&payload.password, &user.login_hash).unwrap_or(false);
 
     if is_valid {
@@ -105,7 +104,7 @@ pub async fn login(
         })
     } else {
         Json(AuthResponse {
-            token: "".to_string(),
+            token: String::new(),
             message: "Invalid credentials".to_string(),
         })
     }

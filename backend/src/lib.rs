@@ -3,14 +3,13 @@ mod crypto;
 mod models;
 mod repositories;
 
+use crate::auth::{login, register};
 use axum::{
     routing::{get, post},
     Router,
 };
 use sqlx::PgPool;
 use tower_http::cors::CorsLayer;
-
-use crate::auth::{login, register};
 
 #[derive(Clone)]
 pub struct AppState {

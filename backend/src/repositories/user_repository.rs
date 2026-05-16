@@ -1,6 +1,5 @@
 use anyhow::Result;
 use sqlx::PgPool;
-use uuid::Uuid;
 
 use crate::models::user::{CreateUser, User};
 
@@ -9,17 +8,17 @@ pub struct UserRepository {
 }
 
 impl UserRepository {
-    pub fn new(pool: PgPool) -> Self {
+    pub const fn new(pool: PgPool) -> Self {
         Self { pool }
     }
 
     pub async fn create(&self, user: CreateUser) -> Result<User> {
         let user = sqlx::query_as::<_, User>(
-            r#"
+            r"
             INSERT INTO users (email, login_hash)
             VALUES ($1, $2)
             RETURNING id, email, login_hash, created_at, updated_at
-            "#,
+            ",
         )
         .bind(&user.email)
         .bind(&user.login_hash)
@@ -31,11 +30,11 @@ impl UserRepository {
 
     pub async fn find_by_email(&self, email: &str) -> Result<Option<User>> {
         let user = sqlx::query_as::<_, User>(
-            r#"
+            r"
             SELECT id, email, login_hash, created_at, updated_at
             FROM users
             WHERE email = $1
-            "#,
+            ",
         )
         .bind(email)
         .fetch_optional(&self.pool)
@@ -45,12 +44,10 @@ impl UserRepository {
     }
 
     pub async fn email_exists(&self, email: &str) -> Result<bool> {
-        let count: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM users WHERE email = $1",
-        )
-        .bind(email)
-        .fetch_one(&self.pool)
-        .await?;
+        let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM users WHERE email = $1")
+            .bind(email)
+            .fetch_one(&self.pool)
+            .await?;
 
         Ok(count.0 > 0)
     }
