@@ -1,7 +1,15 @@
-use axum::Json;
+use axum::{
+    extract::State,
+    Json,
+};
 use serde::{Deserialize, Serialize};
 
-use crate::crypto::argon2::{hash_login_password, verify_login_password};
+use crate::{
+    crypto::argon2::{hash_login_password, verify_login_password},
+    models::user::CreateUser,
+    repositories::user_repository::UserRepository,
+    AppState,
+};
 
 #[derive(Deserialize)]
 pub struct RegisterRequest {
@@ -21,23 +29,74 @@ pub struct AuthResponse {
     pub message: String,
 }
 
-pub async fn register(Json(payload): Json<RegisterRequest>) -> Json<AuthResponse> {
-    // TODO: Check if user exists in DB
-    let _hash = hash_login_password(&payload.password).expect("Failed to hash password");
+pub async fn register(
+    State(state): State<AppState>,
+    Json(payload): Json<RegisterRequest>,
+) -> Json<AuthResponse> {
+    let repo = UserRepository::new(state.db.clone());
 
-    // TODO: Store user in database with hash
+    // Check if email already exists
+    if repo.email_exists(&payload.email).await.unwrap_or(false) {
+        return Json(AuthResponse {
+            token: "".to_string(),
+            message: "Email already registered".to_string(),
+        });
+    }
 
-    Json(AuthResponse {
-        token: "fake-jwt-token".to_string(),
-        message: "User registered successfully".to_string(),
-    })
+    // Hash the password
+    let login_hash = match hash_login_password(&payload.password) {
+        Ok(hash) => hash,
+        Err(_) => {
+            return Json(AuthResponse {
+                token: "".to_string(),
+                message: "Failed to hash password".to_string(),
+            })
+        }
+    };
+
+    // Create user
+    let create_user = CreateUser {
+        email: payload.email,
+        login_hash,
+    };
+
+    match repo.create(create_user).await {
+        Ok(_) => Json(AuthResponse {
+            token: "fake-jwt-token".to_string(),
+            message: "User registered successfully".to_string(),
+        }),
+        Err(_) => Json(AuthResponse {
+            token: "".to_string(),
+            message: "Failed to create user".to_string(),
+        }),
+    }
 }
 
-pub async fn login(Json(payload): Json<LoginRequest>) -> Json<AuthResponse> {
-    // TODO: Fetch user hash from DB
-    let stored_hash = "$argon2id$v=19$m=19456,t=2,p=1$..."; // placeholder
+pub async fn login(
+    State(state): State<AppState>,
+    Json(payload): Json<LoginRequest>,
+) -> Json<AuthResponse> {
+    let repo = UserRepository::new(state.db.clone());
 
-    let is_valid = verify_login_password(&payload.password, stored_hash).unwrap_or(false);
+    // Fetch user by email
+    let user = match repo.find_by_email(&payload.email).await {
+        Ok(Some(user)) => user,
+        Ok(None) => {
+            return Json(AuthResponse {
+                token: "".to_string(),
+                message: "Invalid credentials".to_string(),
+            })
+        }
+        Err(_) => {
+            return Json(AuthResponse {
+                token: "".to_string(),
+                message: "Database error".to_string(),
+            })
+        }
+    };
+
+    // Verify password
+    let is_valid = verify_login_password(&payload.password, &user.login_hash).unwrap_or(false);
 
     if is_valid {
         Json(AuthResponse {
