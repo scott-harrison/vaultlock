@@ -1,6 +1,9 @@
 mod auth;
 
-use axum::{routing::{get, post}, Router};
+use axum::{
+    routing::{get, post},
+    Router,
+};
 use crate::auth::{login, register};
 
 pub fn app() -> Router {
