@@ -1,30 +1,17 @@
 mod auth;
 mod crypto;
-mod models;
-mod repositories;
+mod middleware;
 
+use axum::{routing::{get, post}, Router};
 use crate::auth::{login, register};
-use axum::{
-    routing::{get, post},
-    Router,
-};
-use sqlx::PgPool;
-use tower_http::cors::CorsLayer;
+use crate::middleware::rate_limit::login_rate_limiter;
 
-#[derive(Clone)]
-pub struct AppState {
-    pub db: PgPool,
-}
-
-pub fn app(db: PgPool) -> Router {
-    let state = AppState { db };
-
+pub fn app() -> Router {
     Router::new()
         .route("/health", get(health_check))
         .route("/register", post(register))
-        .route("/login", post(login))
-        .layer(CorsLayer::permissive())
-        .with_state(state)
+        .route("/login", post(login).layer(login_rate_limiter()))
+        .layer(tower_http::cors::CorsLayer::permissive())
 }
 
 async fn health_check() -> &'static str {
