@@ -1,7 +1,10 @@
+pub mod jwt;
+
 use axum::{extract::State, Json};
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    auth::jwt::{generate_access_token, generate_refresh_token, JwtConfig},
     crypto::argon2::{hash_login_password, verify_login_password},
     models::user::CreateUser,
     repositories::user_repository::UserRepository,
@@ -22,7 +25,8 @@ pub struct LoginRequest {
 
 #[derive(Serialize)]
 pub struct AuthResponse {
-    pub token: String,
+    pub access_token: String,
+    pub refresh_token: String,
     pub message: String,
 }
 
@@ -35,7 +39,8 @@ pub async fn register(
 
     if repo.email_exists(&payload.email).await.unwrap_or(false) {
         return Json(AuthResponse {
-            token: String::new(),
+            access_token: String::new(),
+            refresh_token: String::new(),
             message: "Email already registered".to_string(),
         });
     }
@@ -45,7 +50,8 @@ pub async fn register(
         Err(e) => {
             tracing::warn!(?e, "password hashing failed");
             return Json(AuthResponse {
-                token: String::new(),
+                access_token: String::new(),
+                refresh_token: String::new(),
                 message: "Failed to hash password".to_string(),
             });
         }
@@ -57,14 +63,26 @@ pub async fn register(
     };
 
     match repo.create(create_user).await {
-        Ok(_) => Json(AuthResponse {
-            token: "fake-jwt-token".to_string(),
-            message: "User registered successfully".to_string(),
-        }),
+        Ok(user) => match issue_tokens(user.id) {
+            Ok((access_token, refresh_token)) => Json(AuthResponse {
+                access_token,
+                refresh_token,
+                message: "User registered successfully".to_string(),
+            }),
+            Err(e) => {
+                tracing::warn!(?e, "failed to issue tokens");
+                Json(AuthResponse {
+                    access_token: String::new(),
+                    refresh_token: String::new(),
+                    message: "Failed to issue tokens".to_string(),
+                })
+            }
+        },
         Err(e) => {
             tracing::warn!(?e, "failed to create user");
             Json(AuthResponse {
-                token: String::new(),
+                access_token: String::new(),
+                refresh_token: String::new(),
                 message: "Failed to create user".to_string(),
             })
         }
@@ -82,14 +100,16 @@ pub async fn login(
         Ok(Some(user)) => user,
         Ok(None) => {
             return Json(AuthResponse {
-                token: String::new(),
+                access_token: String::new(),
+                refresh_token: String::new(),
                 message: "Invalid credentials".to_string(),
             });
         }
         Err(e) => {
             tracing::warn!(?e, "database error during login");
             return Json(AuthResponse {
-                token: String::new(),
+                access_token: String::new(),
+                refresh_token: String::new(),
                 message: "Database error".to_string(),
             });
         }
@@ -98,14 +118,35 @@ pub async fn login(
     let is_valid = verify_login_password(&payload.password, &user.login_hash).unwrap_or(false);
 
     if is_valid {
-        Json(AuthResponse {
-            token: "fake-jwt-token".to_string(),
-            message: "Login successful".to_string(),
-        })
+        match issue_tokens(user.id) {
+            Ok((access_token, refresh_token)) => Json(AuthResponse {
+                access_token,
+                refresh_token,
+                message: "Login successful".to_string(),
+            }),
+            Err(e) => {
+                tracing::warn!(?e, "failed to issue tokens");
+                Json(AuthResponse {
+                    access_token: String::new(),
+                    refresh_token: String::new(),
+                    message: "Failed to issue tokens".to_string(),
+                })
+            }
+        }
     } else {
         Json(AuthResponse {
-            token: String::new(),
+            access_token: String::new(),
+            refresh_token: String::new(),
             message: "Invalid credentials".to_string(),
         })
     }
+}
+
+fn issue_tokens(
+    user_id: uuid::Uuid,
+) -> Result<(String, String), Box<dyn std::error::Error + Send + Sync>> {
+    let config = JwtConfig::from_env()?;
+    let access_token = generate_access_token(user_id, &config)?;
+    let refresh_token = generate_refresh_token(user_id, &config)?;
+    Ok((access_token, refresh_token))
 }
