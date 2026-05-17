@@ -5,7 +5,10 @@ mod models;
 mod repositories;
 
 use crate::auth::{login, register};
-use crate::middleware::rate_limit::{login_rate_limit_middleware, LoginRateLimiter};
+use crate::middleware::{
+    progressive_delay::ProgressiveDelay,
+    rate_limit::{login_rate_limit_middleware, LoginRateLimiter},
+};
 use axum::{
     middleware::from_fn_with_state,
     routing::{get, post},
@@ -17,10 +20,14 @@ use tower_http::cors::CorsLayer;
 #[derive(Clone)]
 pub struct AppState {
     pub db: PgPool,
+    pub login_delay: ProgressiveDelay,
 }
 
 pub fn app(db: PgPool) -> Router {
-    let state = AppState { db };
+    let state = AppState {
+        db,
+        login_delay: ProgressiveDelay::new(),
+    };
     let login_rate_limiter = LoginRateLimiter::new();
 
     Router::new()

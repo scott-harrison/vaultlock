@@ -94,16 +94,15 @@ pub async fn login(
     Json(payload): Json<LoginRequest>,
 ) -> Json<AuthResponse> {
     tracing::debug!(email = %payload.email, "login attempt");
+    state.login_delay.wait_before_login(&payload.email).await;
+
     let repo = UserRepository::new(state.db.clone());
 
     let user = match repo.find_by_email(&payload.email).await {
         Ok(Some(user)) => user,
         Ok(None) => {
-            return Json(AuthResponse {
-                access_token: String::new(),
-                refresh_token: String::new(),
-                message: "Invalid credentials".to_string(),
-            });
+            state.login_delay.record_failure(&payload.email).await;
+            return invalid_credentials();
         }
         Err(e) => {
             tracing::warn!(?e, "database error during login");
@@ -118,6 +117,7 @@ pub async fn login(
     let is_valid = verify_login_password(&payload.password, &user.login_hash).unwrap_or(false);
 
     if is_valid {
+        state.login_delay.clear(&payload.email).await;
         match issue_tokens(user.id) {
             Ok((access_token, refresh_token)) => Json(AuthResponse {
                 access_token,
@@ -134,12 +134,17 @@ pub async fn login(
             }
         }
     } else {
-        Json(AuthResponse {
-            access_token: String::new(),
-            refresh_token: String::new(),
-            message: "Invalid credentials".to_string(),
-        })
+        state.login_delay.record_failure(&payload.email).await;
+        invalid_credentials()
     }
+}
+
+fn invalid_credentials() -> Json<AuthResponse> {
+    Json(AuthResponse {
+        access_token: String::new(),
+        refresh_token: String::new(),
+        message: "Invalid credentials".to_string(),
+    })
 }
 
 fn issue_tokens(
