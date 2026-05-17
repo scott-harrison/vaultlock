@@ -11,21 +11,12 @@ export interface EncryptedData {
 /**
  * Encrypts plaintext using AES-256-GCM
  */
-export async function encrypt(
-  plaintext: Uint8Array,
-  key: Uint8Array,
-): Promise<EncryptedData> {
+export async function encrypt(plaintext: Uint8Array, key: Uint8Array): Promise<EncryptedData> {
   if (key.length !== 32) {
     throw new Error("Key must be 32 bytes for AES-256");
   }
 
-  const cryptoKey = await crypto.subtle.importKey(
-    "raw",
-    key,
-    { name: "AES-GCM" },
-    false,
-    ["encrypt"],
-  );
+  const cryptoKey = await crypto.subtle.importKey("raw", key, { name: "AES-GCM" }, false, ["encrypt"]);
 
   const nonce = crypto.getRandomValues(new Uint8Array(12));
 
@@ -47,22 +38,12 @@ export async function encrypt(
 /**
  * Decrypts ciphertext using AES-256-GCM
  */
-export async function decrypt(
-  nonce: Uint8Array,
-  ciphertext: Uint8Array,
-  key: Uint8Array,
-): Promise<Uint8Array> {
+export async function decrypt(nonce: Uint8Array, ciphertext: Uint8Array, key: Uint8Array): Promise<Uint8Array> {
   if (key.length !== 32) {
     throw new Error("Key must be 32 bytes for AES-256");
   }
 
-  const cryptoKey = await crypto.subtle.importKey(
-    "raw",
-    key,
-    { name: "AES-GCM" },
-    false,
-    ["decrypt"],
-  );
+  const cryptoKey = await crypto.subtle.importKey("raw", key, { name: "AES-GCM" }, false, ["decrypt"]);
 
   const plaintext = await crypto.subtle.decrypt(
     {
@@ -79,21 +60,14 @@ export async function decrypt(
 /**
  * Wraps a DEK using the Master Key (AES-256-GCM)
  */
-export async function wrapDek(
-  dek: Uint8Array,
-  masterKey: Uint8Array,
-): Promise<EncryptedData> {
+export async function wrapDek(dek: Uint8Array, masterKey: Uint8Array): Promise<EncryptedData> {
   return encrypt(dek, masterKey);
 }
 
 /**
  * Unwraps a DEK using the Master Key
  */
-export async function unwrapDek(
-  nonce: Uint8Array,
-  wrappedDek: Uint8Array,
-  masterKey: Uint8Array,
-): Promise<Uint8Array> {
+export async function unwrapDek(nonce: Uint8Array, wrappedDek: Uint8Array, masterKey: Uint8Array): Promise<Uint8Array> {
   return decrypt(nonce, wrappedDek, masterKey);
 }
 
