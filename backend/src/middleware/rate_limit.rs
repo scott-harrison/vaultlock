@@ -1,5 +1,9 @@
 #![allow(clippy::duration_suboptimal_units)]
 
+// In-memory implementation for MVP.
+// In production, replace with Redis or database-backed store (e.g. using redis crate or sqlx).
+// This is acceptable for single-instance deployments and early testing.
+
 use axum::{
     body::Body,
     extract::{ConnectInfo, Request, State},
@@ -52,4 +56,55 @@ pub async fn login_rate_limit_middleware(
     drop(requests);
 
     next.run(request).await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::body::Body;
+    use axum::http::Request;
+    use std::net::SocketAddr;
+
+    #[tokio::test]
+    async fn rate_limiter_allows_requests_under_limit() {
+        let limiter = LoginRateLimiter::new();
+        let addr: SocketAddr = "127.0.0.1:8080".parse().unwrap();
+
+        for _ in 0..4 {
+            let response = login_rate_limit_middleware(
+                State(limiter.clone()),
+                ConnectInfo(addr),
+                Request::builder().uri("/login").body(Body::empty()).unwrap(),
+                Next::new(|_| async { StatusCode::OK.into_response() }),
+            ).await;
+
+            assert_eq!(response.status(), StatusCode::OK);
+        }
+    }
+
+    #[tokio::test]
+    async fn rate_limiter_blocks_after_limit_exceeded() {
+        let limiter = LoginRateLimiter::new();
+        let addr: SocketAddr = "127.0.0.1:8080".parse().unwrap();
+
+        // Exhaust limit
+        for _ in 0..5 {
+            let _ = login_rate_limit_middleware(
+                State(limiter.clone()),
+                ConnectInfo(addr),
+                Request::builder().uri("/login").body(Body::empty()).unwrap(),
+                Next::new(|_| async { StatusCode::OK.into_response() }),
+            ).await;
+        }
+
+        // Next request should be blocked
+        let response = login_rate_limit_middleware(
+            State(limiter.clone()),
+            ConnectInfo(addr),
+            Request::builder().uri("/login").body(Body::empty()).unwrap(),
+            Next::new(|_| async { StatusCode::OK.into_response() }),
+        ).await;
+
+        assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
+    }
 }
