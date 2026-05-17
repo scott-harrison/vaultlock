@@ -13,29 +13,29 @@ export interface EncryptedData {
  */
 export async function encrypt(
   plaintext: Uint8Array,
-  key: Uint8Array
+  key: Uint8Array,
 ): Promise<EncryptedData> {
   if (key.length !== 32) {
-    throw new Error('Key must be 32 bytes for AES-256');
+    throw new Error("Key must be 32 bytes for AES-256");
   }
 
   const cryptoKey = await crypto.subtle.importKey(
-    'raw',
+    "raw",
     key,
-    { name: 'AES-GCM' },
+    { name: "AES-GCM" },
     false,
-    ['encrypt']
+    ["encrypt"],
   );
 
   const nonce = crypto.getRandomValues(new Uint8Array(12));
 
   const ciphertext = await crypto.subtle.encrypt(
     {
-      name: 'AES-GCM',
+      name: "AES-GCM",
       iv: nonce,
     },
     cryptoKey,
-    plaintext
+    plaintext,
   );
 
   return {
@@ -50,27 +50,27 @@ export async function encrypt(
 export async function decrypt(
   nonce: Uint8Array,
   ciphertext: Uint8Array,
-  key: Uint8Array
+  key: Uint8Array,
 ): Promise<Uint8Array> {
   if (key.length !== 32) {
-    throw new Error('Key must be 32 bytes for AES-256');
+    throw new Error("Key must be 32 bytes for AES-256");
   }
 
   const cryptoKey = await crypto.subtle.importKey(
-    'raw',
+    "raw",
     key,
-    { name: 'AES-GCM' },
+    { name: "AES-GCM" },
     false,
-    ['decrypt']
+    ["decrypt"],
   );
 
   const plaintext = await crypto.subtle.decrypt(
     {
-      name: 'AES-GCM',
+      name: "AES-GCM",
       iv: nonce,
     },
     cryptoKey,
-    ciphertext
+    ciphertext,
   );
 
   return new Uint8Array(plaintext);
@@ -81,7 +81,7 @@ export async function decrypt(
  */
 export async function wrapDek(
   dek: Uint8Array,
-  masterKey: Uint8Array
+  masterKey: Uint8Array,
 ): Promise<EncryptedData> {
   return encrypt(dek, masterKey);
 }
@@ -92,7 +92,7 @@ export async function wrapDek(
 export async function unwrapDek(
   nonce: Uint8Array,
   wrappedDek: Uint8Array,
-  masterKey: Uint8Array
+  masterKey: Uint8Array,
 ): Promise<Uint8Array> {
   return decrypt(nonce, wrappedDek, masterKey);
 }
