@@ -33,6 +33,22 @@ impl LoginRateLimiter {
             requests: Arc::new(Mutex::new(HashMap::new())),
         }
     }
+
+    /// Records a request for `key` and returns `Err` when the rate limit is exceeded.
+    #[allow(clippy::significant_drop_tightening)]
+    pub async fn check(&self, key: &str) -> Result<(), StatusCode> {
+        let now = Instant::now();
+        let mut requests = self.requests.lock().await;
+        let timestamps = requests.entry(key.to_string()).or_default();
+        timestamps.retain(|t| now.duration_since(*t) < WINDOW);
+
+        if timestamps.len() >= MAX_REQUESTS {
+            return Err(StatusCode::TOO_MANY_REQUESTS);
+        }
+
+        timestamps.push(now);
+        Ok(())
+    }
 }
 
 pub async fn login_rate_limit_middleware(
@@ -41,19 +57,9 @@ pub async fn login_rate_limit_middleware(
     request: Request<Body>,
     next: Next,
 ) -> Response {
-    let key = addr.ip().to_string();
-    let now = Instant::now();
-
-    let mut requests = limiter.requests.lock().await;
-    let timestamps = requests.entry(key).or_default();
-    timestamps.retain(|t| now.duration_since(*t) < WINDOW);
-
-    if timestamps.len() >= MAX_REQUESTS {
+    if limiter.check(&addr.ip().to_string()).await.is_err() {
         return StatusCode::TOO_MANY_REQUESTS.into_response();
     }
-
-    timestamps.push(now);
-    drop(requests);
 
     next.run(request).await
 }
@@ -61,50 +67,26 @@ pub async fn login_rate_limit_middleware(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use axum::body::Body;
-    use axum::http::Request;
-    use std::net::SocketAddr;
 
     #[tokio::test]
     async fn rate_limiter_allows_requests_under_limit() {
         let limiter = LoginRateLimiter::new();
-        let addr: SocketAddr = "127.0.0.1:8080".parse().unwrap();
+        let key = "127.0.0.1";
 
         for _ in 0..4 {
-            let response = login_rate_limit_middleware(
-                State(limiter.clone()),
-                ConnectInfo(addr),
-                Request::builder().uri("/login").body(Body::empty()).unwrap(),
-                Next::new(|_| async { StatusCode::OK.into_response() }),
-            ).await;
-
-            assert_eq!(response.status(), StatusCode::OK);
+            assert_eq!(limiter.check(key).await, Ok(()));
         }
     }
 
     #[tokio::test]
     async fn rate_limiter_blocks_after_limit_exceeded() {
         let limiter = LoginRateLimiter::new();
-        let addr: SocketAddr = "127.0.0.1:8080".parse().unwrap();
+        let key = "127.0.0.1";
 
-        // Exhaust limit
         for _ in 0..5 {
-            let _ = login_rate_limit_middleware(
-                State(limiter.clone()),
-                ConnectInfo(addr),
-                Request::builder().uri("/login").body(Body::empty()).unwrap(),
-                Next::new(|_| async { StatusCode::OK.into_response() }),
-            ).await;
+            assert_eq!(limiter.check(key).await, Ok(()));
         }
 
-        // Next request should be blocked
-        let response = login_rate_limit_middleware(
-            State(limiter.clone()),
-            ConnectInfo(addr),
-            Request::builder().uri("/login").body(Body::empty()).unwrap(),
-            Next::new(|_| async { StatusCode::OK.into_response() }),
-        ).await;
-
-        assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
+        assert_eq!(limiter.check(key).await, Err(StatusCode::TOO_MANY_REQUESTS));
     }
 }
