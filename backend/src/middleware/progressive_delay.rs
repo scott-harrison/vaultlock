@@ -18,7 +18,9 @@ impl ProgressiveDelay {
     /// Returns the delay duration for this identifier (email or IP)
     pub fn get_delay(&self, identifier: &str) -> Duration {
         let mut attempts = self.attempts.lock().unwrap();
-        let (count, last_attempt) = attempts.entry(identifier.to_string()).or_insert((0, Instant::now()));
+        let (count, last_attempt) = attempts
+            .entry(identifier.to_string())
+            .or_insert((0, Instant::now()));
 
         // Reset if more than 10 minutes since last attempt
         if last_attempt.elapsed() > Duration::from_secs(600) {
