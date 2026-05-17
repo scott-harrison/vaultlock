@@ -1,20 +1,40 @@
 mod auth;
 mod crypto;
 mod middleware;
+mod models;
+mod repositories;
 
 use crate::auth::{login, register};
-use crate::middleware::rate_limit::login_rate_limiter;
+use crate::middleware::rate_limit::{login_rate_limit_middleware, LoginRateLimiter};
 use axum::{
+    middleware::from_fn_with_state,
     routing::{get, post},
     Router,
 };
+use sqlx::PgPool;
+use tower_http::cors::CorsLayer;
 
-pub fn app() -> Router {
+#[derive(Clone)]
+pub struct AppState {
+    pub db: PgPool,
+}
+
+pub fn app(db: PgPool) -> Router {
+    let state = AppState { db };
+    let login_rate_limiter = LoginRateLimiter::new();
+
     Router::new()
         .route("/health", get(health_check))
         .route("/register", post(register))
-        .route("/login", post(login).layer(login_rate_limiter()))
-        .layer(tower_http::cors::CorsLayer::permissive())
+        .route(
+            "/login",
+            post(login).route_layer(from_fn_with_state(
+                login_rate_limiter,
+                login_rate_limit_middleware,
+            )),
+        )
+        .layer(CorsLayer::permissive())
+        .with_state(state)
 }
 
 async fn health_check() -> &'static str {
