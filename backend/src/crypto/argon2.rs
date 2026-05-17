@@ -41,23 +41,43 @@ pub fn verify_login_password(
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // proptest! bodies must be infallible expressions
+
     use super::*;
+    use proptest::prelude::*;
+
+    // Argon2 is expensive; default 256 cases would make pre-push/CI take many minutes.
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(8))]
+
+        #[test]
+        fn prop_hash_and_verify_roundtrip(password in ".{8,64}") {
+            let hash = hash_login_password(&password).unwrap();
+            prop_assert!(verify_login_password(&password, &hash).unwrap());
+        }
+
+        #[test]
+        fn prop_different_passwords_different_hashes(p1 in ".{8,32}", p2 in ".{8,32}") {
+            prop_assume!(p1 != p2);
+            let h1 = hash_login_password(&p1).unwrap();
+            let h2 = hash_login_password(&p2).unwrap();
+            prop_assert_ne!(h1, h2);
+        }
+
+        #[test]
+        fn prop_wrong_password_fails(password in ".{8,32}", wrong in ".{8,32}") {
+            prop_assume!(password != wrong);
+            let hash = hash_login_password(&password).unwrap();
+            prop_assert!(!verify_login_password(&wrong, &hash).unwrap());
+        }
+    }
 
     #[test]
-    fn test_hash_and_verify() -> Result<(), argon2::password_hash::Error> {
+    fn test_hash_and_verify_basic() -> Result<(), argon2::password_hash::Error> {
         let password = "correct horse battery staple";
         let hash = hash_login_password(password)?;
         assert!(verify_login_password(password, &hash)?);
         assert!(!verify_login_password("wrong password", &hash)?);
-        Ok(())
-    }
-
-    #[test]
-    fn test_different_passwords_produce_different_hashes(
-    ) -> Result<(), argon2::password_hash::Error> {
-        let hash1 = hash_login_password("password1")?;
-        let hash2 = hash_login_password("password2")?;
-        assert_ne!(hash1, hash2);
         Ok(())
     }
 }
