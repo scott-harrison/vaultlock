@@ -1,3 +1,4 @@
+use sqlx::postgres::PgPoolOptions;
 use std::net::SocketAddr;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use vaultlock_backend::app;
@@ -12,7 +13,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with(tracing_subscriber::fmt::layer())
         .init();
 
-    let app = app();
+    dotenvy::dotenv().ok();
+
+    let database_url = std::env::var("DATABASE_URL")?;
+
+    let pool = PgPoolOptions::new()
+        .max_connections(5)
+        .connect(&database_url)
+        .await?;
+
+    sqlx::migrate!("./migrations").run(&pool).await?;
+
+    tracing::info!("Database migrations completed successfully");
+
+    let app = app(pool);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 8080));
     tracing::info!("listening on {}", addr);
