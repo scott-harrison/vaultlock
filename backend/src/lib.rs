@@ -2,7 +2,10 @@ mod auth;
 mod crypto;
 mod middleware;
 
-use axum::{routing::{get, post}, Router};
+use axum::{
+    routing::{get, post},
+    Router,
+};
 use crate::auth::{login, register};
 use crate::middleware::rate_limit::login_rate_limiter;
 
