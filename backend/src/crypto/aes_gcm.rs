@@ -70,4 +70,26 @@ mod tests {
 
         assert!(result.is_err());
     }
+
+    #[test]
+    fn encrypt_produces_different_nonces() {
+        let key = [0x42u8; 32];
+        let plaintext = b"same plaintext";
+
+        let (nonce1, _) = encrypt(plaintext, &key).unwrap();
+        let (nonce2, _) = encrypt(plaintext, &key).unwrap();
+
+        assert_ne!(nonce1, nonce2);
+    }
+
+    #[test]
+    fn empty_plaintext() {
+        let key = [0x42u8; 32];
+        let plaintext = b"";
+
+        let (nonce, ciphertext) = encrypt(plaintext, &key).unwrap();
+        let decrypted = decrypt(&nonce, &ciphertext, &key).unwrap();
+
+        assert_eq!(decrypted, plaintext);
+    }
 }
