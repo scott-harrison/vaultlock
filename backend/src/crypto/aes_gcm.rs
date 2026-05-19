@@ -16,6 +16,7 @@ pub fn encrypt(plaintext: &[u8], key: &[u8; 32]) -> Result<(Vec<u8>, Vec<u8>), a
 }
 
 /// Decrypts ciphertext using AES-256-GCM
+#[cfg_attr(not(test), allow(dead_code))]
 pub fn decrypt(nonce: &[u8], ciphertext: &[u8], key: &[u8; 32]) -> Result<Vec<u8>, aead::Error> {
     let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(key));
     let nonce = Nonce::from_slice(nonce);
@@ -24,17 +25,25 @@ pub fn decrypt(nonce: &[u8], ciphertext: &[u8], key: &[u8; 32]) -> Result<Vec<u8
 }
 
 /// Wraps a DEK using the Master Key (AES-256-GCM)
+#[cfg_attr(not(test), allow(dead_code))]
 pub fn wrap_dek(dek: &[u8; 32], master_key: &[u8; 32]) -> Result<(Vec<u8>, Vec<u8>), aead::Error> {
     encrypt(dek, master_key)
 }
 
 /// Unwraps a DEK using the Master Key
-pub fn unwrap_dek(nonce: &[u8], wrapped_dek: &[u8], master_key: &[u8; 32]) -> Result<Vec<u8>, aead::Error> {
+#[cfg_attr(not(test), allow(dead_code))]
+pub fn unwrap_dek(
+    nonce: &[u8],
+    wrapped_dek: &[u8],
+    master_key: &[u8; 32],
+) -> Result<Vec<u8>, aead::Error> {
     decrypt(nonce, wrapped_dek, master_key)
 }
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)]
+
     use super::*;
 
     #[test]

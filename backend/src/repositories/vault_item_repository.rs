@@ -1,4 +1,3 @@
-use chrono::Utc;
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -10,21 +9,21 @@ pub struct VaultItemRepository {
 }
 
 impl VaultItemRepository {
-    pub fn new(pool: PgPool) -> Self {
+    pub const fn new(pool: PgPool) -> Self {
         Self { pool }
     }
 
     pub async fn create(&self, create: CreateVaultItem) -> Result<VaultItemResponse, sqlx::Error> {
         // Encrypt the plaintext using the DEK
         let (nonce, encrypted_data) = encrypt(&create.plaintext, &create.dek)
-            .map_err(|e| sqlx::Error::Decode(Box::new(e)))?;
+            .map_err(|_| sqlx::Error::Protocol("encryption failed".into()))?;
 
         let item = sqlx::query_as::<_, VaultItem>(
-            r#"
+            r"
             INSERT INTO vault_items (user_id, encrypted_data, nonce, item_type)
             VALUES ($1, $2, $3, $4)
             RETURNING id, user_id, encrypted_data, nonce, item_type, created_at, updated_at
-            "#,
+            ",
         )
         .bind(create.user_id)
         .bind(encrypted_data)

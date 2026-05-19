@@ -1,5 +1,5 @@
 mod auth;
-mod crypto;
+pub mod crypto;
 mod middleware;
 mod models;
 mod repositories;

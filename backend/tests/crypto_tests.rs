@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)]
+
 use vaultlock_backend::crypto::aes_gcm::{decrypt, encrypt, unwrap_dek, wrap_dek};
 
 #[test]
