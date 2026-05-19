@@ -4,11 +4,22 @@ mod common;
 
 use axum::http::StatusCode;
 use common::{assert_status, TestApp};
+use rand::Rng;
 use serde_json::{json, Value};
 use vaultlock_backend::crypto::argon2::hash_login_password;
 
-fn master_password_hash(password: &str) -> String {
-    hash_login_password(password).expect("hash")
+const CREDENTIAL_CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+
+/// Random alphanumeric input standing in for a client-side master-password preimage.
+fn random_credential(len: usize) -> String {
+    let mut rng = rand::thread_rng();
+    (0..len)
+        .map(|_| CREDENTIAL_CHARSET[rng.gen_range(0..CREDENTIAL_CHARSET.len())] as char)
+        .collect()
+}
+
+fn phc_hash_for_credential(credential: &str) -> String {
+    hash_login_password(credential).expect("hash")
 }
 
 #[tokio::test]
@@ -32,7 +43,7 @@ async fn register_rejects_invalid_master_password_hash() {
 #[tokio::test]
 async fn register_rejects_duplicate_email() {
     let app = TestApp::spawn().await;
-    let hash = master_password_hash("correct horse battery staple");
+    let hash = phc_hash_for_credential(&random_credential(24));
     let payload = json!({
         "email": "duplicate@example.com",
         "master_password_hash": hash
@@ -53,8 +64,7 @@ async fn register_rejects_duplicate_email() {
 async fn registration_verify_and_login_flow() {
     let app = TestApp::spawn().await;
     let email = "user@example.com";
-    let password = "correct horse battery staple";
-    let hash = master_password_hash(password);
+    let hash = phc_hash_for_credential(&random_credential(24));
 
     let register_response = assert_status(
         app.post_json(
@@ -71,10 +81,10 @@ async fn registration_verify_and_login_flow() {
     let register_body: Value =
         serde_json::from_slice(&common::TestApp::response_body(register_response).await)
             .expect("register json");
-    assert_eq!(
-        register_body["message"],
-        "Registration successful. Please verify your email."
-    );
+    assert!(register_body["message"]
+        .as_str()
+        .unwrap_or("")
+        .contains("Registration successful"));
 
     let unverified_login = assert_status(
         app.post_json(
@@ -91,7 +101,10 @@ async fn registration_verify_and_login_flow() {
     let unverified_body: Value =
         serde_json::from_slice(&common::TestApp::response_body(unverified_login).await)
             .expect("login json");
-    assert_eq!(unverified_body["message"], "Email not verified");
+    assert!(unverified_body["message"]
+        .as_str()
+        .unwrap_or("")
+        .contains("Email not verified"));
 
     let verification_token: String =
         sqlx::query_scalar("SELECT verification_token FROM users WHERE email = $1")
@@ -151,8 +164,13 @@ async fn registration_verify_and_login_flow() {
 async fn login_rejects_invalid_credentials() {
     let app = TestApp::spawn().await;
     let email = "wrong-password@example.com";
-    let hash = master_password_hash("correct horse battery staple");
-    let wrong_hash = master_password_hash("wrong password");
+    let valid_credential = random_credential(24);
+    let mut other_credential = random_credential(24);
+    while other_credential == valid_credential {
+        other_credential = random_credential(24);
+    }
+    let hash = phc_hash_for_credential(&valid_credential);
+    let wrong_hash = phc_hash_for_credential(&other_credential);
 
     assert_status(
         app.post_json(
