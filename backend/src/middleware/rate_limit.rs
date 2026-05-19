@@ -23,11 +23,11 @@ const MAX_REQUESTS: usize = 5;
 const WINDOW: Duration = Duration::from_secs(60);
 
 #[derive(Clone)]
-pub struct LoginRateLimiter {
+pub struct AuthRateLimiter {
     requests: Arc<Mutex<HashMap<String, Vec<Instant>>>>,
 }
 
-impl LoginRateLimiter {
+impl AuthRateLimiter {
     pub fn new() -> Self {
         Self {
             requests: Arc::new(Mutex::new(HashMap::new())),
@@ -51,8 +51,8 @@ impl LoginRateLimiter {
     }
 }
 
-pub async fn login_rate_limit_middleware(
-    State(limiter): State<LoginRateLimiter>,
+pub async fn auth_rate_limit_middleware(
+    State(limiter): State<AuthRateLimiter>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     request: Request<Body>,
     next: Next,
@@ -70,7 +70,7 @@ mod tests {
 
     #[tokio::test]
     async fn rate_limiter_allows_requests_under_limit() {
-        let limiter = LoginRateLimiter::new();
+        let limiter = AuthRateLimiter::new();
         let key = "127.0.0.1";
 
         for _ in 0..4 {
@@ -80,7 +80,7 @@ mod tests {
 
     #[tokio::test]
     async fn rate_limiter_blocks_after_limit_exceeded() {
-        let limiter = LoginRateLimiter::new();
+        let limiter = AuthRateLimiter::new();
         let key = "127.0.0.1";
 
         for _ in 0..5 {

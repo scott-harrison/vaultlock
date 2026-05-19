@@ -8,7 +8,7 @@ mod vault;
 use crate::auth::{login, register, verify_email};
 use crate::middleware::{
     progressive_delay::ProgressiveDelay,
-    rate_limit::{login_rate_limit_middleware, LoginRateLimiter},
+    rate_limit::{auth_rate_limit_middleware, AuthRateLimiter},
 };
 use crate::vault::{create_vault_item, list_vault_items};
 use axum::{
@@ -30,19 +30,20 @@ pub fn app(db: PgPool) -> Router {
         db,
         login_delay: ProgressiveDelay::new(),
     };
-    let login_rate_limiter = LoginRateLimiter::new();
+    let auth_rate_limiter = AuthRateLimiter::new();
+    let auth_rate_limit = from_fn_with_state(auth_rate_limiter.clone(), auth_rate_limit_middleware);
 
     Router::new()
         .route("/health", get(health_check))
-        .route("/register", post(register))
-        .route("/verify-email", post(verify_email))
         .route(
-            "/login",
-            post(login).route_layer(from_fn_with_state(
-                login_rate_limiter,
-                login_rate_limit_middleware,
-            )),
+            "/register",
+            post(register).route_layer(auth_rate_limit.clone()),
         )
+        .route(
+            "/verify-email",
+            post(verify_email).route_layer(auth_rate_limit.clone()),
+        )
+        .route("/login", post(login).route_layer(auth_rate_limit))
         .route("/vault", post(create_vault_item))
         .route("/vault", get(list_vault_items))
         .layer(CorsLayer::permissive())
