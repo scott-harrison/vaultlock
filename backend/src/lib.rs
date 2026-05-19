@@ -30,8 +30,7 @@ pub fn app(db: PgPool) -> Router {
         db,
         login_delay: ProgressiveDelay::new(),
     };
-    let auth_rate_limiter = AuthRateLimiter::new();
-    let auth_rate_limit = from_fn_with_state(auth_rate_limiter.clone(), auth_rate_limit_middleware);
+    let auth_rate_limit = from_fn_with_state(AuthRateLimiter::new(), auth_rate_limit_middleware);
 
     Router::new()
         .route("/health", get(health_check))
