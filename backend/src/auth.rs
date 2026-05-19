@@ -94,22 +94,29 @@ pub async fn register(
     }
 
     let verification_token = Uuid::new_v4().to_string();
-    stub_send_verification_email(&payload.email, &verification_token);
 
     let create_user = CreateUser {
         email: payload.email.clone(),
         master_password_hash: payload.master_password_hash,
-        verification_token,
+        verification_token: verification_token.clone(),
     };
 
     match repo.create(create_user).await {
-        Ok(_user) => (
-            StatusCode::CREATED,
-            Json(RegisterResponse {
-                message: "Registration successful. Please verify your email.".to_string(),
-                email: payload.email,
-            }),
-        ),
+        Ok(_user) => {
+            if let Err(e) = send_verification_email(&payload.email, &verification_token).await {
+                tracing::error!(?e, "failed to send verification email");
+            }
+
+            (
+                StatusCode::CREATED,
+                Json(RegisterResponse {
+                    message:
+                        "Registration successful. Please check your email to verify your account."
+                            .to_string(),
+                    email: payload.email,
+                }),
+            )
+        }
         Err(e) => {
             tracing::warn!(?e, "failed to create user");
             (
@@ -190,7 +197,9 @@ pub async fn login(
     if !user.email_verified {
         return (
             StatusCode::FORBIDDEN,
-            Json(AuthResponse::error("Email not verified".to_string())),
+            Json(AuthResponse::error(
+                "Email not verified. Please check your email and verify your account.".to_string(),
+            )),
         );
     }
 
@@ -222,15 +231,6 @@ pub async fn login(
     }
 }
 
-fn stub_send_verification_email(email: &str, token: &str) {
-    tracing::info!(
-        email = %email,
-        token = %token,
-        verify_url = %format!("/verify-email"),
-        "email verification stub: would send verification email"
-    );
-}
-
 fn invalid_credentials() -> (StatusCode, Json<AuthResponse>) {
     (
         StatusCode::UNAUTHORIZED,
@@ -245,6 +245,53 @@ fn issue_tokens(
     let access_token = generate_access_token(user_id, &config)?;
     let refresh_token = generate_refresh_token(user_id, &config)?;
     Ok((access_token, refresh_token))
+}
+
+/// Sends verification email using Resend.
+async fn send_verification_email(email: &str, token: &str) -> anyhow::Result<()> {
+    let api_key = std::env::var("RESEND_API_KEY")
+        .map_err(|_| anyhow::anyhow!("RESEND_API_KEY must be set for email verification"))?;
+
+    let verify_url = format!("https://your-domain.com/verify?token={token}");
+
+    let payload = serde_json::json!({
+        "from": "Vaultlock <onboarding@resend.dev>",
+        "to": [email],
+        "subject": "Verify your Vaultlock account",
+        "html": format!(
+            r#"
+            <h2>Welcome to Vaultlock!</h2>
+            <p>Please verify your email address by clicking the link below:</p>
+            <p><a href="{}">Verify Email</a></p>
+            <p>If you did not create this account, you can safely ignore this email.</p>
+            "#,
+            verify_url
+        )
+    });
+
+    let client = reqwest::Client::new();
+    let response = client
+        .post("https://api.resend.com/emails")
+        .header("Authorization", format!("Bearer {api_key}"))
+        .header("Content-Type", "application/json")
+        .json(&payload)
+        .send()
+        .await?;
+
+    if response.status().is_success() {
+        tracing::info!(email = %email, "verification email sent via Resend");
+        Ok(())
+    } else {
+        let status = response.status();
+        let error_text = response.text().await.unwrap_or_default();
+        tracing::error!(
+            email = %email,
+            status = %status,
+            error = %error_text,
+            "failed to send verification email via Resend"
+        );
+        anyhow::bail!("Resend API returned {status}: {error_text}");
+    }
 }
 
 #[cfg(test)]
