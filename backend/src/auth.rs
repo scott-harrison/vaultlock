@@ -88,7 +88,9 @@ pub async fn register(
             (
                 StatusCode::CREATED,
                 Json(RegisterResponse {
-                    message: "Registration successful. Please check your email to verify your account.".to_string(),
+                    message:
+                        "Registration successful. Please check your email to verify your account."
+                            .to_string(),
                 }),
             )
         }
@@ -138,7 +140,8 @@ pub async fn login(
             Json(AuthResponse {
                 access_token: String::new(),
                 refresh_token: String::new(),
-                message: "Email not verified. Please check your email and verify your account.".to_string(),
+                message: "Email not verified. Please check your email and verify your account."
+                    .to_string(),
             }),
         );
     }
@@ -182,29 +185,27 @@ pub async fn verify_email(
     let repo = UserRepository::new(state.db.clone());
 
     match repo.verify_email(&payload.token).await {
-        Ok(Some(user)) => {
-            match issue_tokens(user.id) {
-                Ok((access_token, refresh_token)) => (
-                    StatusCode::OK,
+        Ok(Some(user)) => match issue_tokens(user.id) {
+            Ok((access_token, refresh_token)) => (
+                StatusCode::OK,
+                Json(AuthResponse {
+                    access_token,
+                    refresh_token,
+                    message: "Email verified successfully".to_string(),
+                }),
+            ),
+            Err(e) => {
+                tracing::warn!(?e, "failed to issue tokens");
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
                     Json(AuthResponse {
-                        access_token,
-                        refresh_token,
-                        message: "Email verified successfully".to_string(),
+                        access_token: String::new(),
+                        refresh_token: String::new(),
+                        message: "Failed to issue tokens".to_string(),
                     }),
-                ),
-                Err(e) => {
-                    tracing::warn!(?e, "failed to issue tokens");
-                    (
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        Json(AuthResponse {
-                            access_token: String::new(),
-                            refresh_token: String::new(),
-                            message: "Failed to issue tokens".to_string(),
-                        }),
-                    )
-                }
+                )
             }
-        }
+        },
         Ok(None) => (
             StatusCode::BAD_REQUEST,
             Json(AuthResponse {
@@ -249,8 +250,8 @@ fn issue_tokens(
 
 /// Sends verification email using Resend
 async fn send_verification_email(email: &str, token: &str) -> Result<(), reqwest::Error> {
-    let api_key = std::env::var("RESEND_API_KEY")
-        .expect("RESEND_API_KEY must be set for email verification");
+    let api_key =
+        std::env::var("RESEND_API_KEY").expect("RESEND_API_KEY must be set for email verification");
 
     let verify_url = format!("https://your-domain.com/verify?token={}", token);
 
