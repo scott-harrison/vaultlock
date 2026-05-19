@@ -2610,6 +2610,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sqlx",
+ "subtle",
  "testcontainers",
  "tokio",
  "tokio-test",

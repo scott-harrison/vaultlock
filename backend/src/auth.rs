@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     auth::jwt::{generate_access_token, generate_refresh_token, JwtConfig},
-    crypto::argon2::{hash_login_password, verify_login_password},
+    crypto::argon2::{validate_master_password_hash, verify_master_password_hash},
     models::user::CreateUser,
     repositories::user_repository::UserRepository,
     AppState,
@@ -14,13 +14,13 @@ use crate::{
 #[derive(Deserialize)]
 pub struct RegisterRequest {
     pub email: String,
-    pub password: String,
+    pub master_password_hash: String,
 }
 
 #[derive(Deserialize)]
 pub struct LoginRequest {
     pub email: String,
-    pub password: String,
+    pub master_password_hash: String,
 }
 
 #[derive(Serialize)]
@@ -48,24 +48,21 @@ pub async fn register(
         );
     }
 
-    let login_hash = match hash_login_password(&payload.password) {
-        Ok(hash) => hash,
-        Err(e) => {
-            tracing::warn!(?e, "password hashing failed");
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(AuthResponse {
-                    access_token: String::new(),
-                    refresh_token: String::new(),
-                    message: "Failed to hash password".to_string(),
-                }),
-            );
-        }
-    };
+    if let Err(e) = validate_master_password_hash(&payload.master_password_hash) {
+        tracing::warn!(?e, "invalid master password hash format");
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(AuthResponse {
+                access_token: String::new(),
+                refresh_token: String::new(),
+                message: "Invalid master password hash format".to_string(),
+            }),
+        );
+    }
 
     let create_user = CreateUser {
         email: payload.email,
-        login_hash,
+        master_password_hash: payload.master_password_hash,
     };
 
     match repo.create(create_user).await {
@@ -132,7 +129,8 @@ pub async fn login(
         }
     };
 
-    let is_valid = verify_login_password(&payload.password, &user.login_hash).unwrap_or(false);
+    let is_valid =
+        verify_master_password_hash(&payload.master_password_hash, &user.master_password_hash);
 
     if is_valid {
         state.login_delay.clear(&payload.email).await;
