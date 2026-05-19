@@ -6,7 +6,7 @@ use uuid::Uuid;
 
 use crate::{
     auth::jwt::{generate_access_token, generate_refresh_token, JwtConfig},
-    crypto::argon2::{hash_login_password, verify_login_password},
+    crypto::argon2::{validate_master_password_hash, verify_master_password_hash},
     models::user::CreateUser,
     repositories::user_repository::UserRepository,
     AppState,
@@ -15,13 +15,13 @@ use crate::{
 #[derive(Deserialize)]
 pub struct RegisterRequest {
     pub email: String,
-    pub password: String,
+    pub master_password_hash: String,
 }
 
 #[derive(Deserialize)]
 pub struct LoginRequest {
     pub email: String,
-    pub password: String,
+    pub master_password_hash: String,
 }
 
 #[derive(Deserialize)]
@@ -30,14 +30,15 @@ pub struct VerifyEmailRequest {
 }
 
 #[derive(Serialize)]
-pub struct AuthResponse {
-    pub access_token: String,
-    pub refresh_token: String,
+pub struct RegisterResponse {
     pub message: String,
+    pub email: String,
 }
 
 #[derive(Serialize)]
-pub struct RegisterResponse {
+pub struct AuthResponse {
+    pub access_token: String,
+    pub refresh_token: String,
     pub message: String,
 }
 
@@ -53,36 +54,34 @@ pub async fn register(
             StatusCode::CONFLICT,
             Json(RegisterResponse {
                 message: "Email already registered".to_string(),
+                email: payload.email,
             }),
         );
     }
 
-    let login_hash = match hash_login_password(&payload.password) {
-        Ok(hash) => hash,
-        Err(e) => {
-            tracing::warn!(?e, "password hashing failed");
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(RegisterResponse {
-                    message: "Failed to hash password".to_string(),
-                }),
-            );
-        }
-    };
+    if let Err(e) = validate_master_password_hash(&payload.master_password_hash) {
+        tracing::warn!(?e, "invalid master password hash format");
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(RegisterResponse {
+                message: "Invalid master password hash format".to_string(),
+                email: payload.email,
+            }),
+        );
+    }
 
     let verification_token = Uuid::new_v4().to_string();
 
     let create_user = CreateUser {
         email: payload.email.clone(),
-        login_hash,
+        master_password_hash: payload.master_password_hash,
         verification_token: verification_token.clone(),
     };
 
     match repo.create(create_user).await {
-        Ok(_) => {
-            // Send verification email via Resend
+        Ok(_user) => {
             if let Err(e) = send_verification_email(&payload.email, &verification_token).await {
-                tracing::error!(?e, "Failed to send verification email");
+                tracing::error!(?e, "failed to send verification email");
             }
 
             (
@@ -91,6 +90,7 @@ pub async fn register(
                     message:
                         "Registration successful. Please check your email to verify your account."
                             .to_string(),
+                    email: payload.email,
                 }),
             )
         }
@@ -100,6 +100,57 @@ pub async fn register(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(RegisterResponse {
                     message: "Failed to create user".to_string(),
+                    email: payload.email,
+                }),
+            )
+        }
+    }
+}
+
+pub async fn verify_email(
+    State(state): State<AppState>,
+    Json(payload): Json<VerifyEmailRequest>,
+) -> (StatusCode, Json<AuthResponse>) {
+    let repo = UserRepository::new(state.db.clone());
+
+    match repo.verify_email(&payload.token).await {
+        Ok(Some(user)) => match issue_tokens(user.id) {
+            Ok((access_token, refresh_token)) => (
+                StatusCode::OK,
+                Json(AuthResponse {
+                    access_token,
+                    refresh_token,
+                    message: "Email verified successfully".to_string(),
+                }),
+            ),
+            Err(e) => {
+                tracing::warn!(?e, "failed to issue tokens after verification");
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(AuthResponse {
+                        access_token: String::new(),
+                        refresh_token: String::new(),
+                        message: "Failed to issue tokens".to_string(),
+                    }),
+                )
+            }
+        },
+        Ok(None) => (
+            StatusCode::BAD_REQUEST,
+            Json(AuthResponse {
+                access_token: String::new(),
+                refresh_token: String::new(),
+                message: "Invalid or expired verification token".to_string(),
+            }),
+        ),
+        Err(e) => {
+            tracing::warn!(?e, "database error during email verification");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(AuthResponse {
+                    access_token: String::new(),
+                    refresh_token: String::new(),
+                    message: "Database error".to_string(),
                 }),
             )
         }
@@ -146,7 +197,8 @@ pub async fn login(
         );
     }
 
-    let is_valid = verify_login_password(&payload.password, &user.login_hash).unwrap_or(false);
+    let is_valid =
+        verify_master_password_hash(&payload.master_password_hash, &user.master_password_hash);
 
     if is_valid {
         state.login_delay.clear(&payload.email).await;
@@ -177,57 +229,6 @@ pub async fn login(
     }
 }
 
-pub async fn verify_email(
-    State(state): State<AppState>,
-    Json(payload): Json<VerifyEmailRequest>,
-) -> (StatusCode, Json<AuthResponse>) {
-    tracing::debug!(token = %payload.token, "email verification attempt");
-    let repo = UserRepository::new(state.db.clone());
-
-    match repo.verify_email(&payload.token).await {
-        Ok(Some(user)) => match issue_tokens(user.id) {
-            Ok((access_token, refresh_token)) => (
-                StatusCode::OK,
-                Json(AuthResponse {
-                    access_token,
-                    refresh_token,
-                    message: "Email verified successfully".to_string(),
-                }),
-            ),
-            Err(e) => {
-                tracing::warn!(?e, "failed to issue tokens");
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(AuthResponse {
-                        access_token: String::new(),
-                        refresh_token: String::new(),
-                        message: "Failed to issue tokens".to_string(),
-                    }),
-                )
-            }
-        },
-        Ok(None) => (
-            StatusCode::BAD_REQUEST,
-            Json(AuthResponse {
-                access_token: String::new(),
-                refresh_token: String::new(),
-                message: "Invalid or expired verification token".to_string(),
-            }),
-        ),
-        Err(e) => {
-            tracing::warn!(?e, "database error during verification");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(AuthResponse {
-                    access_token: String::new(),
-                    refresh_token: String::new(),
-                    message: "Database error".to_string(),
-                }),
-            )
-        }
-    }
-}
-
 fn invalid_credentials() -> (StatusCode, Json<AuthResponse>) {
     (
         StatusCode::UNAUTHORIZED,
@@ -248,7 +249,7 @@ fn issue_tokens(
     Ok((access_token, refresh_token))
 }
 
-/// Sends verification email using Resend
+/// Sends verification email using Resend.
 async fn send_verification_email(email: &str, token: &str) -> anyhow::Result<()> {
     let api_key = std::env::var("RESEND_API_KEY")
         .map_err(|_| anyhow::anyhow!("RESEND_API_KEY must be set for email verification"))?;
@@ -280,7 +281,7 @@ async fn send_verification_email(email: &str, token: &str) -> anyhow::Result<()>
         .await?;
 
     if response.status().is_success() {
-        tracing::info!(email = %email, "Verification email sent successfully via Resend");
+        tracing::info!(email = %email, "verification email sent via Resend");
         Ok(())
     } else {
         let status = response.status();
@@ -289,7 +290,7 @@ async fn send_verification_email(email: &str, token: &str) -> anyhow::Result<()>
             email = %email,
             status = %status,
             error = %error_text,
-            "Failed to send verification email via Resend"
+            "failed to send verification email via Resend"
         );
         anyhow::bail!("Resend API returned {status}: {error_text}");
     }

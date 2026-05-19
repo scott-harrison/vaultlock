@@ -39,6 +39,22 @@ pub fn verify_login_password(
     }
 }
 
+/// Validates that a client-supplied value is an Argon2id PHC hash string.
+pub fn validate_master_password_hash(hash: &str) -> Result<(), argon2::password_hash::Error> {
+    if !hash.starts_with("$argon2id$") {
+        return Err(argon2::password_hash::Error::Password);
+    }
+    PasswordHash::new(hash)?;
+    Ok(())
+}
+
+/// Compares client-supplied and stored master password hashes in constant time.
+#[must_use]
+pub fn verify_master_password_hash(submitted: &str, stored: &str) -> bool {
+    use subtle::ConstantTimeEq;
+    submitted.as_bytes().ct_eq(stored.as_bytes()).into()
+}
+
 #[cfg(test)]
 mod tests {
     #![allow(clippy::unwrap_used)] // proptest! bodies must be infallible expressions
@@ -70,14 +86,29 @@ mod tests {
             let hash = hash_login_password(&password).unwrap();
             prop_assert!(!verify_login_password(&wrong, &hash).unwrap());
         }
-    }
 
-    #[test]
-    fn test_hash_and_verify_basic() -> Result<(), argon2::password_hash::Error> {
-        let password = "correct horse battery staple";
-        let hash = hash_login_password(password)?;
-        assert!(verify_login_password(password, &hash)?);
-        assert!(!verify_login_password("wrong password", &hash)?);
-        Ok(())
+        #[test]
+        fn prop_validate_master_password_hash_accepts_phc(credential in ".{8,32}") {
+            let hash = hash_login_password(&credential).unwrap();
+            validate_master_password_hash(&hash).unwrap();
+        }
+
+        #[test]
+        fn prop_validate_master_password_hash_rejects_non_phc(invalid in ".{1,32}") {
+            prop_assume!(!invalid.starts_with("$argon2id$"));
+            prop_assert!(validate_master_password_hash(&invalid).is_err());
+        }
+
+        #[test]
+        fn prop_verify_master_password_hash(
+            credential in ".{8,32}",
+            other_credential in ".{8,32}",
+        ) {
+            let hash = hash_login_password(&credential).unwrap();
+            prop_assert!(verify_master_password_hash(&hash, &hash));
+            prop_assume!(credential != other_credential);
+            let other_hash = hash_login_password(&other_credential).unwrap();
+            prop_assert!(!verify_master_password_hash(&other_hash, &hash));
+        }
     }
 }
