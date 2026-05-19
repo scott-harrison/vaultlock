@@ -2,6 +2,7 @@ pub mod jwt;
 
 use axum::{extract::State, http::StatusCode, Json};
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 use crate::{
     auth::jwt::{generate_access_token, generate_refresh_token, JwtConfig},
@@ -23,6 +24,17 @@ pub struct LoginRequest {
     pub master_password_hash: String,
 }
 
+#[derive(Deserialize)]
+pub struct VerifyEmailRequest {
+    pub token: String,
+}
+
+#[derive(Serialize)]
+pub struct RegisterResponse {
+    pub message: String,
+    pub email: String,
+}
+
 #[derive(Serialize)]
 pub struct AuthResponse {
     pub access_token: String,
@@ -33,17 +45,16 @@ pub struct AuthResponse {
 pub async fn register(
     State(state): State<AppState>,
     Json(payload): Json<RegisterRequest>,
-) -> (StatusCode, Json<AuthResponse>) {
+) -> (StatusCode, Json<RegisterResponse>) {
     tracing::debug!(email = %payload.email, "register attempt");
     let repo = UserRepository::new(state.db.clone());
 
     if repo.email_exists(&payload.email).await.unwrap_or(false) {
         return (
             StatusCode::CONFLICT,
-            Json(AuthResponse {
-                access_token: String::new(),
-                refresh_token: String::new(),
+            Json(RegisterResponse {
                 message: "Email already registered".to_string(),
+                email: payload.email,
             }),
         );
     }
@@ -52,31 +63,61 @@ pub async fn register(
         tracing::warn!(?e, "invalid master password hash format");
         return (
             StatusCode::BAD_REQUEST,
-            Json(AuthResponse {
-                access_token: String::new(),
-                refresh_token: String::new(),
+            Json(RegisterResponse {
                 message: "Invalid master password hash format".to_string(),
+                email: payload.email,
             }),
         );
     }
 
+    let verification_token = Uuid::new_v4().to_string();
+    stub_send_verification_email(&payload.email, &verification_token);
+
     let create_user = CreateUser {
-        email: payload.email,
+        email: payload.email.clone(),
         master_password_hash: payload.master_password_hash,
+        verification_token,
     };
 
     match repo.create(create_user).await {
-        Ok(user) => match issue_tokens(user.id) {
+        Ok(_user) => (
+            StatusCode::CREATED,
+            Json(RegisterResponse {
+                message: "Registration successful. Please verify your email.".to_string(),
+                email: payload.email,
+            }),
+        ),
+        Err(e) => {
+            tracing::warn!(?e, "failed to create user");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(RegisterResponse {
+                    message: "Failed to create user".to_string(),
+                    email: payload.email,
+                }),
+            )
+        }
+    }
+}
+
+pub async fn verify_email(
+    State(state): State<AppState>,
+    Json(payload): Json<VerifyEmailRequest>,
+) -> (StatusCode, Json<AuthResponse>) {
+    let repo = UserRepository::new(state.db.clone());
+
+    match repo.verify_email(&payload.token).await {
+        Ok(Some(user)) => match issue_tokens(user.id) {
             Ok((access_token, refresh_token)) => (
-                StatusCode::CREATED,
+                StatusCode::OK,
                 Json(AuthResponse {
                     access_token,
                     refresh_token,
-                    message: "User registered successfully".to_string(),
+                    message: "Email verified successfully".to_string(),
                 }),
             ),
             Err(e) => {
-                tracing::warn!(?e, "failed to issue tokens");
+                tracing::warn!(?e, "failed to issue tokens after verification");
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
                     Json(AuthResponse {
@@ -87,14 +128,22 @@ pub async fn register(
                 )
             }
         },
+        Ok(None) => (
+            StatusCode::BAD_REQUEST,
+            Json(AuthResponse {
+                access_token: String::new(),
+                refresh_token: String::new(),
+                message: "Invalid or expired verification token".to_string(),
+            }),
+        ),
         Err(e) => {
-            tracing::warn!(?e, "failed to create user");
+            tracing::warn!(?e, "database error during email verification");
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(AuthResponse {
                     access_token: String::new(),
                     refresh_token: String::new(),
-                    message: "Failed to create user".to_string(),
+                    message: "Database error".to_string(),
                 }),
             )
         }
@@ -129,6 +178,17 @@ pub async fn login(
         }
     };
 
+    if !user.email_verified {
+        return (
+            StatusCode::FORBIDDEN,
+            Json(AuthResponse {
+                access_token: String::new(),
+                refresh_token: String::new(),
+                message: "Email not verified".to_string(),
+            }),
+        );
+    }
+
     let is_valid =
         verify_master_password_hash(&payload.master_password_hash, &user.master_password_hash);
 
@@ -159,6 +219,15 @@ pub async fn login(
         state.login_delay.record_failure(&payload.email).await;
         invalid_credentials()
     }
+}
+
+fn stub_send_verification_email(email: &str, token: &str) {
+    tracing::info!(
+        email = %email,
+        token = %token,
+        verify_url = %format!("/verify-email"),
+        "email verification stub: would send verification email"
+    );
 }
 
 fn invalid_credentials() -> (StatusCode, Json<AuthResponse>) {
