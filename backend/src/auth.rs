@@ -38,8 +38,31 @@ pub struct RegisterResponse {
 #[derive(Serialize)]
 pub struct AuthResponse {
     pub access_token: String,
+    /// JWT access token alias for API consumers expecting a `token` field.
+    pub token: String,
     pub refresh_token: String,
     pub message: String,
+}
+
+impl AuthResponse {
+    fn new(access_token: String, refresh_token: String, message: String) -> Self {
+        Self {
+            token: access_token.clone(),
+            access_token,
+            refresh_token,
+            message,
+        }
+    }
+
+    #[allow(clippy::missing_const_for_fn)]
+    fn error(message: String) -> Self {
+        Self {
+            access_token: String::new(),
+            token: String::new(),
+            refresh_token: String::new(),
+            message,
+        }
+    }
 }
 
 pub async fn register(
@@ -117,41 +140,31 @@ pub async fn verify_email(
         Ok(Some(user)) => match issue_tokens(user.id) {
             Ok((access_token, refresh_token)) => (
                 StatusCode::OK,
-                Json(AuthResponse {
+                Json(AuthResponse::new(
                     access_token,
                     refresh_token,
-                    message: "Email verified successfully".to_string(),
-                }),
+                    "Email verified successfully".to_string(),
+                )),
             ),
             Err(e) => {
                 tracing::warn!(?e, "failed to issue tokens after verification");
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(AuthResponse {
-                        access_token: String::new(),
-                        refresh_token: String::new(),
-                        message: "Failed to issue tokens".to_string(),
-                    }),
+                    Json(AuthResponse::error("Failed to issue tokens".to_string())),
                 )
             }
         },
         Ok(None) => (
             StatusCode::BAD_REQUEST,
-            Json(AuthResponse {
-                access_token: String::new(),
-                refresh_token: String::new(),
-                message: "Invalid or expired verification token".to_string(),
-            }),
+            Json(AuthResponse::error(
+                "Invalid or expired verification token".to_string(),
+            )),
         ),
         Err(e) => {
             tracing::warn!(?e, "database error during email verification");
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(AuthResponse {
-                    access_token: String::new(),
-                    refresh_token: String::new(),
-                    message: "Database error".to_string(),
-                }),
+                Json(AuthResponse::error("Database error".to_string())),
             )
         }
     }
@@ -176,11 +189,7 @@ pub async fn login(
             tracing::warn!(?e, "database error during login");
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(AuthResponse {
-                    access_token: String::new(),
-                    refresh_token: String::new(),
-                    message: "Database error".to_string(),
-                }),
+                Json(AuthResponse::error("Database error".to_string())),
             );
         }
     };
@@ -188,12 +197,9 @@ pub async fn login(
     if !user.email_verified {
         return (
             StatusCode::FORBIDDEN,
-            Json(AuthResponse {
-                access_token: String::new(),
-                refresh_token: String::new(),
-                message: "Email not verified. Please check your email and verify your account."
-                    .to_string(),
-            }),
+            Json(AuthResponse::error(
+                "Email not verified. Please check your email and verify your account.".to_string(),
+            )),
         );
     }
 
@@ -205,21 +211,17 @@ pub async fn login(
         match issue_tokens(user.id) {
             Ok((access_token, refresh_token)) => (
                 StatusCode::OK,
-                Json(AuthResponse {
+                Json(AuthResponse::new(
                     access_token,
                     refresh_token,
-                    message: "Login successful".to_string(),
-                }),
+                    "Login successful".to_string(),
+                )),
             ),
             Err(e) => {
                 tracing::warn!(?e, "failed to issue tokens");
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(AuthResponse {
-                        access_token: String::new(),
-                        refresh_token: String::new(),
-                        message: "Failed to issue tokens".to_string(),
-                    }),
+                    Json(AuthResponse::error("Failed to issue tokens".to_string())),
                 )
             }
         }
@@ -232,11 +234,7 @@ pub async fn login(
 fn invalid_credentials() -> (StatusCode, Json<AuthResponse>) {
     (
         StatusCode::UNAUTHORIZED,
-        Json(AuthResponse {
-            access_token: String::new(),
-            refresh_token: String::new(),
-            message: "Invalid credentials".to_string(),
-        }),
+        Json(AuthResponse::error("Invalid credentials".to_string())),
     )
 }
 
@@ -293,5 +291,20 @@ async fn send_verification_email(email: &str, token: &str) -> anyhow::Result<()>
             "failed to send verification email via Resend"
         );
         anyhow::bail!("Resend API returned {status}: {error_text}");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn auth_response_includes_token_alias() {
+        let response = AuthResponse::new(
+            "access.jwt".to_string(),
+            "refresh.jwt".to_string(),
+            "ok".to_string(),
+        );
+        assert_eq!(response.token, response.access_token);
     }
 }
