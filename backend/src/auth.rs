@@ -249,11 +249,11 @@ fn issue_tokens(
 }
 
 /// Sends verification email using Resend
-async fn send_verification_email(email: &str, token: &str) -> Result<(), reqwest::Error> {
-    let api_key =
-        std::env::var("RESEND_API_KEY").expect("RESEND_API_KEY must be set for email verification");
+async fn send_verification_email(email: &str, token: &str) -> anyhow::Result<()> {
+    let api_key = std::env::var("RESEND_API_KEY")
+        .map_err(|_| anyhow::anyhow!("RESEND_API_KEY must be set for email verification"))?;
 
-    let verify_url = format!("https://your-domain.com/verify?token={}", token);
+    let verify_url = format!("https://your-domain.com/verify?token={token}");
 
     let payload = serde_json::json!({
         "from": "Vaultlock <onboarding@resend.dev>",
@@ -273,7 +273,7 @@ async fn send_verification_email(email: &str, token: &str) -> Result<(), reqwest
     let client = reqwest::Client::new();
     let response = client
         .post("https://api.resend.com/emails")
-        .header("Authorization", format!("Bearer {}", api_key))
+        .header("Authorization", format!("Bearer {api_key}"))
         .header("Content-Type", "application/json")
         .json(&payload)
         .send()
@@ -283,8 +283,14 @@ async fn send_verification_email(email: &str, token: &str) -> Result<(), reqwest
         tracing::info!(email = %email, "Verification email sent successfully via Resend");
         Ok(())
     } else {
-        let error_text = response.text().await?;
-        tracing::error!(email = %email, error = %error_text, "Failed to send verification email via Resend");
-        Err(reqwest::Error::new(reqwest::ErrorKind::Status, error_text))
+        let status = response.status();
+        let error_text = response.text().await.unwrap_or_default();
+        tracing::error!(
+            email = %email,
+            status = %status,
+            error = %error_text,
+            "Failed to send verification email via Resend"
+        );
+        anyhow::bail!("Resend API returned {status}: {error_text}");
     }
 }

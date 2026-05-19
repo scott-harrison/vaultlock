@@ -5,7 +5,7 @@ mod models;
 mod repositories;
 mod vault;
 
-use crate::auth::{login, register};
+use crate::auth::{login, register, verify_email};
 use crate::middleware::{
     progressive_delay::ProgressiveDelay,
     rate_limit::{login_rate_limit_middleware, LoginRateLimiter},
@@ -35,6 +35,7 @@ pub fn app(db: PgPool) -> Router {
     Router::new()
         .route("/health", get(health_check))
         .route("/register", post(register))
+        .route("/verify-email", post(verify_email))
         .route(
             "/login",
             post(login).route_layer(from_fn_with_state(
