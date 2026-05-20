@@ -46,7 +46,10 @@ pub fn app(db: PgPool, jwt: JwtConfig) -> Router {
                 .put(update_vault_item)
                 .delete(delete_vault_item),
         )
-        .route("/vault/items", get(list_vault_items).post(create_vault_item))
+        .route(
+            "/vault/items",
+            get(list_vault_items).post(create_vault_item),
+        )
         .route_layer(jwt_auth);
 
     Router::new()

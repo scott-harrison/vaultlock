@@ -1,9 +1,7 @@
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::models::vault_item::{
-    CreateVaultItem, UpdateVaultItem, VaultItem, VaultItemResponse,
-};
+use crate::models::vault_item::{CreateVaultItem, UpdateVaultItem, VaultItem, VaultItemResponse};
 
 pub struct VaultItemRepository {
     pool: PgPool,
@@ -91,11 +89,7 @@ impl VaultItemRepository {
         Ok(item.map(VaultItemResponse::from_item))
     }
 
-    pub async fn delete_for_user(
-        &self,
-        item_id: Uuid,
-        user_id: Uuid,
-    ) -> Result<bool, sqlx::Error> {
+    pub async fn delete_for_user(&self, item_id: Uuid, user_id: Uuid) -> Result<bool, sqlx::Error> {
         let result = sqlx::query("DELETE FROM vault_items WHERE id = $1 AND user_id = $2")
             .bind(item_id)
             .bind(user_id)
