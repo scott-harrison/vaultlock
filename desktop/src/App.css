@@ -46,7 +46,8 @@ body {
 }
 
 .card {
-  max-width: 28rem;
+  width: 100%;
+  max-width: 32rem;
   padding: 1.5rem 2rem;
   border-radius: 12px;
   background: #1a1d27;
@@ -71,4 +72,113 @@ body {
 .hint {
   font-size: 0.875rem;
   color: #9aa0a6;
+}
+
+.field-label {
+  display: block;
+  margin: 1rem 0 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #c4c7ce;
+}
+
+.text-input {
+  width: 100%;
+  padding: 0.625rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid #3d4254;
+  background: #0f1117;
+  color: #e8eaed;
+  font: inherit;
+}
+
+.text-input:focus {
+  outline: 2px solid #5b8def;
+  outline-offset: 1px;
+  border-color: #5b8def;
+}
+
+.text-input:disabled {
+  opacity: 0.6;
+}
+
+.saved-url {
+  margin-top: 0.75rem;
+  font-size: 0.8125rem;
+  color: #9aa0a6;
+}
+
+.saved-url code {
+  color: #c4c7ce;
+}
+
+.button-row {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
+
+.btn {
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: #5b8def;
+  color: #0f1117;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: #7aa3f3;
+}
+
+.btn-secondary {
+  background: transparent;
+  border-color: #3d4254;
+  color: #e8eaed;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  border-color: #5b8def;
+}
+
+.status {
+  display: block;
+  margin-top: 1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.status-connected {
+  color: #6dd58c;
+}
+
+.status-failed {
+  color: #f28b82;
+}
+
+.status-testing {
+  color: #9aa0a6;
+}
+
+.feedback {
+  margin-top: 0.75rem;
+  font-size: 0.875rem;
+}
+
+.feedback-info {
+  color: #c4c7ce;
+}
+
+.feedback-error {
+  color: #f28b82;
 }

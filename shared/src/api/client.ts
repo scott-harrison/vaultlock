@@ -31,13 +31,18 @@ function normalizeBaseUrl(baseUrl: string): string {
   return baseUrl.replace(/\/$/, "");
 }
 
+/** Browser fetch must not be extracted unbound — breaks Tauri/WebView. */
+function defaultFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  return globalThis.fetch(input, init);
+}
+
 export class VaultlockApiClient {
   private readonly baseUrl: string;
   private readonly fetchImpl: typeof fetch;
 
   constructor(options: VaultlockApiClientOptions) {
     this.baseUrl = normalizeBaseUrl(options.baseUrl);
-    this.fetchImpl = options.fetch ?? fetch;
+    this.fetchImpl = options.fetch ?? defaultFetch;
   }
 
   async healthCheck(): Promise<boolean> {

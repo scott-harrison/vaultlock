@@ -42,6 +42,19 @@ describe("VaultlockApiClient", () => {
     );
   });
 
+  it("uses bound default fetch when none provided", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      text: async () => "ok",
+    } as Response);
+
+    const client = new VaultlockApiClient({ baseUrl: "http://localhost:8080" });
+    await expect(client.healthCheck()).resolves.toBe(true);
+    expect(fetchSpy).toHaveBeenCalledWith("http://localhost:8080/health", undefined);
+
+    fetchSpy.mockRestore();
+  });
+
   it("throws VaultlockApiError on failure", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: false,
