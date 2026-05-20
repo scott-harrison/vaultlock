@@ -1,9 +1,9 @@
-use axum::{extract::State, Extension, Json};
-use serde::Deserialize;
+use axum::{extract::State, http::StatusCode, Extension, Json};
+use serde::{Deserialize, Serialize};
 
 use crate::{
     middleware::jwt_auth::AuthenticatedUser,
-    models::vault_item::{base64_bytes, CreateVaultItem, VaultItemResponse},
+    models::vault_item::{base64_bytes, validate_item_type, CreateVaultItem, VaultItemResponse},
     repositories::vault_item_repository::VaultItemRepository,
     AppState,
 };
@@ -17,11 +17,25 @@ pub struct CreateVaultItemRequest {
     pub nonce: Vec<u8>,
 }
 
+#[derive(Serialize)]
+pub struct VaultErrorResponse {
+    pub message: String,
+}
+
 pub async fn create_vault_item(
     State(state): State<AppState>,
     Extension(AuthenticatedUser(user_id)): Extension<AuthenticatedUser>,
     Json(payload): Json<CreateVaultItemRequest>,
-) -> Json<VaultItemResponse> {
+) -> Result<Json<VaultItemResponse>, (StatusCode, Json<VaultErrorResponse>)> {
+    if validate_item_type(&payload.item_type).is_err() {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(VaultErrorResponse {
+                message: "item_type must be one of: login, note, card".to_string(),
+            }),
+        ));
+    }
+
     let repo = VaultItemRepository::new(state.db.clone());
 
     let create = CreateVaultItem {
@@ -32,17 +46,15 @@ pub async fn create_vault_item(
     };
 
     match repo.create(create).await {
-        Ok(item) => Json(item),
+        Ok(item) => Ok(Json(item)),
         Err(e) => {
             tracing::error!(?e, "failed to create vault item");
-            Json(VaultItemResponse {
-                id: uuid::Uuid::nil(),
-                item_type: String::new(),
-                encrypted_data: Vec::new(),
-                nonce: Vec::new(),
-                created_at: chrono::Utc::now(),
-                updated_at: chrono::Utc::now(),
-            })
+            Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(VaultErrorResponse {
+                    message: "failed to create vault item".to_string(),
+                }),
+            ))
         }
     }
 }

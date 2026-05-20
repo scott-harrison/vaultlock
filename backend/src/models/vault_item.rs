@@ -23,6 +23,20 @@ pub mod base64_bytes {
     }
 }
 
+const ALLOWED_ITEM_TYPES: [&str; 3] = ["login", "note", "card"];
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct InvalidVaultItemType;
+
+/// Returns `Ok(())` when `item_type` is one of `login`, `note`, or `card`.
+pub fn validate_item_type(item_type: &str) -> Result<(), InvalidVaultItemType> {
+    if ALLOWED_ITEM_TYPES.contains(&item_type) {
+        Ok(())
+    } else {
+        Err(InvalidVaultItemType)
+    }
+}
+
 #[derive(Debug, Clone, FromRow, Serialize, Deserialize)]
 pub struct VaultItem {
     pub id: Uuid,
@@ -88,5 +102,19 @@ mod tests {
         let value = serde_json::to_value(response).expect("json");
         assert_eq!(value["encrypted_data"], json!("AQID"));
         assert_eq!(value["nonce"], json!("BAUG"));
+    }
+
+    #[test]
+    fn validate_item_type_accepts_supported_values() {
+        for item_type in ["login", "note", "card"] {
+            assert!(validate_item_type(item_type).is_ok());
+        }
+    }
+
+    #[test]
+    fn validate_item_type_rejects_unknown_values() {
+        assert!(validate_item_type("password").is_err());
+        assert!(validate_item_type("").is_err());
+        assert!(validate_item_type("LOGIN").is_err());
     }
 }
