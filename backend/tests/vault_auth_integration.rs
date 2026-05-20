@@ -72,10 +72,7 @@ async fn verified_access_token(app: &TestApp, email: &str, hash: &str) -> String
 async fn legacy_vault_route_is_removed() {
     let app = TestApp::spawn().await;
 
-    assert_status(
-        app.post_json("/vault", "{}").await,
-        StatusCode::NOT_FOUND,
-    );
+    assert_status(app.post_json("/vault", "{}").await, StatusCode::NOT_FOUND);
     assert_status(app.get("/vault").await, StatusCode::NOT_FOUND);
 }
 
@@ -266,7 +263,10 @@ async fn vault_token_user_isolation() {
         StatusCode::OK,
     );
 
-    let list_b = assert_status(app.get_bearer("/vault/items", &token_b).await, StatusCode::OK);
+    let list_b = assert_status(
+        app.get_bearer("/vault/items", &token_b).await,
+        StatusCode::OK,
+    );
     let listed_b: Vec<serde_json::Value> =
         serde_json::from_slice(&common::TestApp::response_body(list_b).await).expect("list json");
     assert!(listed_b.is_empty());
