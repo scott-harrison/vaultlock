@@ -2,6 +2,7 @@ packages:
   - 'frontend'
   - 'mobile'
   - 'extension'
+  - 'shared'
 
 # Supply chain: https://pnpm.io/supply-chain-security
 blockExoticSubdeps: true
