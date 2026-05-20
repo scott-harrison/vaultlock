@@ -1,15 +1,17 @@
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::StatusCode,
     Extension, Json,
 };
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
     middleware::jwt_auth::AuthenticatedUser,
     models::vault_item::{
-        base64_bytes, validate_item_type, CreateVaultItem, UpdateVaultItem, VaultItemResponse,
+        base64_bytes, validate_item_type, CreateVaultItem, UpdateVaultItem, VaultItemListResponse,
+        VaultItemResponse,
     },
     repositories::vault_item_repository::VaultItemRepository,
     AppState,
@@ -34,9 +36,20 @@ pub struct UpdateVaultItemRequest {
     pub item_type: Option<String>,
 }
 
+#[derive(Deserialize)]
+pub struct ListVaultItemsQuery {
+    pub since: Option<String>,
+}
+
 #[derive(Serialize)]
 pub struct VaultErrorResponse {
     pub message: String,
+}
+
+fn parse_since_param(since: &str) -> Result<DateTime<Utc>, ()> {
+    DateTime::parse_from_rfc3339(since)
+        .map(|value| value.with_timezone(&Utc))
+        .map_err(|_| ())
 }
 
 pub async fn create_vault_item(
@@ -79,14 +92,33 @@ pub async fn create_vault_item(
 pub async fn list_vault_items(
     State(state): State<AppState>,
     Extension(AuthenticatedUser(user_id)): Extension<AuthenticatedUser>,
-) -> Json<Vec<VaultItemResponse>> {
+    Query(query): Query<ListVaultItemsQuery>,
+) -> Result<Json<VaultItemListResponse>, (StatusCode, Json<VaultErrorResponse>)> {
+    let since = match query.since {
+        None => None,
+        Some(value) if value.is_empty() => None,
+        Some(value) => Some(parse_since_param(&value).map_err(|()| {
+            (
+                StatusCode::BAD_REQUEST,
+                Json(VaultErrorResponse {
+                    message: "since must be a valid RFC3339 timestamp".to_string(),
+                }),
+            )
+        })?),
+    };
+
     let repo = VaultItemRepository::new(state.db.clone());
 
-    match repo.find_by_user(user_id).await {
-        Ok(items) => Json(items),
+    match repo.find_by_user(user_id, since).await {
+        Ok(items) => Ok(Json(VaultItemListResponse::from_items(items))),
         Err(e) => {
             tracing::error!(?e, "failed to list vault items");
-            Json(vec![])
+            Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(VaultErrorResponse {
+                    message: "failed to list vault items".to_string(),
+                }),
+            ))
         }
     }
 }

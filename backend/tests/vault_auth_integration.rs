@@ -29,6 +29,16 @@ fn client_encrypted_blob(plaintext: &[u8]) -> (String, String) {
     (STANDARD.encode(encrypted_data), STANDARD.encode(nonce))
 }
 
+async fn parse_list_response(
+    response: axum::response::Response,
+) -> (Vec<serde_json::Value>, Option<String>) {
+    let body: serde_json::Value =
+        serde_json::from_slice(&common::TestApp::response_body(response).await).expect("list json");
+    let items = body["items"].as_array().expect("items array").clone();
+    let sync_token = body["sync_token"].as_str().map(str::to_string);
+    (items, sync_token)
+}
+
 async fn verified_access_token(app: &TestApp, email: &str, hash: &str) -> String {
     assert_status(
         app.post_json(
@@ -133,13 +143,12 @@ async fn vault_create_and_list_return_client_ciphertext() {
     assert_eq!(created["nonce"], nonce);
 
     let list_response = assert_status(app.get_bearer("/vault/items", &token).await, StatusCode::OK);
-    let listed: Vec<serde_json::Value> =
-        serde_json::from_slice(&common::TestApp::response_body(list_response).await)
-            .expect("list json");
+    let (listed, sync_token) = parse_list_response(list_response).await;
     assert_eq!(listed.len(), 1);
     assert_eq!(listed[0]["id"].as_str(), Some(item_id));
     assert_eq!(listed[0]["encrypted_data"], encrypted_data);
     assert_eq!(listed[0]["nonce"], nonce);
+    assert!(sync_token.is_some());
 }
 
 #[tokio::test]
@@ -197,9 +206,7 @@ async fn vault_accepts_supported_item_types() {
     }
 
     let list_response = assert_status(app.get_bearer("/vault/items", &token).await, StatusCode::OK);
-    let listed: Vec<serde_json::Value> =
-        serde_json::from_slice(&common::TestApp::response_body(list_response).await)
-            .expect("list json");
+    let (listed, _) = parse_list_response(list_response).await;
     assert_eq!(listed.len(), 3);
 }
 
@@ -267,9 +274,9 @@ async fn vault_token_user_isolation() {
         app.get_bearer("/vault/items", &token_b).await,
         StatusCode::OK,
     );
-    let listed_b: Vec<serde_json::Value> =
-        serde_json::from_slice(&common::TestApp::response_body(list_b).await).expect("list json");
+    let (listed_b, sync_token_b) = parse_list_response(list_b).await;
     assert!(listed_b.is_empty());
+    assert!(sync_token_b.is_none());
 }
 
 #[tokio::test]
@@ -421,4 +428,105 @@ async fn vault_item_crud_enforces_ownership() {
             .await,
         StatusCode::OK,
     );
+}
+
+#[tokio::test]
+async fn vault_list_rejects_invalid_since_parameter() {
+    let app = TestApp::spawn().await;
+    let token = verified_access_token(
+        &app,
+        "invalid-since@example.com",
+        &phc_hash_for_credential(&random_credential(24)),
+    )
+    .await;
+
+    assert_status(
+        app.get_bearer("/vault/items?since=not-a-timestamp", &token)
+            .await,
+        StatusCode::BAD_REQUEST,
+    );
+}
+
+#[tokio::test]
+async fn vault_list_supports_incremental_sync_with_since() {
+    let app = TestApp::spawn().await;
+    let token = verified_access_token(
+        &app,
+        "vault-sync@example.com",
+        &phc_hash_for_credential(&random_credential(24)),
+    )
+    .await;
+
+    let (encrypted_data_a, nonce_a) = client_encrypted_blob(b"first item");
+    let first_item_response = assert_status(
+        app.post_json_bearer(
+            "/vault/items",
+            &json!({
+                "encrypted_data": encrypted_data_a,
+                "nonce": nonce_a,
+                "item_type": "login"
+            })
+            .to_string(),
+            &token,
+        )
+        .await,
+        StatusCode::OK,
+    );
+    let created_a: serde_json::Value =
+        serde_json::from_slice(&common::TestApp::response_body(first_item_response).await)
+            .expect("create json");
+    let item_a_id = created_a["id"].as_str().expect("item id");
+
+    let initial_list = assert_status(app.get_bearer("/vault/items", &token).await, StatusCode::OK);
+    let (initial_items, sync_token) = parse_list_response(initial_list).await;
+    assert_eq!(initial_items.len(), 1);
+    let sync_token = sync_token.expect("sync token");
+
+    sqlx::query(
+        "UPDATE vault_items SET updated_at = TIMESTAMP '2020-01-01 00:00:00+00' WHERE id = $1",
+    )
+    .bind(uuid::Uuid::parse_str(item_a_id).expect("uuid"))
+    .execute(&app.pool)
+    .await
+    .expect("backdate item");
+
+    let unchanged = assert_status(
+        app.get_bearer(&format!("/vault/items?since={sync_token}"), &token)
+            .await,
+        StatusCode::OK,
+    );
+    let (unchanged_items, unchanged_sync_token) = parse_list_response(unchanged).await;
+    assert!(unchanged_items.is_empty());
+    assert!(unchanged_sync_token.is_none());
+
+    let (encrypted_data_b, nonce_b) = client_encrypted_blob(b"second item");
+    let second_item_response = assert_status(
+        app.post_json_bearer(
+            "/vault/items",
+            &json!({
+                "encrypted_data": encrypted_data_b,
+                "nonce": nonce_b,
+                "item_type": "note"
+            })
+            .to_string(),
+            &token,
+        )
+        .await,
+        StatusCode::OK,
+    );
+    let created_b: serde_json::Value =
+        serde_json::from_slice(&common::TestApp::response_body(second_item_response).await)
+            .expect("create json");
+    let item_b_id = created_b["id"].as_str().expect("item id");
+
+    let incremental = assert_status(
+        app.get_bearer(&format!("/vault/items?since={sync_token}"), &token)
+            .await,
+        StatusCode::OK,
+    );
+    let (incremental_items, incremental_sync_token) = parse_list_response(incremental).await;
+    assert_eq!(incremental_items.len(), 1);
+    assert_eq!(incremental_items[0]["id"].as_str(), Some(item_b_id));
+    assert!(incremental_sync_token.is_some());
+    assert_ne!(incremental_sync_token.as_deref(), Some(sync_token.as_str()));
 }

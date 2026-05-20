@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -30,13 +31,40 @@ impl VaultItemRepository {
         Ok(VaultItemResponse::from_item(item))
     }
 
-    pub async fn find_by_user(&self, user_id: Uuid) -> Result<Vec<VaultItemResponse>, sqlx::Error> {
-        let items = sqlx::query_as::<_, VaultItem>(
-            "SELECT id, user_id, encrypted_data, nonce, item_type, created_at, updated_at FROM vault_items WHERE user_id = $1 ORDER BY created_at DESC",
-        )
-        .bind(user_id)
-        .fetch_all(&self.pool)
-        .await?;
+    pub async fn find_by_user(
+        &self,
+        user_id: Uuid,
+        since: Option<DateTime<Utc>>,
+    ) -> Result<Vec<VaultItemResponse>, sqlx::Error> {
+        let items = match since {
+            Some(since) => {
+                sqlx::query_as::<_, VaultItem>(
+                    r"
+                    SELECT id, user_id, encrypted_data, nonce, item_type, created_at, updated_at
+                    FROM vault_items
+                    WHERE user_id = $1 AND updated_at > $2
+                    ORDER BY updated_at ASC, id ASC
+                    ",
+                )
+                .bind(user_id)
+                .bind(since)
+                .fetch_all(&self.pool)
+                .await?
+            }
+            None => {
+                sqlx::query_as::<_, VaultItem>(
+                    r"
+                    SELECT id, user_id, encrypted_data, nonce, item_type, created_at, updated_at
+                    FROM vault_items
+                    WHERE user_id = $1
+                    ORDER BY updated_at ASC, id ASC
+                    ",
+                )
+                .bind(user_id)
+                .fetch_all(&self.pool)
+                .await?
+            }
+        };
 
         Ok(items
             .into_iter()

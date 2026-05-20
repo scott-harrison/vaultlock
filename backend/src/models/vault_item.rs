@@ -75,6 +75,19 @@ pub struct VaultItemResponse {
     pub updated_at: DateTime<Utc>,
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct VaultItemListResponse {
+    pub items: Vec<VaultItemResponse>,
+    pub sync_token: Option<DateTime<Utc>>,
+}
+
+impl VaultItemListResponse {
+    pub fn from_items(items: Vec<VaultItemResponse>) -> Self {
+        let sync_token = items.iter().map(|item| item.updated_at).max();
+        Self { items, sync_token }
+    }
+}
+
 impl VaultItemResponse {
     pub fn from_item(item: VaultItem) -> Self {
         Self {
@@ -93,6 +106,7 @@ mod tests {
     #![allow(clippy::expect_used)]
 
     use super::*;
+    use chrono::TimeZone;
     use serde_json::json;
 
     #[test]
@@ -116,6 +130,41 @@ mod tests {
         for item_type in ["login", "note", "card"] {
             assert!(validate_item_type(item_type).is_ok());
         }
+    }
+
+    #[test]
+    fn vault_item_list_response_sets_sync_token_to_max_updated_at() {
+        let older = Utc.with_ymd_and_hms(2026, 5, 20, 10, 0, 0).unwrap();
+        let newer = Utc.with_ymd_and_hms(2026, 5, 20, 12, 0, 0).unwrap();
+        let items = vec![
+            VaultItemResponse {
+                id: Uuid::nil(),
+                item_type: "login".to_string(),
+                encrypted_data: vec![1],
+                nonce: vec![2],
+                created_at: older,
+                updated_at: older,
+            },
+            VaultItemResponse {
+                id: Uuid::new_v4(),
+                item_type: "note".to_string(),
+                encrypted_data: vec![3],
+                nonce: vec![4],
+                created_at: newer,
+                updated_at: newer,
+            },
+        ];
+
+        let response = VaultItemListResponse::from_items(items);
+        assert_eq!(response.sync_token, Some(newer));
+        assert_eq!(response.items.len(), 2);
+    }
+
+    #[test]
+    fn vault_item_list_response_has_no_sync_token_when_empty() {
+        let response = VaultItemListResponse::from_items(vec![]);
+        assert!(response.sync_token.is_none());
+        assert!(response.items.is_empty());
     }
 
     #[test]
