@@ -130,7 +130,13 @@ pnpm tauri dev
 
 The first run compiles the Rust shell and may take several minutes. Subsequent runs are incremental.
 
-You should see a native **Vaultlock** window with the placeholder UI.
+You should see a native **Vaultlock** window with the **Server connection** settings screen (sub-task 11-02).
+
+1. Enter your backend URL (default `http://localhost:8080`)
+2. Click **Test connection** — calls `GET /health` via `@vaultlock/shared`
+3. Click **Save** — persists the URL in Tauri's local store (`settings.json`)
+
+Start the backend first (see [Start the backend](#start-the-backend)) to get a successful health check.
 
 ### Desktop scripts
 
