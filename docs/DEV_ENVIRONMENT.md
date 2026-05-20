@@ -202,7 +202,20 @@ Tauri expects Vite on **1420** (`desktop/vite.config.ts`). Free the port or stop
 ### Tauri build errors on macOS
 
 - Run `xcode-select --install`
-- Ensure `rustc` and `cargo` are on your PATH (`source ~/.cargo/env`)
+- Ensure `rustc` and `cargo` are on your PATH:
+
+  ```bash
+  source "$HOME/.cargo/env"
+  cargo --version
+  ```
+
+  If `cargo --version` fails, install Rust from [rustup.rs](https://rustup.rs/) and add this to `~/.zshrc` (or `~/.zshenv`):
+
+  ```bash
+  . "$HOME/.cargo/env"
+  ```
+
+  **Cursor / VS Code terminals** sometimes start without `~/.cargo/bin` on `PATH`. Either restart the terminal after installing Rust, or run `source "$HOME/.cargo/env"` before `pnpm desktop:dev`.
 
 ### Tauri build errors on Windows
 
