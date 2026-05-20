@@ -1,0 +1,49 @@
+meta {
+  name: Register
+  type: http
+  seq: 1
+}
+
+docs {
+  Creates an unverified user account.
+
+  **POST** `{{baseUrl}}/register`
+
+  | Field | Description |
+  |-------|-------------|
+  | `email` | Account email address |
+  | `master_password_hash` | Argon2id PHC string derived on the client (not plaintext) |
+
+  **Responses**
+  - `201` — account created; verification email sent (when `RESEND_API_KEY` is configured)
+  - `400` — invalid `master_password_hash` format (must start with `$argon2id$`)
+  - `409` — email already registered
+
+  Set `masterPasswordHash` in the local environment before running. Use the same value for login after verification.
+}
+
+post {
+  url: {{baseUrl}}/register
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "email": "{{email}}",
+    "master_password_hash": "{{masterPasswordHash}}"
+  }
+}
+
+assert {
+  res.status: eq 201
+  res.body.email: eq {{email}}
+  res.body.message: contains Registration successful
+}
+
+script:post-response {
+  const body = res.getBody();
+  if (body.email) {
+    bru.setVar("email", body.email);
+  }
+}

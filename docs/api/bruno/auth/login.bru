@@ -1,30 +1,55 @@
 meta {
   name: Login
   type: http
-  seq: 2
+  seq: 3
+}
+
+docs {
+  Authenticates a verified user and issues JWT tokens.
+
+  **POST** `{{baseUrl}}/login`
+
+  | Field | Description |
+  |-------|-------------|
+  | `email` | Registered email address |
+  | `master_password_hash` | Same Argon2id PHC string used at registration |
+
+  **Responses**
+  - `200` — login successful; returns `access_token`, `token` (alias), `refresh_token`, and `message`
+  - `401` — invalid credentials
+  - `403` — email not yet verified (run **Verify Email** first)
+
+  Requires the account to be verified via `/verify-email` before login succeeds.
 }
 
 post {
-  url: {{baseUrl}}/auth/login
+  url: {{baseUrl}}/login
   body: json
   auth: none
 }
 
 body:json {
   {
-    "email": "user@example.com",
-    "password": "password123"
+    "email": "{{email}}",
+    "master_password_hash": "{{masterPasswordHash}}"
   }
 }
 
 assert {
   res.status: eq 200
-  res.body: contains "token"
+  res.body.message: eq Login successful
+  res.body.access_token: isDefined
+  res.body.token: isDefined
+  res.body.refresh_token: isDefined
 }
 
 script:post-response {
   const body = res.getBody();
-  if (body.token) {
-    console.log('Login successful, token received');
+  const token = body.access_token || body.token;
+  if (token) {
+    bru.setVar("accessToken", token);
+  }
+  if (body.refresh_token) {
+    bru.setVar("refreshToken", body.refresh_token);
   }
 }

@@ -1,0 +1,55 @@
+meta {
+  name: Verify Email
+  type: http
+  seq: 2
+}
+
+docs {
+  Verifies a newly registered account and issues JWT tokens.
+
+  **POST** `{{baseUrl}}/verify-email`
+
+  | Field | Description |
+  |-------|-------------|
+  | `token` | Verification token from the registration email |
+
+  **Responses**
+  - `200` — email verified; returns `access_token`, `token` (alias), `refresh_token`, and `message`
+  - `400` — invalid or expired token
+
+  For local development without email delivery, read the token from the database:
+  `SELECT verification_token FROM users WHERE email = '<email>';`
+
+  Then set `verificationToken` in the Bruno environment and run this request before login.
+}
+
+post {
+  url: {{baseUrl}}/verify-email
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "token": "{{verificationToken}}"
+  }
+}
+
+assert {
+  res.status: eq 200
+  res.body.message: eq Email verified successfully
+  res.body.access_token: isDefined
+  res.body.token: isDefined
+  res.body.refresh_token: isDefined
+}
+
+script:post-response {
+  const body = res.getBody();
+  const token = body.access_token || body.token;
+  if (token) {
+    bru.setVar("accessToken", token);
+  }
+  if (body.refresh_token) {
+    bru.setVar("refreshToken", body.refresh_token);
+  }
+}
