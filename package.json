@@ -6,15 +6,16 @@
   "scripts": {
     "prepare": "husky",
     "format": "biome format --write . && cargo fmt --all --manifest-path backend/Cargo.toml",
-    "lint": "biome lint . && cargo clippy --manifest-path backend/Cargo.toml --all-targets -- -D warnings",
+    "check:deps": "node scripts/check-pinned-deps.mjs",
+    "lint": "biome lint . && node scripts/check-pinned-deps.mjs && cargo clippy --manifest-path backend/Cargo.toml --all-targets -- -D warnings",
     "lint:fix": "biome lint --apply . && cargo clippy --manifest-path backend/Cargo.toml --all-targets --fix --allow-dirty --allow-staged -- -D warnings",
     "test": "cargo test --manifest-path backend/Cargo.toml && pnpm --filter @vaultlock/shared test",
     "desktop:dev": "pnpm --filter @vaultlock/desktop tauri dev",
     "desktop:build": "pnpm --filter @vaultlock/desktop tauri build",
-    "ci": "biome check . && cargo fmt --all --manifest-path backend/Cargo.toml -- --check && cargo clippy --manifest-path backend/Cargo.toml --all-targets -- -D warnings"
+    "ci": "biome check . && node scripts/check-pinned-deps.mjs && cargo fmt --all --manifest-path backend/Cargo.toml -- --check && cargo clippy --manifest-path backend/Cargo.toml --all-targets -- -D warnings"
   },
   "devDependencies": {
-    "@biomejs/biome": "^1.9.4",
-    "husky": "^9.1.7"
+    "@biomejs/biome": "1.9.4",
+    "husky": "9.1.7"
   }
 }

@@ -12,7 +12,8 @@ docs {
   | Field | Description |
   |-------|-------------|
   | `email` | Registered email address |
-  | `master_password_hash` | Same Argon2id PHC string used at registration |
+  | `master_password` | Master password preimage (works on any client) |
+  | `master_password_hash` | Optional legacy: exact Argon2id PHC from registration on this device |
 
   **Responses**
   - `200` — login successful; returns `access_token`, `token` (alias), `refresh_token`, and `message`

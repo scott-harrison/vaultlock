@@ -63,6 +63,9 @@ jobs:
     - name: Run Biome checks
       run: biome check --diagnostic-level=error .
 
+    - name: Check pinned dependency versions
+      run: node scripts/check-pinned-deps.mjs
+
     - uses: pnpm/action-setup@v6
       with:
         version: 11.0.9

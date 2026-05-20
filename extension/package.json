@@ -10,6 +10,6 @@
     "format": "biome format --write ."
   },
   "dependencies": {
-    "plasmo": "^0.89.0"
+    "plasmo": "0.89.5"
   }
 }
