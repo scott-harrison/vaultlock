@@ -15,7 +15,7 @@ Vaultlock is a modern, zero-knowledge, end-to-end encrypted password manager + s
 - Zero-knowledge architecture (server is cryptographically blind)
 - Easy self-hosting (Docker + one-command deploy)
 - Beautiful, professional, serious UI (no cute elements)
-- Cross-platform access (Web + Browser Extension + Desktop + Mobile later)
+- Cross-platform access (Desktop + Browser Extension + Mobile — **no standalone web app**)
 
 ---
 
@@ -37,25 +37,25 @@ Vaultlock is a modern, zero-knowledge, end-to-end encrypted password manager + s
 
 ## 3. Core Features
 
-### MVP (Phase 1)
-- User registration & login (master password)
+### MVP (Phase 1–2)
+- User registration & login (master password) — **backend done**
+- **Desktop app (Tauri)** — primary client for vault CRUD
 - Vault: Logins (URL, username, password, TOTP, notes)
 - Secure Notes (Markdown support)
 - Password generator (strong, customizable)
-- Search, favorites, folders/tags
-- Full CRUD with sync
+- Full CRUD with sync (encrypted API done)
 - Client-side encryption + decryption
-- Export (encrypted JSON)
-- Basic browser extension (copy to clipboard)
+- Basic browser extension (copy to clipboard) — after desktop MVP
 
-### Phase 2
+### Phase 3+
 - Full browser extension with autofill
-- Desktop app (Tauri)
+- Search, favorites, folders/tags
+- Export (encrypted JSON)
+- Mobile apps (React Native with Expo) — **last client**
 - Attachments (encrypted)
 - Passkey support
 - Biometric quick unlock (see [plans/secure-biometric-unlock.md](plans/secure-biometric-unlock.md))
 - Master password change (without re-encrypting everything)
-- Mobile apps (React Native with Expo)
 
 ### Future / Nice-to-Have
 - Secure sharing (public-key crypto)
@@ -78,7 +78,7 @@ Vaultlock is a modern, zero-knowledge, end-to-end encrypted password manager + s
 
 **Important Rules**
 - Server stores only ciphertext + metadata
-- All encryption/decryption happens in the browser
+- All encryption/decryption happens on the **client** (desktop, extension, or mobile)
 - Master password never leaves the device
 - No password recovery (by design)
 
@@ -88,33 +88,32 @@ Vaultlock is a modern, zero-knowledge, end-to-end encrypted password manager + s
 
 | Layer          | Technology                          | Reason |
 |----------------|-------------------------------------|--------|
-| **Frontend**   | React (Next.js or Vite) + Tailwind + shadcn/ui | Excellent ecosystem, great DX, shadcn works perfectly |
+| **Client UI**  | React + Tailwind + shadcn/ui (inside Tauri / extension / RN) | Shared patterns; **no standalone web app** |
 | **Backend**    | Rust (Axum) + SQLx + PostgreSQL    | Security, performance, memory safety |
 | **Crypto**     | `ring` + `argon2` crates           | Audited, battle-tested |
 | **Database**   | PostgreSQL                         | Reliable, scalable |
 | **Auth**       | JWT + refresh tokens               | Standard, secure |
 | **Deployment** | Docker + Docker Compose + Caddy    | Easy self-hosting |
-| **Desktop**    | Tauri (Rust + Web frontend)        | Native feel, small size |
-| **Mobile**     | React Native (with Expo)           | Cross-platform iOS + Android, fast development |
-| **Extension**  | Manifest V3 + Plasmo               | Modern browser extension |
+| **Desktop**    | Tauri (Rust + embedded React UI)   | Primary vault UI — Windows + macOS (**first client**) |
+| **Extension**  | Manifest V3 + Plasmo               | Autofill + quick access (**second client**) |
+| **Mobile**     | React Native (with Expo)           | iOS + Android (**third client**) |
 
 ---
 
 ## 6. System Architecture
 
 ```
-[Browser / Extension / Tauri App]
+[Desktop (Tauri) / Extension / Mobile]
           ↓ HTTPS (TLS 1.3)
 [Reverse Proxy (Caddy)]
           ↓
 [Backend API (Rust/Axum)]
   - Auth (login/register)
   - Sync (encrypted vault)
-  - Admin panel (protected)
           ↓
 [PostgreSQL]
   - users (email, auth_hash, kdf_params, wrapped_dek)
-  - ciphers (encrypted blobs)
+  - vault_items (encrypted blobs)
 ```
 
 ---
@@ -126,41 +125,47 @@ Vaultlock is a modern, zero-knowledge, end-to-end encrypted password manager + s
 - Backend skeleton (Rust + Axum + PostgreSQL)
 - Basic user auth + Argon2id KDF
 - Client-side crypto module (key derivation + AES-GCM)
-- Simple web vault (React + Vite or Next.js)
+- Encrypted vault CRUD API + sync
 - Docker Compose for local development
 
-**Tickets:** ~12–15
+**Tickets:** ~12–15 (backend complete; client work starts Phase 2)
 
-### Phase 2: Core Vault (Weeks 5–9)
-- Encrypted item CRUD (logins + notes)
-- Password generator
+### Phase 2: Core Vault — Clients (Weeks 5–12)
+
+**Client priority:** Desktop → Extension → Mobile (no standalone web app)
+
+1. **Desktop app (Tauri)** — Windows + macOS primary vault UI: register/login, unlock, list/add/edit/delete, sync with backend
+2. **Browser extension (Plasmo)** — popup vault, password-field detection, copy/autofill basics
+3. **Mobile (Expo)** — iOS + Android vault (after desktop + extension patterns are proven)
+
+Also in this phase:
+- Password generator (in desktop first, then extension/mobile)
 - Search + folders/tags
-- Sync between devices
 - Offline support (encrypted local cache)
 - Export/import
 
 **Tickets:** ~18–22
 
-### Phase 3: Polish & Self-Host (Weeks 10–12)
-- Professional UI matching final branding
+### Phase 3: Polish & Self-Host (Weeks 13–15)
+- Professional UI matching final branding (desktop + extension)
 - Production Docker Compose (with Caddy + HTTPS)
-- Admin panel
 - Documentation & one-click deploy scripts
-- Security hardening + basic tests
+- Security hardening + expanded client tests
 
 **Tickets:** ~10–12
 
-### Phase 4: Browser Extension (Weeks 13–17)
-- Manifest V3 extension
-- Popup vault
-- Context menu + autofill (basic)
-- Permissions handling
+### Phase 4: Extension depth (Weeks 16–19)
+- Full autofill flows
+- Context menu + permissions hardening
+- Extension ↔ desktop handoff (shared auth where applicable)
 
-**Tickets:** ~15–18
+**Tickets:** ~10–15
 
-### Phase 5: Desktop + Mobile (Later)
-- Tauri desktop app
-- React Native mobile apps (iOS + Android) using Expo
+### Phase 5: Mobile + later
+- React Native mobile apps (iOS + Android)
+- Attachments (encrypted)
+- Passkey support
+- Master password change (without re-encrypting everything)
 
 ---
 
@@ -171,16 +176,17 @@ Use these labels:
 - `frontend`, `backend`, `crypto`, `security`, `devops`, `docs`
 
 **Example Tickets**
-- [ ] Set up monorepo + Rust backend skeleton
-- [ ] Implement Argon2id key derivation (client + server)
-- [ ] Build AES-256-GCM encryption/decryption module
-- [ ] Create user registration + login flow
-- [ ] Build encrypted vault CRUD API
-- [ ] Implement React web vault UI (Next.js or Vite + shadcn)
-- [ ] Add password generator component
+- [x] Set up monorepo + Rust backend skeleton
+- [x] Implement Argon2id key derivation (client + server)
+- [x] Build AES-256-GCM encryption/decryption module
+- [x] Create user registration + login flow
+- [x] Build encrypted vault CRUD API
+- [ ] Build Tauri desktop app (Windows + macOS) — **primary client**
+- [ ] Add password generator component (desktop first)
+- [ ] Build browser extension skeleton — **after desktop**
 - [ ] Create production Docker Compose (Caddy + PostgreSQL)
 - [ ] Write self-hosting documentation
-- [ ] Build browser extension skeleton
+- [ ] Mobile app (Expo) — **last client**
 
 ---
 
@@ -223,16 +229,18 @@ Use these labels:
 
 ## 12. Next Steps
 
-1. **Create GitHub repository** named `vaultlock` — DONE
-2. Set up project board with the phases above
-3. Create first 10–15 tickets from Phase 1
-4. Begin development (backend skeleton + crypto module first)
+1. **Backend foundation** — DONE (issues #1–#5 merged to `main`)
+2. **Close web vault scope** — issue #6 cancelled; clients-only strategy
+3. **Create desktop (Tauri) epic** — first client: register, unlock, vault CRUD, sync
+4. **Extension** (#10) — after desktop MVP
+5. **Mobile** — after extension
+6. **Self-host** (#8, #9) — production Docker + docs (can parallelize with desktop)
 
 ---
 
-**Document Version**: 1.0  
+**Document Version**: 1.1  
 **Last Updated**: May 2026  
-**Status**: Ready to start development
+**Status**: Backend MVP complete; starting desktop client
 
 ---
 
