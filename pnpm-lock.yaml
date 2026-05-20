@@ -85,13 +85,13 @@ importers:
         version: 19.1.6(@types/react@19.1.8)
       '@vitejs/plugin-react':
         specifier: 4.6.0
-        version: 4.6.0(vite@7.0.4(@types/node@25.6.2)(less@4.6.4)(lightningcss@1.32.0)(sass@1.99.0)(terser@5.47.1)(yaml@2.8.4))
+        version: 4.6.0(vite@7.3.2(@types/node@25.6.2)(less@4.6.4)(lightningcss@1.32.0)(sass@1.99.0)(terser@5.47.1)(yaml@2.8.4))
       typescript:
         specifier: 5.8.3
         version: 5.8.3
       vite:
-        specifier: 7.0.4
-        version: 7.0.4(@types/node@25.6.2)(less@4.6.4)(lightningcss@1.32.0)(sass@1.99.0)(terser@5.47.1)(yaml@2.8.4)
+        specifier: 7.3.2
+        version: 7.3.2(@types/node@25.6.2)(less@4.6.4)(lightningcss@1.32.0)(sass@1.99.0)(terser@5.47.1)(yaml@2.8.4)
 
   extension:
     dependencies:
@@ -6856,8 +6856,8 @@ packages:
       yaml:
         optional: true
 
-  vite@7.0.4:
-    resolution: {integrity: sha512-SkaSguuS7nnmV7mfJ8l81JGBFV7Gvzp8IzgE8A8t23+AxuNX61Q5H1Tpz5efduSN7NHC8nQXD3sKQKZAu5mNEA==}
+  vite@7.3.2:
+    resolution: {integrity: sha512-Bby3NOsna2jsjfLVOHKes8sGwgl4TT0E6vvpYgnAYDIF/tie7MRaFthmKuHx1NSXjiTueXH3do80FMQgvEktRg==}
     engines: {node: ^20.19.0 || >=22.12.0}
     hasBin: true
     peerDependencies:
@@ -10783,7 +10783,7 @@ snapshots:
       graphql: 15.8.0
       wonka: 4.0.15
 
-  '@vitejs/plugin-react@4.6.0(vite@7.0.4(@types/node@25.6.2)(less@4.6.4)(lightningcss@1.32.0)(sass@1.99.0)(terser@5.47.1)(yaml@2.8.4))':
+  '@vitejs/plugin-react@4.6.0(vite@7.3.2(@types/node@25.6.2)(less@4.6.4)(lightningcss@1.32.0)(sass@1.99.0)(terser@5.47.1)(yaml@2.8.4))':
     dependencies:
       '@babel/core': 7.29.0
       '@babel/plugin-transform-react-jsx-self': 7.27.1(@babel/core@7.29.0)
@@ -10791,7 +10791,7 @@ snapshots:
       '@rolldown/pluginutils': 1.0.0-beta.19
       '@types/babel__core': 7.20.5
       react-refresh: 0.17.0
-      vite: 7.0.4(@types/node@25.6.2)(less@4.6.4)(lightningcss@1.32.0)(sass@1.99.0)(terser@5.47.1)(yaml@2.8.4)
+      vite: 7.3.2(@types/node@25.6.2)(less@4.6.4)(lightningcss@1.32.0)(sass@1.99.0)(terser@5.47.1)(yaml@2.8.4)
     transitivePeerDependencies:
       - supports-color
 
@@ -15043,9 +15043,9 @@ snapshots:
       terser: 5.47.1
       yaml: 2.8.4
 
-  vite@7.0.4(@types/node@25.6.2)(less@4.6.4)(lightningcss@1.32.0)(sass@1.99.0)(terser@5.47.1)(yaml@2.8.4):
+  vite@7.3.2(@types/node@25.6.2)(less@4.6.4)(lightningcss@1.32.0)(sass@1.99.0)(terser@5.47.1)(yaml@2.8.4):
     dependencies:
-      esbuild: 0.25.12
+      esbuild: 0.27.7
       fdir: 6.5.0(picomatch@4.0.4)
       picomatch: 4.0.4
       postcss: 8.5.14
