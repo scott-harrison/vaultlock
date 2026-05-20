@@ -68,7 +68,7 @@ describe("VaultlockApiClient", () => {
       fetch: fetchMock,
     });
 
-    await expect(client.login({ email: "a@b.co", master_password_hash: "x" })).rejects.toEqual(
+    await expect(client.login({ email: "a@b.co", master_password: "secret" })).rejects.toEqual(
       new VaultlockApiError(401, "invalid token"),
     );
   });

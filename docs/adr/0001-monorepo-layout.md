@@ -29,11 +29,6 @@ vaultlock/
 │   ├── tests/
 │   ├── Cargo.toml
 │   └── ...
-├── frontend/                # React (Vite or Next.js)
-│   ├── src/
-│   ├── tests/
-│   ├── package.json
-│   └── ...
 ├── mobile/                  # React Native (Expo)
 │   ├── src/
 │   ├── tests/
@@ -72,15 +67,7 @@ To maintain strict coding standards across the entire monorepo we use **Biome.js
 
 ### Shared Biome Configuration
 
-We will use a **single root-level `biome.json`** that defines all rules. Each TypeScript app (`frontend/`, `mobile/`, `extension/`) will extend this root config:
-
-```json
-// frontend/biome.json
-{
-  "$schema": "https://biomejs.dev/schemas/1.9.4/schema.json",
-  "extends": ["../biome.json"]
-}
-```
+We will use a **single root-level `biome.json`** that defines all rules. Each TypeScript app (`desktop/`, `mobile/`, `extension/`) will extend this root config:
 
 This guarantees that **all TypeScript apps follow exactly the same rules** with zero duplication.
 

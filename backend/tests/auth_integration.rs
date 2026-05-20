@@ -161,16 +161,11 @@ async fn registration_verify_and_login_flow() {
 }
 
 #[tokio::test]
-async fn login_rejects_invalid_credentials() {
+async fn login_accepts_master_password_on_any_device() {
     let app = TestApp::spawn().await;
-    let email = "wrong-password@example.com";
-    let valid_credential = random_credential(24);
-    let mut other_credential = random_credential(24);
-    while other_credential == valid_credential {
-        other_credential = random_credential(24);
-    }
-    let hash = phc_hash_for_credential(&valid_credential);
-    let wrong_hash = phc_hash_for_credential(&other_credential);
+    let email = "cross-device@example.com";
+    let credential = random_credential(24);
+    let hash = phc_hash_for_credential(&credential);
 
     assert_status(
         app.post_json(
@@ -206,7 +201,62 @@ async fn login_rejects_invalid_credentials() {
             "/login",
             &json!({
                 "email": email,
-                "master_password_hash": wrong_hash
+                "master_password": credential
+            })
+            .to_string(),
+        )
+        .await,
+        StatusCode::OK,
+    );
+    let login_body: Value =
+        serde_json::from_slice(&common::TestApp::response_body(login_response).await)
+            .expect("login json");
+    assert_eq!(login_body["message"], "Login successful");
+    assert_eq!(login_body["master_password_hash"], hash);
+}
+
+#[tokio::test]
+async fn login_rejects_invalid_credentials() {
+    let app = TestApp::spawn().await;
+    let email = "wrong-password@example.com";
+    let valid_credential = random_credential(24);
+    let hash = phc_hash_for_credential(&valid_credential);
+
+    assert_status(
+        app.post_json(
+            "/register",
+            &json!({
+                "email": email,
+                "master_password_hash": hash
+            })
+            .to_string(),
+        )
+        .await,
+        StatusCode::CREATED,
+    );
+
+    let verification_token: String =
+        sqlx::query_scalar("SELECT verification_token FROM users WHERE email = $1")
+            .bind(email)
+            .fetch_one(&app.pool)
+            .await
+            .expect("verification token");
+
+    assert_status(
+        app.post_json(
+            "/verify-email",
+            &json!({ "token": verification_token }).to_string(),
+        )
+        .await,
+        StatusCode::OK,
+    );
+
+    let login_response = assert_status(
+        app.post_json(
+            "/login",
+            &json!({
+                "email": email,
+                "master_password": "not-the-password"
             })
             .to_string(),
         )
@@ -217,4 +267,59 @@ async fn login_rejects_invalid_credentials() {
         serde_json::from_slice(&common::TestApp::response_body(login_response).await)
             .expect("login json");
     assert_eq!(login_body["message"], "Invalid credentials");
+}
+
+#[tokio::test]
+async fn verify_email_open_verifies_account() {
+    let app = TestApp::spawn().await;
+    let email = "open-link@example.com";
+    let hash = phc_hash_for_credential(&random_credential(24));
+
+    assert_status(
+        app.post_json(
+            "/register",
+            &json!({
+                "email": email,
+                "master_password_hash": hash
+            })
+            .to_string(),
+        )
+        .await,
+        StatusCode::CREATED,
+    );
+
+    let verification_token: String =
+        sqlx::query_scalar("SELECT verification_token FROM users WHERE email = $1")
+            .bind(email)
+            .fetch_one(&app.pool)
+            .await
+            .expect("verification token");
+
+    let response = assert_status(
+        app.get(&format!("/verify-email/open?token={verification_token}"))
+            .await,
+        StatusCode::OK,
+    );
+    let body = String::from_utf8(common::TestApp::response_body(response).await.to_vec())
+        .expect("utf8 body");
+
+    assert!(body.contains("Email verified"));
+    assert!(body.contains(email));
+
+    let email_verified: bool =
+        sqlx::query_scalar("SELECT email_verified FROM users WHERE email = $1")
+            .bind(email)
+            .fetch_one(&app.pool)
+            .await
+            .expect("email verified flag");
+    assert!(email_verified);
+
+    assert_status(
+        app.post_json(
+            "/verify-email",
+            &json!({ "token": verification_token }).to_string(),
+        )
+        .await,
+        StatusCode::BAD_REQUEST,
+    );
 }

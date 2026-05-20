@@ -183,14 +183,28 @@ import { VaultlockApiClient } from "@vaultlock/shared/api";
 
 ---
 
+## npm dependency versions
+
+Workspace `package.json` files and `pnpm-workspace.yaml` overrides must use **exact** semver versions — no `^` or `~`. The repo enforces this with:
+
+```bash
+pnpm check:deps
+```
+
+`pnpm add` is configured via `.npmrc` (`save-prefix=`) to write exact versions by default. After bumping a dependency, run `pnpm install` and commit the updated `pnpm-lock.yaml`.
+
+---
+
 ## Troubleshooting
 
 ### `pnpm install` fails with trust policy errors
 
-Some workspace packages (e.g. mobile) may hit pnpm supply-chain policy. Install only what you need:
+The repo uses `trustPolicy: no-downgrade` in `pnpm-workspace.yaml`. If a new package triggers `ERR_PNPM_TRUST_DOWNGRADE`, prefer a version `overrides` entry with an exact target (see `semver@<7` → `7.8.0` for the Babel/mobile case).
+
+To install only desktop + shared without pulling mobile:
 
 ```bash
-pnpm install --filter @vaultlock/desktop --filter @vaultlock/shared --config.trustPolicy=allow
+pnpm install --filter @vaultlock/desktop --filter @vaultlock/shared
 ```
 
 ### Port 5432 already in use

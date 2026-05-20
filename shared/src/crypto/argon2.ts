@@ -1,4 +1,4 @@
-import { argon2id } from "hash-wasm";
+import { argon2Verify, argon2id } from "hash-wasm";
 
 /** Matches backend `backend/src/crypto/argon2.rs` interactive login parameters. */
 export const ARGON2_INTERACTIVE_PARAMS = {
@@ -34,6 +34,17 @@ export async function hashMasterPasswordAuth(masterPassword: string): Promise<st
     salt,
     ...ARGON2_INTERACTIVE_PARAMS,
     outputType: "encoded",
+  });
+}
+
+/** Verifies a master password against a PHC hash from registration. */
+export async function verifyMasterPasswordAuth(
+  masterPassword: string,
+  masterPasswordHash: string,
+): Promise<boolean> {
+  return argon2Verify({
+    password: masterPassword,
+    hash: masterPasswordHash,
   });
 }
 
