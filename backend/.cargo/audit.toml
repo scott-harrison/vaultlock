@@ -1,0 +1,3 @@
+# sqlx-macros-core optionally compiles mysql support; we only use PostgreSQL at runtime.
+[advisories]
+ignore = ["RUSTSEC-2023-0071"]
