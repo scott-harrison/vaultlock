@@ -1,0 +1,44 @@
+meta {
+  name: Create Vault Item
+  type: http
+  seq: 1
+}
+
+docs {
+  Creates an encrypted vault item. Clients send base64 ciphertext and nonce only (zero-knowledge).
+  Requires `accessToken` from register/verify-email or login.
+}
+
+post {
+  url: {{baseUrl}}/vault/items
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "item_type": "login",
+    "encrypted_data": "AQID",
+    "nonce": "BAUG"
+  }
+}
+
+assert {
+  res.status: eq 200
+  res.body.id: isDefined
+  res.body.item_type: eq login
+  res.body.encrypted_data: eq AQID
+  res.body.nonce: eq BAUG
+}
+
+script:post-response {
+  const body = res.getBody();
+  if (body.id) {
+    bru.setVar("vaultItemId", body.id);
+  }
+}

@@ -1,0 +1,32 @@
+meta {
+  name: List Vault Items (Incremental Sync)
+  type: http
+  seq: 3
+}
+
+docs {
+  Returns items with `updated_at` strictly greater than `syncToken`.
+  Set `syncToken` from a prior list response before running this request.
+}
+
+get {
+  url: {{baseUrl}}/vault/items?since={{syncToken}}
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+}
+
+assert {
+  res.status: eq 200
+  res.body.items: isDefined
+}
+
+script:post-response {
+  const body = res.getBody();
+  if (body.sync_token) {
+    bru.setVar("syncToken", body.sync_token);
+  }
+}

@@ -1,7 +1,7 @@
 use sqlx::postgres::PgPoolOptions;
 use std::net::SocketAddr;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
-use vaultlock_backend::app;
+use vaultlock_backend::{app, auth::jwt::JwtConfig};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -26,7 +26,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     tracing::info!("Database migrations completed successfully");
 
-    let app = app(pool);
+    let jwt = JwtConfig::from_env()?;
+    let app = app(pool, jwt);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 8080));
     tracing::info!("listening on {}", addr);

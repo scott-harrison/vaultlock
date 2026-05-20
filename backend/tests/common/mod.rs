@@ -13,9 +13,17 @@ use std::mem;
 use std::net::SocketAddr;
 use testcontainers::{clients::Cli, core::WaitFor, GenericImage};
 use tower::ServiceExt;
-use vaultlock_backend::app;
+use vaultlock_backend::{app, auth::jwt::JwtConfig};
 
 const TEST_JWT_SECRET: &str = "integration-test-jwt-secret";
+
+pub fn test_jwt_config() -> JwtConfig {
+    JwtConfig {
+        secret: TEST_JWT_SECRET.to_string(),
+        access_token_expiry_minutes: 15,
+        refresh_token_expiry_days: 7,
+    }
+}
 const TEST_CLIENT_ADDR: SocketAddr =
     SocketAddr::new(std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST), 3000);
 
@@ -24,6 +32,7 @@ pub struct TestApp {
     router: Router,
 }
 
+#[allow(dead_code)]
 impl TestApp {
     pub async fn spawn() -> Self {
         std::env::set_var("JWT_SECRET", TEST_JWT_SECRET);
@@ -54,19 +63,61 @@ impl TestApp {
             .await
             .expect("migrations");
 
-        let router = app(pool.clone());
+        let router = app(pool.clone(), test_jwt_config());
 
         Self { pool, router }
     }
 
     pub async fn post_json(&self, uri: &str, body: &str) -> Response {
-        let request = Request::builder()
-            .method("POST")
+        self.request_json("POST", uri, body, None).await
+    }
+
+    pub async fn get(&self, uri: &str) -> Response {
+        self.request_json("GET", uri, "", None).await
+    }
+
+    pub async fn post_json_bearer(&self, uri: &str, body: &str, token: &str) -> Response {
+        self.request_json("POST", uri, body, Some(token)).await
+    }
+
+    pub async fn get_bearer(&self, uri: &str, token: &str) -> Response {
+        self.request_json("GET", uri, "", Some(token)).await
+    }
+
+    pub async fn put_json_bearer(&self, uri: &str, body: &str, token: &str) -> Response {
+        self.request_json("PUT", uri, body, Some(token)).await
+    }
+
+    pub async fn put_json(&self, uri: &str, body: &str) -> Response {
+        self.request_json("PUT", uri, body, None).await
+    }
+
+    pub async fn delete_bearer(&self, uri: &str, token: &str) -> Response {
+        self.request_json("DELETE", uri, "", Some(token)).await
+    }
+
+    pub async fn delete(&self, uri: &str) -> Response {
+        self.request_json("DELETE", uri, "", None).await
+    }
+
+    async fn request_json(
+        &self,
+        method: &str,
+        uri: &str,
+        body: &str,
+        bearer_token: Option<&str>,
+    ) -> Response {
+        let mut builder = Request::builder()
+            .method(method)
             .uri(uri)
             .header("content-type", "application/json")
-            .extension(ConnectInfo(TEST_CLIENT_ADDR))
-            .body(Body::from(body.to_string()))
-            .expect("request");
+            .extension(ConnectInfo(TEST_CLIENT_ADDR));
+
+        if let Some(token) = bearer_token {
+            builder = builder.header("authorization", format!("Bearer {token}"));
+        }
+
+        let request = builder.body(Body::from(body.to_string())).expect("request");
 
         self.router
             .clone()

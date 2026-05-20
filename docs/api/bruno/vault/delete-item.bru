@@ -1,0 +1,24 @@
+meta {
+  name: Delete Vault Item
+  type: http
+  seq: 6
+}
+
+docs {
+  Permanently deletes a vault item. Returns 204 on success and 404 when
+  the item is missing or not owned by the caller.
+}
+
+delete {
+  url: {{baseUrl}}/vault/items/{{vaultItemId}}
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+}
+
+assert {
+  res.status: eq 204
+}
