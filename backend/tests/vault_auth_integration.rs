@@ -161,6 +161,68 @@ async fn vault_rejects_legacy_plaintext_payload() {
 }
 
 #[tokio::test]
+async fn vault_accepts_supported_item_types() {
+    let app = TestApp::spawn().await;
+    let token = verified_access_token(
+        &app,
+        "item-types@example.com",
+        &phc_hash_for_credential(&random_credential(24)),
+    )
+    .await;
+
+    for item_type in ["login", "note", "card"] {
+        let (encrypted_data, nonce) = client_encrypted_blob(item_type.as_bytes());
+        assert_status(
+            app.post_json_bearer(
+                "/vault",
+                &json!({
+                    "encrypted_data": encrypted_data,
+                    "nonce": nonce,
+                    "item_type": item_type
+                })
+                .to_string(),
+                &token,
+            )
+            .await,
+            StatusCode::OK,
+        );
+    }
+
+    let list_response = assert_status(app.get_bearer("/vault", &token).await, StatusCode::OK);
+    let listed: Vec<serde_json::Value> =
+        serde_json::from_slice(&common::TestApp::response_body(list_response).await)
+            .expect("list json");
+    assert_eq!(listed.len(), 3);
+}
+
+#[tokio::test]
+async fn vault_rejects_invalid_item_type() {
+    let app = TestApp::spawn().await;
+    let token = verified_access_token(
+        &app,
+        "invalid-type@example.com",
+        &phc_hash_for_credential(&random_credential(24)),
+    )
+    .await;
+
+    let (encrypted_data, nonce) = client_encrypted_blob(b"secret");
+    let response = app
+        .post_json_bearer(
+            "/vault",
+            &json!({
+                "encrypted_data": encrypted_data,
+                "nonce": nonce,
+                "item_type": "password"
+            })
+            .to_string(),
+            &token,
+        )
+        .await;
+
+    assert_status(response, StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
 async fn vault_token_user_isolation() {
     let app = TestApp::spawn().await;
 
