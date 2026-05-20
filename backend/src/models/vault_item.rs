@@ -56,6 +56,13 @@ pub struct CreateVaultItem {
     pub item_type: String,
 }
 
+#[derive(Debug, Clone)]
+pub struct UpdateVaultItem {
+    pub encrypted_data: Vec<u8>,
+    pub nonce: Vec<u8>,
+    pub item_type: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct VaultItemResponse {
     pub id: Uuid,

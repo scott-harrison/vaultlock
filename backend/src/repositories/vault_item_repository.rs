@@ -1,7 +1,9 @@
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::models::vault_item::{CreateVaultItem, VaultItem, VaultItemResponse};
+use crate::models::vault_item::{
+    CreateVaultItem, UpdateVaultItem, VaultItem, VaultItemResponse,
+};
 
 pub struct VaultItemRepository {
     pool: PgPool,
@@ -42,5 +44,64 @@ impl VaultItemRepository {
             .into_iter()
             .map(VaultItemResponse::from_item)
             .collect())
+    }
+
+    pub async fn find_by_id_for_user(
+        &self,
+        item_id: Uuid,
+        user_id: Uuid,
+    ) -> Result<Option<VaultItemResponse>, sqlx::Error> {
+        let item = sqlx::query_as::<_, VaultItem>(
+            "SELECT id, user_id, encrypted_data, nonce, item_type, created_at, updated_at FROM vault_items WHERE id = $1 AND user_id = $2",
+        )
+        .bind(item_id)
+        .bind(user_id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(item.map(VaultItemResponse::from_item))
+    }
+
+    pub async fn update_for_user(
+        &self,
+        item_id: Uuid,
+        user_id: Uuid,
+        update: UpdateVaultItem,
+    ) -> Result<Option<VaultItemResponse>, sqlx::Error> {
+        let item = sqlx::query_as::<_, VaultItem>(
+            r"
+            UPDATE vault_items
+            SET
+                encrypted_data = $1,
+                nonce = $2,
+                item_type = COALESCE($3, item_type),
+                updated_at = NOW()
+            WHERE id = $4 AND user_id = $5
+            RETURNING id, user_id, encrypted_data, nonce, item_type, created_at, updated_at
+            ",
+        )
+        .bind(update.encrypted_data)
+        .bind(update.nonce)
+        .bind(update.item_type)
+        .bind(item_id)
+        .bind(user_id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(item.map(VaultItemResponse::from_item))
+    }
+
+    pub async fn delete_for_user(
+        &self,
+        item_id: Uuid,
+        user_id: Uuid,
+    ) -> Result<bool, sqlx::Error> {
+        let result = sqlx::query("DELETE FROM vault_items WHERE id = $1 AND user_id = $2")
+            .bind(item_id)
+            .bind(user_id)
+            .execute(&self.pool)
+            .await?;
+
+        Ok(result.rows_affected() > 0)
     }
 }

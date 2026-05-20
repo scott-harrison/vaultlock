@@ -288,3 +288,137 @@ async fn vault_rejects_expired_or_wrong_secret_token() {
         StatusCode::UNAUTHORIZED,
     );
 }
+
+async fn create_vault_item(
+    app: &TestApp,
+    token: &str,
+    plaintext: &[u8],
+    item_type: &str,
+) -> String {
+    let (encrypted_data, nonce) = client_encrypted_blob(plaintext);
+    let create_response = assert_status(
+        app.post_json_bearer(
+            "/vault/items",
+            &json!({
+                "encrypted_data": encrypted_data,
+                "nonce": nonce,
+                "item_type": item_type
+            })
+            .to_string(),
+            token,
+        )
+        .await,
+        StatusCode::OK,
+    );
+    let created: serde_json::Value =
+        serde_json::from_slice(&common::TestApp::response_body(create_response).await)
+            .expect("create json");
+    created["id"].as_str().expect("item id").to_string()
+}
+
+#[tokio::test]
+async fn vault_get_update_delete_item_for_owner() {
+    let app = TestApp::spawn().await;
+    let token = verified_access_token(
+        &app,
+        "vault-crud@example.com",
+        &phc_hash_for_credential(&random_credential(24)),
+    )
+    .await;
+
+    let item_id = create_vault_item(&app, &token, b"original secret", "login").await;
+
+    let get_response = assert_status(
+        app.get_bearer(&format!("/vault/items/{item_id}"), &token)
+            .await,
+        StatusCode::OK,
+    );
+    let fetched: serde_json::Value =
+        serde_json::from_slice(&common::TestApp::response_body(get_response).await)
+            .expect("get json");
+    assert_eq!(fetched["item_type"], "login");
+
+    let (updated_data, updated_nonce) = client_encrypted_blob(b"updated secret");
+    let update_response = assert_status(
+        app.put_json_bearer(
+            &format!("/vault/items/{item_id}"),
+            &json!({
+                "encrypted_data": updated_data,
+                "nonce": updated_nonce,
+                "item_type": "note"
+            })
+            .to_string(),
+            &token,
+        )
+        .await,
+        StatusCode::OK,
+    );
+    let updated: serde_json::Value =
+        serde_json::from_slice(&common::TestApp::response_body(update_response).await)
+            .expect("update json");
+    assert_eq!(updated["item_type"], "note");
+    assert_eq!(updated["encrypted_data"], updated_data);
+    assert_ne!(updated["updated_at"], fetched["updated_at"]);
+
+    assert_status(
+        app.delete_bearer(&format!("/vault/items/{item_id}"), &token)
+            .await,
+        StatusCode::NO_CONTENT,
+    );
+    assert_status(
+        app.get_bearer(&format!("/vault/items/{item_id}"), &token)
+            .await,
+        StatusCode::NOT_FOUND,
+    );
+}
+
+#[tokio::test]
+async fn vault_item_crud_enforces_ownership() {
+    let app = TestApp::spawn().await;
+
+    let token_a = verified_access_token(
+        &app,
+        "vault-crud-a@example.com",
+        &phc_hash_for_credential(&random_credential(24)),
+    )
+    .await;
+    let token_b = verified_access_token(
+        &app,
+        "vault-crud-b@example.com",
+        &phc_hash_for_credential(&random_credential(24)),
+    )
+    .await;
+
+    let item_id = create_vault_item(&app, &token_a, b"owned by a", "login").await;
+    let (encrypted_data, nonce) = client_encrypted_blob(b"intruder update");
+
+    assert_status(
+        app.get_bearer(&format!("/vault/items/{item_id}"), &token_b)
+            .await,
+        StatusCode::NOT_FOUND,
+    );
+    assert_status(
+        app.put_json_bearer(
+            &format!("/vault/items/{item_id}"),
+            &json!({
+                "encrypted_data": encrypted_data,
+                "nonce": nonce
+            })
+            .to_string(),
+            &token_b,
+        )
+        .await,
+        StatusCode::NOT_FOUND,
+    );
+    assert_status(
+        app.delete_bearer(&format!("/vault/items/{item_id}"), &token_b)
+            .await,
+        StatusCode::NOT_FOUND,
+    );
+
+    assert_status(
+        app.get_bearer(&format!("/vault/items/{item_id}"), &token_a)
+            .await,
+        StatusCode::OK,
+    );
+}
