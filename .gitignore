@@ -15,6 +15,7 @@ Thumbs.db
 
 # Rust
 backend/target/
+desktop/src-tauri/target/
 **/*.rs.bk
 
 # Node / pnpm

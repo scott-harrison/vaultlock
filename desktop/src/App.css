@@ -1,0 +1,74 @@
+:root {
+  font-family: Inter, system-ui, -apple-system, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  color: #e8eaed;
+  background-color: #0f1117;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+.app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  gap: 2rem;
+}
+
+.app-header {
+  text-align: center;
+}
+
+.app-header h1 {
+  margin: 0;
+  font-size: 2.5rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.tagline {
+  margin: 0.5rem 0 0;
+  color: #9aa0a6;
+  font-size: 1.1rem;
+}
+
+.card {
+  max-width: 28rem;
+  padding: 1.5rem 2rem;
+  border-radius: 12px;
+  background: #1a1d27;
+  border: 1px solid #2d3140;
+}
+
+.card h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+.card p {
+  margin: 0 0 0.75rem;
+  color: #c4c7ce;
+}
+
+.card p:last-child {
+  margin-bottom: 0;
+}
+
+.hint {
+  font-size: 0.875rem;
+  color: #9aa0a6;
+}

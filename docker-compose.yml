@@ -1,5 +1,8 @@
 version: '3.8'
 
+# Development: run only Postgres, then start the API with `cargo run` in backend/
+# (see docs/DEV_ENVIRONMENT.md). The backend service below is for production (#8).
+
 services:
   postgres:
     image: postgres:16
