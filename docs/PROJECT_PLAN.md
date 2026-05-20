@@ -53,6 +53,7 @@ Vaultlock is a modern, zero-knowledge, end-to-end encrypted password manager + s
 - Desktop app (Tauri)
 - Attachments (encrypted)
 - Passkey support
+- Biometric quick unlock (see [plans/secure-biometric-unlock.md](plans/secure-biometric-unlock.md))
 - Master password change (without re-encrypting everything)
 - Mobile apps (React Native with Expo)
 
