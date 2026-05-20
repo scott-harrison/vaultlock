@@ -38,8 +38,8 @@ pub fn app(db: PgPool, jwt: JwtConfig) -> Router {
     let jwt_auth = from_fn_with_state(state.clone(), jwt_auth_middleware);
 
     let vault_routes = Router::new()
-        .route("/vault", post(create_vault_item))
-        .route("/vault", get(list_vault_items))
+        .route("/vault/items", post(create_vault_item))
+        .route("/vault/items", get(list_vault_items))
         .route_layer(jwt_auth);
 
     Router::new()

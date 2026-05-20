@@ -69,14 +69,22 @@ async fn verified_access_token(app: &TestApp, email: &str, hash: &str) -> String
 }
 
 #[tokio::test]
+async fn legacy_vault_route_is_removed() {
+    let app = TestApp::spawn().await;
+
+    assert_status(app.post_json("/vault", "{}").await, StatusCode::NOT_FOUND);
+    assert_status(app.get("/vault").await, StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
 async fn vault_routes_require_authentication() {
     let app = TestApp::spawn().await;
 
     assert_status(
-        app.post_json("/vault", "{}").await,
+        app.post_json("/vault/items", "{}").await,
         StatusCode::UNAUTHORIZED,
     );
-    assert_status(app.get("/vault").await, StatusCode::UNAUTHORIZED);
+    assert_status(app.get("/vault/items").await, StatusCode::UNAUTHORIZED);
 }
 
 #[tokio::test]
@@ -84,12 +92,12 @@ async fn vault_routes_reject_invalid_token() {
     let app = TestApp::spawn().await;
 
     assert_status(
-        app.post_json_bearer("/vault", "{}", "not-a-valid-jwt")
+        app.post_json_bearer("/vault/items", "{}", "not-a-valid-jwt")
             .await,
         StatusCode::UNAUTHORIZED,
     );
     assert_status(
-        app.get_bearer("/vault", "not-a-valid-jwt").await,
+        app.get_bearer("/vault/items", "not-a-valid-jwt").await,
         StatusCode::UNAUTHORIZED,
     );
 }
@@ -104,7 +112,7 @@ async fn vault_create_and_list_return_client_ciphertext() {
     let (encrypted_data, nonce) = client_encrypted_blob(b"client-side secret");
     let create_response = assert_status(
         app.post_json_bearer(
-            "/vault",
+            "/vault/items",
             &json!({
                 "encrypted_data": encrypted_data,
                 "nonce": nonce,
@@ -124,7 +132,7 @@ async fn vault_create_and_list_return_client_ciphertext() {
     assert_eq!(created["encrypted_data"], encrypted_data);
     assert_eq!(created["nonce"], nonce);
 
-    let list_response = assert_status(app.get_bearer("/vault", &token).await, StatusCode::OK);
+    let list_response = assert_status(app.get_bearer("/vault/items", &token).await, StatusCode::OK);
     let listed: Vec<serde_json::Value> =
         serde_json::from_slice(&common::TestApp::response_body(list_response).await)
             .expect("list json");
@@ -146,7 +154,7 @@ async fn vault_rejects_legacy_plaintext_payload() {
 
     let response = app
         .post_json_bearer(
-            "/vault",
+            "/vault/items",
             &json!({
                 "plaintext": [1, 2, 3],
                 "item_type": "login",
@@ -174,7 +182,7 @@ async fn vault_accepts_supported_item_types() {
         let (encrypted_data, nonce) = client_encrypted_blob(item_type.as_bytes());
         assert_status(
             app.post_json_bearer(
-                "/vault",
+                "/vault/items",
                 &json!({
                     "encrypted_data": encrypted_data,
                     "nonce": nonce,
@@ -188,7 +196,7 @@ async fn vault_accepts_supported_item_types() {
         );
     }
 
-    let list_response = assert_status(app.get_bearer("/vault", &token).await, StatusCode::OK);
+    let list_response = assert_status(app.get_bearer("/vault/items", &token).await, StatusCode::OK);
     let listed: Vec<serde_json::Value> =
         serde_json::from_slice(&common::TestApp::response_body(list_response).await)
             .expect("list json");
@@ -208,7 +216,7 @@ async fn vault_rejects_invalid_item_type() {
     let (encrypted_data, nonce) = client_encrypted_blob(b"secret");
     let response = app
         .post_json_bearer(
-            "/vault",
+            "/vault/items",
             &json!({
                 "encrypted_data": encrypted_data,
                 "nonce": nonce,
@@ -242,7 +250,7 @@ async fn vault_token_user_isolation() {
     let (encrypted_data, nonce) = client_encrypted_blob(b"user-a-only");
     assert_status(
         app.post_json_bearer(
-            "/vault",
+            "/vault/items",
             &json!({
                 "encrypted_data": encrypted_data,
                 "nonce": nonce,
@@ -255,7 +263,10 @@ async fn vault_token_user_isolation() {
         StatusCode::OK,
     );
 
-    let list_b = assert_status(app.get_bearer("/vault", &token_b).await, StatusCode::OK);
+    let list_b = assert_status(
+        app.get_bearer("/vault/items", &token_b).await,
+        StatusCode::OK,
+    );
     let listed_b: Vec<serde_json::Value> =
         serde_json::from_slice(&common::TestApp::response_body(list_b).await).expect("list json");
     assert!(listed_b.is_empty());
@@ -273,7 +284,7 @@ async fn vault_rejects_expired_or_wrong_secret_token() {
     let token = generate_access_token(user_id, &wrong_secret_config).expect("token");
 
     assert_status(
-        app.post_json_bearer("/vault", "{}", &token).await,
+        app.post_json_bearer("/vault/items", "{}", &token).await,
         StatusCode::UNAUTHORIZED,
     );
 }
