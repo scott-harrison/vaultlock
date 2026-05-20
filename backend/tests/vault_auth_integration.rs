@@ -296,6 +296,185 @@ async fn vault_rejects_expired_or_wrong_secret_token() {
     );
 }
 
+#[tokio::test]
+async fn vault_item_routes_require_authentication() {
+    let app = TestApp::spawn().await;
+    let item_id = uuid::Uuid::new_v4();
+
+    assert_status(
+        app.get(&format!("/vault/items/{item_id}")).await,
+        StatusCode::UNAUTHORIZED,
+    );
+    assert_status(
+        app.put_json(&format!("/vault/items/{item_id}"), "{}").await,
+        StatusCode::UNAUTHORIZED,
+    );
+    assert_status(
+        app.delete(&format!("/vault/items/{item_id}")).await,
+        StatusCode::UNAUTHORIZED,
+    );
+}
+
+#[tokio::test]
+async fn vault_update_rejects_invalid_item_type() {
+    let app = TestApp::spawn().await;
+    let token = verified_access_token(
+        &app,
+        "invalid-update-type@example.com",
+        &phc_hash_for_credential(&random_credential(24)),
+    )
+    .await;
+
+    let item_id = create_vault_item(&app, &token, b"secret", "login").await;
+    let (encrypted_data, nonce) = client_encrypted_blob(b"updated");
+
+    assert_status(
+        app.put_json_bearer(
+            &format!("/vault/items/{item_id}"),
+            &json!({
+                "encrypted_data": encrypted_data,
+                "nonce": nonce,
+                "item_type": "password"
+            })
+            .to_string(),
+            &token,
+        )
+        .await,
+        StatusCode::BAD_REQUEST,
+    );
+}
+
+#[tokio::test]
+async fn vault_sync_includes_items_updated_after_since() {
+    let app = TestApp::spawn().await;
+    let token = verified_access_token(
+        &app,
+        "vault-sync-update@example.com",
+        &phc_hash_for_credential(&random_credential(24)),
+    )
+    .await;
+
+    let item_id = create_vault_item(&app, &token, b"before update", "login").await;
+
+    let initial_list = assert_status(app.get_bearer("/vault/items", &token).await, StatusCode::OK);
+    let (_, sync_token) = parse_list_response(initial_list).await;
+    let sync_token = sync_token.expect("sync token");
+
+    let (updated_data, updated_nonce) = client_encrypted_blob(b"after update");
+    let update_response = assert_status(
+        app.put_json_bearer(
+            &format!("/vault/items/{item_id}"),
+            &json!({
+                "encrypted_data": updated_data,
+                "nonce": updated_nonce
+            })
+            .to_string(),
+            &token,
+        )
+        .await,
+        StatusCode::OK,
+    );
+    let updated: serde_json::Value =
+        serde_json::from_slice(&common::TestApp::response_body(update_response).await)
+            .expect("update json");
+
+    let incremental = assert_status(
+        app.get_bearer(&format!("/vault/items?since={sync_token}"), &token)
+            .await,
+        StatusCode::OK,
+    );
+    let (incremental_items, incremental_sync_token) = parse_list_response(incremental).await;
+    assert_eq!(incremental_items.len(), 1);
+    assert_eq!(incremental_items[0]["id"].as_str(), Some(item_id.as_str()));
+    assert_eq!(incremental_items[0]["encrypted_data"], updated_data);
+    assert_eq!(
+        incremental_items[0]["updated_at"].as_str(),
+        updated["updated_at"].as_str()
+    );
+    assert!(incremental_sync_token.is_some());
+    assert_ne!(incremental_sync_token.as_deref(), Some(sync_token.as_str()));
+}
+
+#[tokio::test]
+async fn vault_full_crud_and_sync_lifecycle() {
+    let app = TestApp::spawn().await;
+    let token = verified_access_token(
+        &app,
+        "vault-lifecycle@example.com",
+        &phc_hash_for_credential(&random_credential(24)),
+    )
+    .await;
+
+    let login_id = create_vault_item(&app, &token, b"login entry", "login").await;
+    let note_id = create_vault_item(&app, &token, b"secure note", "note").await;
+
+    let full_list = assert_status(app.get_bearer("/vault/items", &token).await, StatusCode::OK);
+    let (all_items, baseline_sync) = parse_list_response(full_list).await;
+    assert_eq!(all_items.len(), 2);
+    let baseline_sync = baseline_sync.expect("baseline sync token");
+
+    for item_id in [&login_id, &note_id] {
+        assert_status(
+            app.get_bearer(&format!("/vault/items/{item_id}"), &token)
+                .await,
+            StatusCode::OK,
+        );
+    }
+
+    let (updated_data, updated_nonce) = client_encrypted_blob(b"rotated login secret");
+    assert_status(
+        app.put_json_bearer(
+            &format!("/vault/items/{login_id}"),
+            &json!({
+                "encrypted_data": updated_data,
+                "nonce": updated_nonce,
+                "item_type": "card"
+            })
+            .to_string(),
+            &token,
+        )
+        .await,
+        StatusCode::OK,
+    );
+
+    let after_update = assert_status(
+        app.get_bearer(&format!("/vault/items?since={baseline_sync}"), &token)
+            .await,
+        StatusCode::OK,
+    );
+    let (changed_items, _) = parse_list_response(after_update).await;
+    assert_eq!(changed_items.len(), 1);
+    assert_eq!(changed_items[0]["id"].as_str(), Some(login_id.as_str()));
+    assert_eq!(changed_items[0]["item_type"], "card");
+
+    assert_status(
+        app.delete_bearer(&format!("/vault/items/{note_id}"), &token)
+            .await,
+        StatusCode::NO_CONTENT,
+    );
+
+    let remaining = assert_status(app.get_bearer("/vault/items", &token).await, StatusCode::OK);
+    let (remaining_items, _) = parse_list_response(remaining).await;
+    assert_eq!(remaining_items.len(), 1);
+    assert_eq!(remaining_items[0]["id"].as_str(), Some(login_id.as_str()));
+
+    assert_status(
+        app.delete_bearer(&format!("/vault/items/{login_id}"), &token)
+            .await,
+        StatusCode::NO_CONTENT,
+    );
+    assert_status(
+        app.get_bearer(&format!("/vault/items/{login_id}"), &token)
+            .await,
+        StatusCode::NOT_FOUND,
+    );
+
+    let empty_list = assert_status(app.get_bearer("/vault/items", &token).await, StatusCode::OK);
+    let (empty_items, empty_sync) = parse_list_response(empty_list).await;
+    assert!(empty_items.is_empty());
+    assert!(empty_sync.is_none());
+}
+
 async fn create_vault_item(
     app: &TestApp,
     token: &str,

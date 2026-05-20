@@ -1,0 +1,42 @@
+meta {
+  name: Update Vault Item
+  type: http
+  seq: 5
+}
+
+docs {
+  Replaces ciphertext for an existing item. `item_type` is optional;
+  supported values: login, note, card.
+}
+
+put {
+  url: {{baseUrl}}/vault/items/{{vaultItemId}}
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "encrypted_data": "AQIDBAU=",
+    "nonce": "BAUGBw==",
+    "item_type": "note"
+  }
+}
+
+assert {
+  res.status: eq 200
+  res.body.id: eq {{vaultItemId}}
+  res.body.item_type: eq note
+}
+
+script:post-response {
+  const body = res.getBody();
+  if (body.updated_at) {
+    bru.setVar("syncToken", body.updated_at);
+  }
+}

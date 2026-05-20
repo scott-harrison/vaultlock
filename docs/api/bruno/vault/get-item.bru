@@ -1,0 +1,27 @@
+meta {
+  name: Get Vault Item
+  type: http
+  seq: 4
+}
+
+docs {
+  Fetches a single vault item by id. Returns 404 when the item is missing
+  or belongs to another user.
+}
+
+get {
+  url: {{baseUrl}}/vault/items/{{vaultItemId}}
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+}
+
+assert {
+  res.status: eq 200
+  res.body.id: eq {{vaultItemId}}
+  res.body.encrypted_data: isDefined
+  res.body.nonce: isDefined
+}

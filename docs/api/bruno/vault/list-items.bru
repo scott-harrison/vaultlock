@@ -1,0 +1,36 @@
+meta {
+  name: List Vault Items
+  type: http
+  seq: 2
+}
+
+docs {
+  Returns all vault items for the authenticated user plus a `sync_token`
+  (max `updated_at` in the response) for incremental sync.
+}
+
+get {
+  url: {{baseUrl}}/vault/items
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+}
+
+assert {
+  res.status: eq 200
+  res.body.items: isDefined
+  res.body.sync_token: isDefined
+}
+
+script:post-response {
+  const body = res.getBody();
+  if (body.sync_token) {
+    bru.setVar("syncToken", body.sync_token);
+  }
+  if (Array.isArray(body.items) && body.items.length > 0 && body.items[0].id) {
+    bru.setVar("vaultItemId", body.items[0].id);
+  }
+}
