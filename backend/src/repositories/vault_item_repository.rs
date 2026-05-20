@@ -1,7 +1,6 @@
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::crypto::aes_gcm::encrypt;
 use crate::models::vault_item::{CreateVaultItem, VaultItem, VaultItemResponse};
 
 pub struct VaultItemRepository {
@@ -14,10 +13,6 @@ impl VaultItemRepository {
     }
 
     pub async fn create(&self, create: CreateVaultItem) -> Result<VaultItemResponse, sqlx::Error> {
-        // Encrypt the plaintext using the DEK
-        let (nonce, encrypted_data) = encrypt(&create.plaintext, &create.dek)
-            .map_err(|_| sqlx::Error::Protocol("encryption failed".into()))?;
-
         let item = sqlx::query_as::<_, VaultItem>(
             r"
             INSERT INTO vault_items (user_id, encrypted_data, nonce, item_type)
@@ -26,18 +21,13 @@ impl VaultItemRepository {
             ",
         )
         .bind(create.user_id)
-        .bind(encrypted_data)
-        .bind(nonce)
+        .bind(create.encrypted_data)
+        .bind(create.nonce)
         .bind(create.item_type)
         .fetch_one(&self.pool)
         .await?;
 
-        Ok(VaultItemResponse {
-            id: item.id,
-            item_type: item.item_type,
-            created_at: item.created_at,
-            updated_at: item.updated_at,
-        })
+        Ok(VaultItemResponse::from_item(item))
     }
 
     pub async fn find_by_user(&self, user_id: Uuid) -> Result<Vec<VaultItemResponse>, sqlx::Error> {
@@ -50,12 +40,7 @@ impl VaultItemRepository {
 
         Ok(items
             .into_iter()
-            .map(|item| VaultItemResponse {
-                id: item.id,
-                item_type: item.item_type,
-                created_at: item.created_at,
-                updated_at: item.updated_at,
-            })
+            .map(VaultItemResponse::from_item)
             .collect())
     }
 }

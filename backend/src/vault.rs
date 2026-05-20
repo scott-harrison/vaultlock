@@ -1,19 +1,20 @@
 use axum::{extract::State, Extension, Json};
 use serde::Deserialize;
-use uuid::Uuid;
 
 use crate::{
     middleware::jwt_auth::AuthenticatedUser,
-    models::vault_item::{CreateVaultItem, VaultItemResponse},
+    models::vault_item::{base64_bytes, CreateVaultItem, VaultItemResponse},
     repositories::vault_item_repository::VaultItemRepository,
     AppState,
 };
 
 #[derive(Deserialize)]
 pub struct CreateVaultItemRequest {
-    pub plaintext: Vec<u8>,
     pub item_type: String,
-    pub dek: [u8; 32], // Replaced in 5-02 with client-supplied ciphertext
+    #[serde(with = "base64_bytes")]
+    pub encrypted_data: Vec<u8>,
+    #[serde(with = "base64_bytes")]
+    pub nonce: Vec<u8>,
 }
 
 pub async fn create_vault_item(
@@ -25,19 +26,20 @@ pub async fn create_vault_item(
 
     let create = CreateVaultItem {
         user_id,
-        plaintext: payload.plaintext,
+        encrypted_data: payload.encrypted_data,
+        nonce: payload.nonce,
         item_type: payload.item_type,
-        dek: payload.dek,
     };
 
     match repo.create(create).await {
         Ok(item) => Json(item),
         Err(e) => {
             tracing::error!(?e, "failed to create vault item");
-            // Return empty response for now - in production, return proper error
             Json(VaultItemResponse {
-                id: Uuid::nil(),
+                id: uuid::Uuid::nil(),
                 item_type: String::new(),
+                encrypted_data: Vec::new(),
+                nonce: Vec::new(),
                 created_at: chrono::Utc::now(),
                 updated_at: chrono::Utc::now(),
             })
