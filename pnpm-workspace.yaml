@@ -16,30 +16,6 @@ allowBuilds:
   lmdb: true
   msgpackr-extract: true
   sharp: true
-minimumReleaseAgeExclude:
-  - msgpackr@1.10.1
-  - svelte@4.2.19
-  - esbuild@0.24.3
-  - tsup@8.3.5
-  - content-security-policy-parser@0.6.0
-  - tmp@0.2.4
-  - send@0.19.0
-  - tar@7.5.7
-  - tar@7.5.3
-  - tar@7.5.8
-  - svelte@5.51.5
-  - tar@7.5.10
-  - tar@7.5.11
-  - svelte@5.53.5
-  - tar@7.5.4
-  - vite@6.4.2
-  - '@parcel/reporter-dev-server@2.16.4'
-  - postcss@8.5.10
-  - '@xmldom/xmldom@0.8.12'
-  - '@xmldom/xmldom@0.8.13'
-  - fast-xml-parser@5.7.0
-  - svelte@5.55.7
-  - ws@8.20.1
 overrides:
   '@parcel/reporter-dev-server@>=1.6.1 <=2.16.3': ^2.16.4
   '@xmldom/xmldom@<0.8.12': ^0.8.12
