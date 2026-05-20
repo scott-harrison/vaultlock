@@ -84,6 +84,14 @@ impl TestApp {
         self.request_json("GET", uri, "", Some(token)).await
     }
 
+    pub async fn put_json_bearer(&self, uri: &str, body: &str, token: &str) -> Response {
+        self.request_json("PUT", uri, body, Some(token)).await
+    }
+
+    pub async fn delete_bearer(&self, uri: &str, token: &str) -> Response {
+        self.request_json("DELETE", uri, "", Some(token)).await
+    }
+
     async fn request_json(
         &self,
         method: &str,
