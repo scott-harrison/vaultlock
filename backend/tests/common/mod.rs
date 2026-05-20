@@ -100,9 +100,7 @@ impl TestApp {
             builder = builder.header("authorization", format!("Bearer {token}"));
         }
 
-        let request = builder
-            .body(Body::from(body.to_string()))
-            .expect("request");
+        let request = builder.body(Body::from(body.to_string())).expect("request");
 
         self.router
             .clone()

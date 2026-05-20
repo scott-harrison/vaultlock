@@ -5,8 +5,8 @@ mod models;
 mod repositories;
 mod vault;
 
-use crate::auth::{login, register, verify_email};
 use crate::auth::jwt::JwtConfig;
+use crate::auth::{login, register, verify_email};
 use crate::middleware::{
     jwt_auth::jwt_auth_middleware,
     progressive_delay::ProgressiveDelay,

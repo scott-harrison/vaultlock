@@ -65,7 +65,10 @@ async fn verified_access_token(app: &TestApp, email: &str, hash: &str) -> String
 async fn vault_routes_require_authentication() {
     let app = TestApp::spawn().await;
 
-    assert_status(app.post_json("/vault", "{}").await, StatusCode::UNAUTHORIZED);
+    assert_status(
+        app.post_json("/vault", "{}").await,
+        StatusCode::UNAUTHORIZED,
+    );
     assert_status(app.get("/vault").await, StatusCode::UNAUTHORIZED);
 }
 
@@ -74,7 +77,8 @@ async fn vault_routes_reject_invalid_token() {
     let app = TestApp::spawn().await;
 
     assert_status(
-        app.post_json_bearer("/vault", "{}", "not-a-valid-jwt").await,
+        app.post_json_bearer("/vault", "{}", "not-a-valid-jwt")
+            .await,
         StatusCode::UNAUTHORIZED,
     );
     assert_status(
