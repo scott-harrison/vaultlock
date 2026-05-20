@@ -1,3 +1,4 @@
+import { AuthPanel } from "./components/AuthPanel";
 import { ServerSettings } from "./components/ServerSettings";
 import "./App.css";
 
@@ -9,7 +10,10 @@ function App() {
         <p className="tagline">Secure. Simple. Yours.</p>
       </header>
 
-      <ServerSettings />
+      <div className="app-panels">
+        <ServerSettings />
+        <AuthPanel />
+      </div>
     </main>
   );
 }
