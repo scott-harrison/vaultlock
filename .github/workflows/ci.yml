@@ -63,6 +63,21 @@ jobs:
     - name: Run Biome checks
       run: biome check --diagnostic-level=error .
 
+    - uses: pnpm/action-setup@v6
+      with:
+        version: 11.0.9
+
+    - uses: actions/setup-node@v6
+      with:
+        node-version: 22
+        cache: pnpm
+
+    - name: Install npm dependencies (frozen lockfile)
+      run: pnpm install --frozen-lockfile
+
+    - name: Run shared package tests
+      run: pnpm --filter @vaultlock/shared test
+
     - name: Setup Rust
       uses: dtolnay/rust-toolchain@stable
       with:
