@@ -3,11 +3,12 @@
 mod common;
 
 use axum::http::StatusCode;
+use base64::{engine::general_purpose::STANDARD, Engine};
 use common::{assert_status, TestApp};
 use rand::Rng;
 use serde_json::json;
 use vaultlock_backend::auth::jwt::{generate_access_token, JwtConfig};
-use vaultlock_backend::crypto::argon2::hash_login_password;
+use vaultlock_backend::crypto::{aes_gcm::encrypt, argon2::hash_login_password};
 
 const CREDENTIAL_CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 
@@ -20,6 +21,12 @@ fn random_credential(len: usize) -> String {
 
 fn phc_hash_for_credential(credential: &str) -> String {
     hash_login_password(credential).expect("hash")
+}
+
+fn client_encrypted_blob(plaintext: &[u8]) -> (String, String) {
+    let dek = [0x11u8; 32];
+    let (nonce, encrypted_data) = encrypt(plaintext, &dek).expect("encrypt");
+    (STANDARD.encode(encrypted_data), STANDARD.encode(nonce))
 }
 
 async fn verified_access_token(app: &TestApp, email: &str, hash: &str) -> String {
@@ -88,20 +95,20 @@ async fn vault_routes_reject_invalid_token() {
 }
 
 #[tokio::test]
-async fn vault_create_and_list_use_authenticated_user() {
+async fn vault_create_and_list_return_client_ciphertext() {
     let app = TestApp::spawn().await;
     let email = "vault-user@example.com";
     let hash = phc_hash_for_credential(&random_credential(24));
     let token = verified_access_token(&app, email, &hash).await;
 
-    let dek = [0u8; 32];
+    let (encrypted_data, nonce) = client_encrypted_blob(b"client-side secret");
     let create_response = assert_status(
         app.post_json_bearer(
             "/vault",
             &json!({
-                "plaintext": [1, 2, 3],
-                "item_type": "login",
-                "dek": dek
+                "encrypted_data": encrypted_data,
+                "nonce": nonce,
+                "item_type": "login"
             })
             .to_string(),
             &token,
@@ -114,6 +121,8 @@ async fn vault_create_and_list_use_authenticated_user() {
             .expect("create json");
     let item_id = created["id"].as_str().expect("item id");
     assert_ne!(item_id, "00000000-0000-0000-0000-000000000000");
+    assert_eq!(created["encrypted_data"], encrypted_data);
+    assert_eq!(created["nonce"], nonce);
 
     let list_response = assert_status(app.get_bearer("/vault", &token).await, StatusCode::OK);
     let listed: Vec<serde_json::Value> =
@@ -121,6 +130,34 @@ async fn vault_create_and_list_use_authenticated_user() {
             .expect("list json");
     assert_eq!(listed.len(), 1);
     assert_eq!(listed[0]["id"].as_str(), Some(item_id));
+    assert_eq!(listed[0]["encrypted_data"], encrypted_data);
+    assert_eq!(listed[0]["nonce"], nonce);
+}
+
+#[tokio::test]
+async fn vault_rejects_legacy_plaintext_payload() {
+    let app = TestApp::spawn().await;
+    let token = verified_access_token(
+        &app,
+        "legacy-payload@example.com",
+        &phc_hash_for_credential(&random_credential(24)),
+    )
+    .await;
+
+    let response = app
+        .post_json_bearer(
+            "/vault",
+            &json!({
+                "plaintext": [1, 2, 3],
+                "item_type": "login",
+                "dek": vec![0u8; 32]
+            })
+            .to_string(),
+            &token,
+        )
+        .await;
+
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
 }
 
 #[tokio::test]
@@ -140,14 +177,14 @@ async fn vault_token_user_isolation() {
     )
     .await;
 
-    let dek = [0u8; 32];
+    let (encrypted_data, nonce) = client_encrypted_blob(b"user-a-only");
     assert_status(
         app.post_json_bearer(
             "/vault",
             &json!({
-                "plaintext": [9],
-                "item_type": "note",
-                "dek": dek
+                "encrypted_data": encrypted_data,
+                "nonce": nonce,
+                "item_type": "note"
             })
             .to_string(),
             &token_a,
