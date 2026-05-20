@@ -3,14 +3,17 @@ use axum::http::{Request, StatusCode};
 use sqlx::postgres::PgPoolOptions;
 use std::error::Error;
 use tower::ServiceExt; // for `oneshot`
-mod common;
-
-use vaultlock_backend::app;
+use vaultlock_backend::{app, auth::jwt::JwtConfig};
 
 #[tokio::test]
 async fn health_check_works() -> Result<(), Box<dyn Error>> {
     let pool = PgPoolOptions::new().connect_lazy("postgres://localhost/unused")?;
-    let app = app(pool, common::test_jwt_config());
+    let jwt = JwtConfig {
+        secret: "integration-test-jwt-secret".to_string(),
+        access_token_expiry_minutes: 15,
+        refresh_token_expiry_days: 7,
+    };
+    let app = app(pool, jwt);
     let request = Request::builder().uri("/health").body(Body::empty())?;
 
     let response = app.oneshot(request).await?;

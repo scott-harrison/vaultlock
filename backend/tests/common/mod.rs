@@ -32,6 +32,7 @@ pub struct TestApp {
     router: Router,
 }
 
+#[allow(dead_code)]
 impl TestApp {
     pub async fn spawn() -> Self {
         std::env::set_var("JWT_SECRET", TEST_JWT_SECRET);
