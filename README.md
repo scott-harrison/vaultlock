@@ -18,54 +18,25 @@ Stop paying subscriptions — take full control of your data.
 
 ## Local Development
 
-### Prerequisites
-
-#### 1. Rust
-```bash
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-```
-
-Verify:
-```bash
-rustc --version
-cargo --version
-```
-
-#### 2. pnpm
-```bash
-npm install -g pnpm
-```
-
-#### 3. Docker + Docker Compose
+See **[Development Environment](./docs/DEV_ENVIRONMENT.md)** for full setup (backend, database, desktop app, and platform prerequisites).
 
 ### Quick Start
 
 ```bash
-# Clone repo
 git clone https://github.com/scott-harrison/vaultlock.git
 cd vaultlock
-
-# Install dependencies
 pnpm install
+cp .env.example .env
 
-# Start development environment
-docker compose up --build
+# Database + API
+docker compose up postgres -d
+cd backend && cargo run
+
+# Desktop app (separate terminal, from repo root)
+pnpm desktop:dev
 ```
 
-Backend will be available at `http://localhost:8080`.
-
-### Development Commands
-
-```bash
-# Format code (Biome + Rust)
-pnpm format
-
-# Lint code
-pnpm lint
-
-# Run backend tests
-pnpm test
-```
+Backend health check: `curl http://localhost:8080/health`
 
 ## Project Structure
 
