@@ -3,9 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     middleware::jwt_auth::AuthenticatedUser,
-    models::vault_item::{
-        base64_bytes, validate_item_type, CreateVaultItem, VaultItemResponse,
-    },
+    models::vault_item::{base64_bytes, validate_item_type, CreateVaultItem, VaultItemResponse},
     repositories::vault_item_repository::VaultItemRepository,
     AppState,
 };
