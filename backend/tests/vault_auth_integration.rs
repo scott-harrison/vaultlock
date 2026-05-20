@@ -26,10 +26,7 @@ fn phc_hash_for_credential(credential: &str) -> String {
 fn client_encrypted_blob(plaintext: &[u8]) -> (String, String) {
     let dek = [0x11u8; 32];
     let (nonce, encrypted_data) = encrypt(plaintext, &dek).expect("encrypt");
-    (
-        STANDARD.encode(encrypted_data),
-        STANDARD.encode(nonce),
-    )
+    (STANDARD.encode(encrypted_data), STANDARD.encode(nonce))
 }
 
 async fn verified_access_token(app: &TestApp, email: &str, hash: &str) -> String {

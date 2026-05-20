@@ -19,9 +19,7 @@ pub mod base64_bytes {
         D: Deserializer<'de>,
     {
         let encoded = String::deserialize(deserializer)?;
-        STANDARD
-            .decode(encoded)
-            .map_err(serde::de::Error::custom)
+        STANDARD.decode(encoded).map_err(serde::de::Error::custom)
     }
 }
 
