@@ -2,6 +2,12 @@ packages:
   - 'frontend'
   - 'mobile'
   - 'extension'
+
+# Supply chain: https://pnpm.io/supply-chain-security
+blockExoticSubdeps: true
+minimumReleaseAge: 1440
+trustPolicy: no-downgrade
+
 allowBuilds:
   '@biomejs/biome': true
   '@parcel/watcher': true
