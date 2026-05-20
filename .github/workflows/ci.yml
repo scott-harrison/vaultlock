@@ -13,13 +13,13 @@ jobs:
   supply-chain:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: 11.0.9
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: pnpm
@@ -53,7 +53,7 @@ jobs:
     needs: supply-chain
 
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
 
     - name: Setup Biome
       uses: biomejs/setup-biome@v2
@@ -90,7 +90,7 @@ jobs:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
 
     - name: Setup Rust
       uses: dtolnay/rust-toolchain@stable
@@ -104,7 +104,7 @@ jobs:
 
     - name: Upload coverage
       if: ${{ env.CODECOV_TOKEN != '' }}
-      uses: codecov/codecov-action@v4
+      uses: codecov/codecov-action@v6
       with:
         files: backend/coverage/cobertura.xml
         token: ${{ env.CODECOV_TOKEN }}
