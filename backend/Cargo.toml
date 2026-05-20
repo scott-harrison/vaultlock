@@ -23,7 +23,7 @@ jsonwebtoken = "9"
 aes-gcm = "0.10"
 aead = { version = "0.5", features = ["alloc"] }
 rand = "0.8"
-reqwest = { version = "0.12", features = ["json"] }
+reqwest = { version = "0.13", features = ["json"] }
 
 [dev-dependencies]
 testcontainers = "0.15"
