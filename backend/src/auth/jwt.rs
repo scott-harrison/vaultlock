@@ -10,6 +10,7 @@ pub struct Claims {
     pub iat: i64,
 }
 
+#[derive(Clone)]
 pub struct JwtConfig {
     pub secret: String,
     pub access_token_expiry_minutes: i64,
@@ -17,6 +18,11 @@ pub struct JwtConfig {
 }
 
 impl JwtConfig {
+    /// Load JWT settings from environment (`JWT_SECRET`).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`std::env::VarError`] when `JWT_SECRET` is not set.
     pub fn from_env() -> Result<Self, std::env::VarError> {
         Ok(Self {
             secret: std::env::var("JWT_SECRET")?,
@@ -26,6 +32,11 @@ impl JwtConfig {
     }
 }
 
+/// Create a signed JWT access token for `user_id`.
+///
+/// # Errors
+///
+/// Returns [`jsonwebtoken::errors::Error`] when encoding fails.
 pub fn generate_access_token(
     user_id: Uuid,
     config: &JwtConfig,
@@ -46,6 +57,11 @@ pub fn generate_access_token(
     )
 }
 
+/// Create a signed JWT refresh token for `user_id`.
+///
+/// # Errors
+///
+/// Returns [`jsonwebtoken::errors::Error`] when encoding fails.
 pub fn generate_refresh_token(
     user_id: Uuid,
     config: &JwtConfig,
@@ -66,7 +82,11 @@ pub fn generate_refresh_token(
     )
 }
 
-#[cfg_attr(not(test), allow(dead_code))]
+/// Decode and validate a JWT, returning its claims.
+///
+/// # Errors
+///
+/// Returns [`jsonwebtoken::errors::Error`] when the token is invalid or expired.
 pub fn validate_token(token: &str, secret: &str) -> Result<Claims, jsonwebtoken::errors::Error> {
     let token_data = decode::<Claims>(
         token,
