@@ -1,11 +1,19 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Minus, Square, X } from "lucide-react";
 
+function getWindow() {
+  try {
+    return getCurrentWindow();
+  } catch {
+    return null;
+  }
+}
+
 export function TitleBar() {
-  const win = getCurrentWindow();
+  const win = getWindow();
 
   const startWindowDrag = (event: React.PointerEvent) => {
-    if (event.button !== 0) {
+    if (event.button !== 0 || !win) {
       return;
     }
     event.preventDefault();
@@ -31,7 +39,7 @@ export function TitleBar() {
           className="titlebar-btn"
           aria-label="Minimize"
           onClick={() => {
-            void win.minimize();
+            void win?.minimize();
           }}
         >
           <Minus size={14} strokeWidth={2} aria-hidden />
@@ -41,7 +49,7 @@ export function TitleBar() {
           className="titlebar-btn"
           aria-label="Maximize"
           onClick={() => {
-            void win.toggleMaximize();
+            void win?.toggleMaximize();
           }}
         >
           <Square size={12} strokeWidth={2} aria-hidden />
@@ -51,7 +59,7 @@ export function TitleBar() {
           className="titlebar-btn titlebar-btn-close"
           aria-label="Close"
           onClick={() => {
-            void win.close();
+            void win?.close();
           }}
         >
           <X size={14} strokeWidth={2} aria-hidden />

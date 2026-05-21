@@ -9,6 +9,7 @@ import { ConnectServerScreen } from "./components/screens/ConnectServerScreen";
 import { RegisterScreen } from "./components/screens/RegisterScreen";
 import { SignInScreen } from "./components/screens/SignInScreen";
 import { UnlockScreen } from "./components/screens/UnlockScreen";
+import { VaultScreen } from "./components/screens/VaultScreen";
 import { useAutoLock } from "./hooks/useAutoLock";
 import { useMountEffect } from "./hooks/useMountEffect";
 import { useVerifyDeepLink } from "./hooks/useVerifyDeepLink";
@@ -23,6 +24,7 @@ import {
   saveCredentials,
   savePendingVerificationEmail,
   saveSession,
+  sessionFromAuthResponse,
 } from "./lib/authSession";
 import {
   DEFAULT_SERVER_ADVANCED,
@@ -81,6 +83,7 @@ function App() {
   const [session, setSession] = useState<AuthSession | null>(null);
   const [pendingVerificationEmail, setPendingVerificationEmail] = useState<string | null>(null);
   const [isUnlocked, setIsUnlocked] = useState(false);
+  const [isVaultCreateOpen, setIsVaultCreateOpen] = useState(false);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState<string | null>(null);
@@ -187,16 +190,12 @@ function App() {
     const response = await client.verifyEmail({ token });
     const credentials = await loadCredentials();
     const email = credentials?.email ?? pendingVerificationEmail ?? "";
-    const nextSession: AuthSession = {
-      email,
-      accessToken: response.access_token,
-      refreshToken: response.refresh_token,
-    };
+    const nextSession = sessionFromAuthResponse(email, response);
     await saveSession(nextSession);
     await persistCredentialsFromAuth(email, response);
     await clearPendingVerificationEmail();
-    setSession(nextSession);
     setPendingVerificationEmail(null);
+    setSession(nextSession);
     setIsUnlocked(false);
     setScreen("unlock");
     setScreenSuccess("Email verified. Unlock your vault to continue.");
@@ -239,16 +238,25 @@ function App() {
 
   useVerifyDeepLink(handleDeepLink);
 
+  const handleSessionExpired = useCallback(() => {
+    lockVault();
+    setIsVaultCreateOpen(false);
+    setIsUnlocked(false);
+    setScreenError("Your session expired. Unlock the vault to continue.");
+    setScreen("unlock");
+  }, []);
+
   const lockVaultSession = useCallback((message?: string) => {
     lockVault();
     setScreenError(null);
     setScreenSuccess(message ?? null);
+    setIsVaultCreateOpen(false);
     setIsUnlocked(false);
     setScreen("unlock");
   }, []);
 
   useAutoLock({
-    enabled: isUnlocked && screen === "vault",
+    enabled: isUnlocked && screen === "vault" && !isVaultCreateOpen,
     onLock: () => lockVaultSession(AUTO_LOCK_MESSAGE),
   });
 
@@ -265,17 +273,14 @@ function App() {
         master_password: password,
       });
 
-      const nextSession: AuthSession = {
-        email,
-        accessToken: response.access_token,
-        refreshToken: response.refresh_token,
-      };
+      const nextSession = sessionFromAuthResponse(email, response);
       await saveSession(nextSession);
       await persistCredentialsFromAuth(email, response);
       await clearPendingVerificationEmail();
       setPendingVerificationEmail(null);
       setSession(nextSession);
       await unlockVaultForUser(email, password);
+      setIsVaultCreateOpen(false);
       setIsUnlocked(true);
       setScreen("vault");
     } catch (error) {
@@ -311,13 +316,27 @@ function App() {
         return;
       }
 
+      const client = await createApiClient();
+      const response = await client.login({
+        email: session.email,
+        master_password: password,
+      });
+
+      const nextSession = sessionFromAuthResponse(session.email, response);
+      await saveSession(nextSession);
+      await persistCredentialsFromAuth(session.email, response);
+      setSession(nextSession);
       await unlockVaultForUser(session.email, password);
+      setIsVaultCreateOpen(false);
       setIsUnlocked(true);
       setScreen("vault");
     } catch (error) {
       lockVault();
       setIsUnlocked(false);
-      if (error instanceof Error && error.message === VAULT_UNLOCK_ERROR) {
+      if (error instanceof VaultlockApiError && error.status === 403) {
+        setScreen("check-email");
+        setScreenError("Verify your email before signing in.");
+      } else if (error instanceof Error && error.message === VAULT_UNLOCK_ERROR) {
         setScreenError(VAULT_UNLOCK_ERROR);
       } else {
         setScreenError(GENERIC_SIGN_IN_ERROR);
@@ -331,6 +350,7 @@ function App() {
   const handleSignOut = async () => {
     resetFeedback();
     lockVault();
+    setIsVaultCreateOpen(false);
     await clearAllAuthData();
     setSession(null);
     setPendingVerificationEmail(null);
@@ -459,28 +479,26 @@ function App() {
               />
             )}
 
+            {screen === "vault" && session && !isUnlocked && (
+              <UnlockScreen
+                email={session.email}
+                isSubmitting={isSubmitting}
+                error={screenError}
+                success={screenSuccess}
+                onUnlock={handleUnlock}
+                onSignOut={handleSignOut}
+              />
+            )}
+
             {screen === "vault" && session && isUnlocked && (
-              <section className="screen">
-                <div className="screen-header">
-                  <h1>Vault</h1>
-                  <p className="hint">
-                    Unlocked as <strong>{session.email}</strong>. Encryption keys are loaded in
-                    memory — vault items arrive in the next milestone.
-                  </p>
-                </div>
-                <div className="button-row">
-                  <button
-                    type="button"
-                    className="btn btn-secondary"
-                    onClick={() => lockVaultSession()}
-                  >
-                    Lock vault
-                  </button>
-                  <button type="button" className="btn btn-secondary" onClick={handleSignOut}>
-                    Sign out
-                  </button>
-                </div>
-              </section>
+              <VaultScreen
+                accessToken={session.accessToken}
+                email={session.email}
+                onCreateFormOpenChange={setIsVaultCreateOpen}
+                onLock={() => lockVaultSession()}
+                onSessionExpired={handleSessionExpired}
+                onSignOut={handleSignOut}
+              />
             )}
           </>
         )}

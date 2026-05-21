@@ -11,6 +11,47 @@ export interface AuthSession {
   refreshToken: string;
 }
 
+type StoredSession = AuthSession & {
+  access_token?: string;
+  refresh_token?: string;
+  token?: string;
+};
+
+function normalizeAuthSession(raw: StoredSession | null): AuthSession | null {
+  if (!raw?.email) {
+    return null;
+  }
+
+  const accessToken = raw.accessToken || raw.access_token || raw.token || "";
+  const refreshToken = raw.refreshToken || raw.refresh_token || "";
+
+  if (!accessToken) {
+    return null;
+  }
+
+  return {
+    email: raw.email,
+    accessToken,
+    refreshToken,
+  };
+}
+
+function sessionFromAuthResponse(
+  email: string,
+  response: { access_token?: string; token?: string; refresh_token?: string },
+): AuthSession {
+  const accessToken = response.access_token || response.token;
+  if (!accessToken) {
+    throw new Error("Server did not return an access token.");
+  }
+
+  return {
+    email,
+    accessToken,
+    refreshToken: response.refresh_token ?? "",
+  };
+}
+
 export interface StoredCredentials {
   email: string;
   masterPasswordHash: string;
@@ -27,7 +68,8 @@ async function getStore() {
 
 export async function loadSession(): Promise<AuthSession | null> {
   const store = await getStore();
-  return (await store.get<AuthSession>(SESSION_KEY)) ?? null;
+  const raw = await store.get<StoredSession>(SESSION_KEY);
+  return normalizeAuthSession(raw ?? null);
 }
 
 export async function saveSession(session: AuthSession): Promise<void> {
@@ -78,3 +120,5 @@ export async function clearAllAuthData(): Promise<void> {
   await store.delete(PENDING_VERIFICATION_KEY);
   await store.save();
 }
+
+export { normalizeAuthSession, sessionFromAuthResponse };
