@@ -1,5 +1,6 @@
 import { VaultItemDetail } from "@/components/VaultItemDetail";
 import { type VaultSection, VaultSidebar } from "@/components/layout/VaultSidebar";
+import { PasswordGeneratorDialog } from "@/components/vault/PasswordGeneratorDialog";
 import { VaultCreateDialog } from "@/components/vault/VaultCreateDialog";
 import type { VaultCreateDraft } from "@/components/vault/VaultCreateDialog";
 import { VaultDeleteDialog } from "@/components/vault/VaultDeleteDialog";
@@ -118,6 +119,7 @@ export function VaultScreen({
   const [isSyncing, setIsSyncing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isPasswordGeneratorOpen, setIsPasswordGeneratorOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editItemId, setEditItemId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<DecryptedVaultItem | null>(null);
@@ -136,7 +138,9 @@ export function VaultScreen({
 
   const setCreateOpen = (next: boolean) => {
     setIsCreateOpen(next);
-    onCreateFormOpenChange?.(next || isEditOpen || deleteTarget !== null);
+    onCreateFormOpenChange?.(
+      next || isEditOpen || deleteTarget !== null || isPasswordGeneratorOpen,
+    );
   };
 
   const setEditOpen = (next: boolean) => {
@@ -144,12 +148,16 @@ export function VaultScreen({
     if (!next) {
       setEditItemId(null);
     }
-    onCreateFormOpenChange?.(isCreateOpen || next || deleteTarget !== null);
+    onCreateFormOpenChange?.(
+      isCreateOpen || next || deleteTarget !== null || isPasswordGeneratorOpen,
+    );
   };
 
   const setDeleteOpen = (item: DecryptedVaultItem | null) => {
     setDeleteTarget(item);
-    onCreateFormOpenChange?.(isCreateOpen || isEditOpen || item !== null);
+    onCreateFormOpenChange?.(
+      isCreateOpen || isEditOpen || item !== null || isPasswordGeneratorOpen,
+    );
   };
 
   const handleVaultMutationError = (
@@ -192,12 +200,20 @@ export function VaultScreen({
     setLoginDraft((current) => ({ ...current, [field]: value }));
   };
 
+  const setLoginPassword = (password: string) => {
+    setLoginDraft((current) => ({ ...current, password }));
+  };
+
   const updateEditLoginField = (
     field: keyof LoginItemPlaintext,
     event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
   ) => {
     const value = event.target.value;
     setEditLoginDraft((current) => ({ ...current, [field]: value }));
+  };
+
+  const setEditLoginPassword = (password: string) => {
+    setEditLoginDraft((current) => ({ ...current, password }));
   };
 
   const updateEditNoteField = (
@@ -345,6 +361,15 @@ export function VaultScreen({
 
   const openCreateForm = () => {
     resetCreateForm();
+    setCreateOpen(true);
+  };
+
+  const openCreateLoginWithPassword = (password: string) => {
+    setCreateType("login");
+    setLoginDraft({ ...emptyLoginDraft(), password });
+    setNoteDraft(emptyNoteDraft());
+    setActiveSection("logins");
+    setIsPasswordGeneratorOpen(false);
     setCreateOpen(true);
   };
 
@@ -497,6 +522,7 @@ export function VaultScreen({
         sectionCounts={sectionCounts}
         onSectionChange={handleSectionChange}
         onNewItem={openCreateForm}
+        onGeneratePassword={() => setIsPasswordGeneratorOpen(true)}
         onLock={onLock}
         onSignOut={onSignOut}
       />
@@ -533,6 +559,7 @@ export function VaultScreen({
         onSubmit={handleCreate}
         onCreateTypeChange={setCreateType}
         onLoginFieldChange={updateLoginField}
+        onLoginPasswordChange={setLoginPassword}
         onNoteFieldChange={updateNoteField}
       />
 
@@ -545,6 +572,7 @@ export function VaultScreen({
         onSubmit={handleUpdate}
         onCreateTypeChange={setEditType}
         onLoginFieldChange={updateEditLoginField}
+        onLoginPasswordChange={setEditLoginPassword}
         onNoteFieldChange={updateEditNoteField}
       />
 
@@ -557,6 +585,12 @@ export function VaultScreen({
           }
         }}
         onConfirm={() => void handleDelete()}
+      />
+
+      <PasswordGeneratorDialog
+        open={isPasswordGeneratorOpen}
+        onOpenChange={setIsPasswordGeneratorOpen}
+        onUseInNewLogin={openCreateLoginWithPassword}
       />
     </div>
   );

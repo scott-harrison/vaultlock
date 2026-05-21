@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { CreditCard, KeyRound, Lock, LogOut, NotebookPen, Plus, Star } from "lucide-react";
+import { CreditCard, KeyRound, Lock, LogOut, NotebookPen, Plus, Star, Wand2 } from "lucide-react";
 
 export type VaultSection = "logins" | "notes" | "cards" | "favourites";
 
@@ -14,6 +14,7 @@ interface VaultSidebarProps {
   className?: string;
   onSectionChange: (section: VaultSection) => void;
   onNewItem: () => void;
+  onGeneratePassword: () => void;
   onLock: () => void;
   onSignOut: () => void;
 }
@@ -107,6 +108,7 @@ export function VaultSidebar({
   className,
   onSectionChange,
   onNewItem,
+  onGeneratePassword,
   onLock,
   onSignOut,
 }: VaultSidebarProps) {
@@ -144,10 +146,34 @@ export function VaultSidebar({
       </nav>
 
       <div className="mt-auto space-y-2 p-3">
-        <Button className="w-full" size="sm" onClick={onNewItem}>
-          <Plus className="size-4" aria-hidden />
-          New item
-        </Button>
+        <div className="space-y-1.5">
+          <Button className="w-full shadow-sm" size="sm" onClick={onNewItem}>
+            <Plus className="size-4" aria-hidden />
+            New item
+          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-auto w-full justify-start gap-3 rounded-md px-2 py-2 text-sidebar-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground"
+                onClick={onGeneratePassword}
+              >
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-sidebar-primary/15 text-sidebar-primary">
+                  <Wand2 className="size-4" aria-hidden />
+                </span>
+                <span className="min-w-0 flex-1 text-left">
+                  <span className="block text-sm font-medium leading-none">Password generator</span>
+                  <span className="mt-1 block text-[11px] leading-none text-sidebar-foreground/60">
+                    Random, copy, or new login
+                  </span>
+                </span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="right">Open the password generator</TooltipContent>
+          </Tooltip>
+        </div>
         <Separator className="bg-sidebar-border" />
         <Button className="w-full justify-start" variant="ghost" size="sm" onClick={onLock}>
           <Lock className="size-4" aria-hidden />
