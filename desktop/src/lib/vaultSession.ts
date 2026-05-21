@@ -89,7 +89,15 @@ export async function unlockVault(params: {
     let dek: Uint8Array;
 
     if (existing) {
-      dek = await unwrapDek(fromBase64(existing.nonce), fromBase64(existing.ciphertext), masterKey);
+      try {
+        dek = await unwrapDek(
+          fromBase64(existing.nonce),
+          fromBase64(existing.ciphertext),
+          masterKey,
+        );
+      } catch {
+        throw new Error("Local vault keys could not be decrypted. Sign out and sign in again.");
+      }
     } else {
       dek = generateDek();
       const { nonce, ciphertext } = await wrapDek(dek, masterKey);

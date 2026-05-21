@@ -5,11 +5,14 @@ import { cn } from "@/lib/utils";
 import type { DecryptedVaultItem } from "@/lib/vaultItems";
 import { vaultItemDisplayTitle } from "@/lib/vaultItems";
 import type { LoginItemPlaintext, NoteItemPlaintext } from "@vaultlock/shared/types";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, Pencil, Trash2 } from "lucide-react";
 import { useId, useState } from "react";
 
 interface VaultItemDetailProps {
   item: DecryptedVaultItem | null;
+  isSubmitting?: boolean;
+  onEdit?: (item: DecryptedVaultItem) => void;
+  onDelete?: (item: DecryptedVaultItem) => void;
 }
 
 function DetailField({
@@ -176,7 +179,12 @@ function NoteDetail({
   );
 }
 
-export function VaultItemDetail({ item }: VaultItemDetailProps) {
+export function VaultItemDetail({
+  item,
+  isSubmitting = false,
+  onEdit,
+  onDelete,
+}: VaultItemDetailProps) {
   const [copyMessage, setCopyMessage] = useState<string | null>(null);
 
   const handleCopied = () => {
@@ -206,6 +214,8 @@ export function VaultItemDetail({ item }: VaultItemDetailProps) {
           (value) => typeof value === "string" && value.trim().length > 0,
         );
 
+  const canModify = item.itemType === "login" || item.itemType === "note";
+
   return (
     <section
       className="flex h-full min-w-0 flex-1 flex-col bg-background"
@@ -224,6 +234,36 @@ export function VaultItemDetail({ item }: VaultItemDetailProps) {
               {vaultItemDisplayTitle(item)}
             </h2>
           </div>
+          {canModify && (onEdit || onDelete) && (
+            <div className="flex shrink-0 gap-1">
+              {onEdit && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-8"
+                  aria-label="Edit item"
+                  disabled={isSubmitting}
+                  onClick={() => onEdit(item)}
+                >
+                  <Pencil className="size-4" aria-hidden />
+                </Button>
+              )}
+              {onDelete && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-8 text-destructive hover:text-destructive"
+                  aria-label="Delete item"
+                  disabled={isSubmitting}
+                  onClick={() => onDelete(item)}
+                >
+                  <Trash2 className="size-4" aria-hidden />
+                </Button>
+              )}
+            </div>
+          )}
         </div>
         {copyMessage && <p className="mt-3 text-sm text-primary">{copyMessage}</p>}
       </div>

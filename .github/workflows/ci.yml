@@ -52,6 +52,24 @@ jobs:
     runs-on: ubuntu-latest
     needs: supply-chain
 
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: vaultlock
+          POSTGRES_PASSWORD: vaultlock
+          POSTGRES_DB: vaultlock
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U vaultlock -d vaultlock"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      TEST_DATABASE_URL: postgres://vaultlock:vaultlock@127.0.0.1:5432/vaultlock
+
     steps:
     - uses: actions/checkout@v6
 
@@ -106,6 +124,22 @@ jobs:
     needs: lint-and-test
     env:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+      TEST_DATABASE_URL: postgres://vaultlock:vaultlock@127.0.0.1:5432/vaultlock
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: vaultlock
+          POSTGRES_PASSWORD: vaultlock
+          POSTGRES_DB: vaultlock
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U vaultlock -d vaultlock"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
 
     steps:
     - uses: actions/checkout@v6
