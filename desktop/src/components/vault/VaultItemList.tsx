@@ -1,6 +1,9 @@
-import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { VaultEmptyState } from "@/components/vault/VaultEmptyState";
+import { VaultItemTypeIcon } from "@/components/vault/VaultItemTypeIcon";
+import { VaultListSkeleton } from "@/components/vault/VaultListSkeleton";
 import { cn } from "@/lib/utils";
 import {
   type DecryptedVaultItem,
@@ -8,7 +11,7 @@ import {
   vaultItemDisplayTitle,
 } from "@/lib/vaultItems";
 import type { VaultItemType } from "@vaultlock/shared/types";
-import { KeyRound, NotebookPen, Search } from "lucide-react";
+import { KeyRound, NotebookPen, RefreshCw, Search } from "lucide-react";
 
 interface VaultItemListProps {
   items: DecryptedVaultItem[];
@@ -17,18 +20,11 @@ interface VaultItemListProps {
   isLoading: boolean;
   isSyncing?: boolean;
   sectionLabel: string;
+  sectionItemType?: VaultItemType;
   onSearchChange: (query: string) => void;
   onSelectItem: (itemId: string) => void;
   onSync: () => void;
-}
-
-function ItemIcon({ itemType }: { itemType: VaultItemType }) {
-  const Icon = itemType === "note" ? NotebookPen : KeyRound;
-  return (
-    <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
-      <Icon className="size-4" aria-hidden />
-    </div>
-  );
+  onAddItem?: () => void;
 }
 
 export function VaultItemList({
@@ -38,23 +34,31 @@ export function VaultItemList({
   isLoading,
   isSyncing = false,
   sectionLabel,
+  sectionItemType,
   onSearchChange,
   onSelectItem,
   onSync,
+  onAddItem,
 }: VaultItemListProps) {
+  const isSearchEmpty = searchQuery.trim().length > 0;
+  const canAdd = Boolean(onAddItem && sectionItemType);
+
   return (
     <section className="flex h-full w-80 shrink-0 flex-col border-r border-border bg-card/40">
       <div className="space-y-3 border-b border-border p-4">
         <div className="flex items-center justify-between gap-2">
           <h2 className="text-sm font-semibold">{sectionLabel}</h2>
-          <button
+          <Button
             type="button"
-            className="text-xs font-medium text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
+            variant="ghost"
+            size="sm"
+            className="h-7 gap-1.5 px-2 text-xs"
             disabled={isLoading || isSyncing}
             onClick={onSync}
           >
+            <RefreshCw className={cn("size-3.5", isSyncing && "animate-spin")} aria-hidden />
             {isSyncing ? "Syncing…" : "Sync"}
-          </button>
+          </Button>
         </div>
         <div className="relative">
           <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -69,11 +73,35 @@ export function VaultItemList({
 
       <ScrollArea className="flex-1">
         {isLoading ? (
-          <p className="p-4 text-sm text-muted-foreground">Loading items…</p>
+          <VaultListSkeleton />
         ) : items.length === 0 ? (
-          <p className="p-4 text-sm text-muted-foreground">
-            {searchQuery.trim() ? "No items match your search." : "No items yet."}
-          </p>
+          isSearchEmpty ? (
+            <VaultEmptyState
+              className="py-12"
+              icon={Search}
+              title="No matches"
+              description="Try a different search term or clear the filter."
+            />
+          ) : (
+            <VaultEmptyState
+              className="py-12"
+              icon={sectionItemType === "note" ? NotebookPen : KeyRound}
+              title={`No ${sectionLabel.toLowerCase()} yet`}
+              description={
+                canAdd
+                  ? `Create your first ${sectionItemType === "note" ? "note" : "login"} to get started.`
+                  : "Items you add will appear here."
+              }
+              action={
+                canAdd && onAddItem
+                  ? {
+                      label: "New item",
+                      onClick: onAddItem,
+                    }
+                  : undefined
+              }
+            />
+          )
         ) : (
           <ul className="space-y-1 p-2">
             {items.map((item) => {
@@ -92,7 +120,12 @@ export function VaultItemList({
                     )}
                     onClick={() => onSelectItem(item.id)}
                   >
-                    <ItemIcon itemType={item.itemType} />
+                    <VaultItemTypeIcon
+                      itemType={item.itemType}
+                      className={cn(
+                        isSelected && "bg-primary-foreground/15 text-primary-foreground",
+                      )}
+                    />
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-sm font-medium">
                         {vaultItemDisplayTitle(item)}
@@ -108,11 +141,6 @@ export function VaultItemList({
                         </div>
                       )}
                     </div>
-                    {!isSelected && (
-                      <Badge variant="outline" className="shrink-0 capitalize">
-                        {item.itemType}
-                      </Badge>
-                    )}
                   </button>
                 </li>
               );
