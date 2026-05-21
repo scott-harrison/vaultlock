@@ -91,3 +91,31 @@ export async function createVaultItem(
     plaintext: await decryptVaultItem(created),
   };
 }
+
+export async function updateVaultItem(
+  accessToken: string,
+  itemId: string,
+  itemType: VaultItemType,
+  plaintext: VaultItemPlaintext,
+): Promise<DecryptedVaultItem> {
+  const client = await createApiClient();
+  const encrypted = await encryptVaultItemPlaintext(plaintext);
+  const updated = await client.updateVaultItem(accessToken, itemId, {
+    item_type: itemType,
+    encrypted_data: encrypted.encrypted_data,
+    nonce: encrypted.nonce,
+  });
+
+  return {
+    id: updated.id,
+    itemType: updated.item_type,
+    createdAt: updated.created_at,
+    updatedAt: updated.updated_at,
+    plaintext: await decryptVaultItem(updated),
+  };
+}
+
+export async function deleteVaultItem(accessToken: string, itemId: string): Promise<void> {
+  const client = await createApiClient();
+  await client.deleteVaultItem(accessToken, itemId);
+}

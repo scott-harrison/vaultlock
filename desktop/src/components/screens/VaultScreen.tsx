@@ -1,12 +1,16 @@
 import { VaultItemDetail } from "@/components/VaultItemDetail";
 import { type VaultSection, VaultSidebar } from "@/components/layout/VaultSidebar";
 import { VaultCreateDialog } from "@/components/vault/VaultCreateDialog";
+import type { VaultCreateDraft } from "@/components/vault/VaultCreateDialog";
+import { VaultDeleteDialog } from "@/components/vault/VaultDeleteDialog";
 import { VaultItemList } from "@/components/vault/VaultItemList";
 import { useMountEffect } from "@/hooks/useMountEffect";
 import {
   type DecryptedVaultItem,
   createVaultItem,
+  deleteVaultItem,
   listDecryptedVaultItems,
+  updateVaultItem,
   vaultItemDisplaySubtitle,
   vaultItemDisplayTitle,
 } from "@/lib/vaultItems";
@@ -25,6 +29,9 @@ interface VaultScreenProps {
 
 const GENERIC_VAULT_ERROR = "Couldn't load vault items. Try again.";
 const GENERIC_CREATE_ERROR = "Couldn't save this item. Try again.";
+const GENERIC_UPDATE_ERROR = "Couldn't update this item. Try again.";
+const GENERIC_DELETE_ERROR = "Couldn't delete this item. Try again.";
+const ITEM_NOT_FOUND_ERROR = "This item was not found or you don't have access.";
 
 const SECTION_LABELS: Record<VaultSection, string> = {
   logins: "Logins",
@@ -46,6 +53,50 @@ function emptyNoteDraft(): NoteItemPlaintext {
   return { title: "", content: "" };
 }
 
+function draftFromItem(item: DecryptedVaultItem): VaultCreateDraft {
+  if (item.itemType === "login") {
+    const login = item.plaintext as LoginItemPlaintext;
+    return {
+      createType: "login",
+      loginDraft: {
+        title: login.title ?? "",
+        url: login.url ?? "",
+        username: login.username ?? "",
+        password: login.password ?? "",
+        notes: login.notes ?? "",
+      },
+      noteDraft: emptyNoteDraft(),
+    };
+  }
+
+  const note = item.plaintext as NoteItemPlaintext;
+  return {
+    createType: "note",
+    loginDraft: emptyLoginDraft(),
+    noteDraft: {
+      title: note.title ?? "",
+      content: note.content ?? "",
+    },
+  };
+}
+
+function loginPlaintextFromDraft(draft: LoginItemPlaintext): LoginItemPlaintext {
+  return {
+    title: draft.title?.trim() || undefined,
+    url: draft.url?.trim() || undefined,
+    username: draft.username?.trim() || undefined,
+    password: draft.password || undefined,
+    notes: draft.notes?.trim() || undefined,
+  };
+}
+
+function notePlaintextFromDraft(draft: NoteItemPlaintext): NoteItemPlaintext {
+  return {
+    title: draft.title?.trim() || undefined,
+    content: draft.content?.trim() || undefined,
+  };
+}
+
 export function VaultScreen({
   accessToken,
   email,
@@ -64,11 +115,17 @@ export function VaultScreen({
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [editItemId, setEditItemId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<DecryptedVaultItem | null>(null);
   const [activeSection, setActiveSection] = useState<VaultSection>("logins");
   const [searchQuery, setSearchQuery] = useState("");
   const [createType, setCreateType] = useState<VaultItemType>("login");
+  const [editType, setEditType] = useState<VaultItemType>("login");
   const [loginDraft, setLoginDraft] = useState(emptyLoginDraft);
   const [noteDraft, setNoteDraft] = useState(emptyNoteDraft);
+  const [editLoginDraft, setEditLoginDraft] = useState(emptyLoginDraft);
+  const [editNoteDraft, setEditNoteDraft] = useState(emptyNoteDraft);
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
 
   accessTokenRef.current = accessToken;
@@ -76,7 +133,44 @@ export function VaultScreen({
 
   const setCreateOpen = (next: boolean) => {
     setIsCreateOpen(next);
-    onCreateFormOpenChange?.(next);
+    onCreateFormOpenChange?.(next || isEditOpen || deleteTarget !== null);
+  };
+
+  const setEditOpen = (next: boolean) => {
+    setIsEditOpen(next);
+    if (!next) {
+      setEditItemId(null);
+    }
+    onCreateFormOpenChange?.(isCreateOpen || next || deleteTarget !== null);
+  };
+
+  const setDeleteOpen = (item: DecryptedVaultItem | null) => {
+    setDeleteTarget(item);
+    onCreateFormOpenChange?.(isCreateOpen || isEditOpen || item !== null);
+  };
+
+  const handleVaultMutationError = (
+    mutationError: unknown,
+    fallbackMessage: string,
+    staleItemId?: string,
+  ) => {
+    if (mutationError instanceof VaultlockApiError) {
+      if (mutationError.status === 401) {
+        notifySessionExpired();
+        return;
+      }
+      if (mutationError.status === 404) {
+        setError(ITEM_NOT_FOUND_ERROR);
+        if (staleItemId) {
+          setItems((current) => current.filter((item) => item.id !== staleItemId));
+        }
+        setSelectedItemId(null);
+        setEditOpen(false);
+        setDeleteOpen(null);
+        return;
+      }
+    }
+    setError(fallbackMessage);
   };
 
   const notifySessionExpired = () => {
@@ -95,6 +189,22 @@ export function VaultScreen({
     setLoginDraft((current) => ({ ...current, [field]: value }));
   };
 
+  const updateEditLoginField = (
+    field: keyof LoginItemPlaintext,
+    event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
+  ) => {
+    const value = event.target.value;
+    setEditLoginDraft((current) => ({ ...current, [field]: value }));
+  };
+
+  const updateEditNoteField = (
+    field: keyof NoteItemPlaintext,
+    event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
+  ) => {
+    const value = event.target.value;
+    setEditNoteDraft((current) => ({ ...current, [field]: value }));
+  };
+
   const updateNoteField = (
     field: keyof NoteItemPlaintext,
     event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
@@ -102,6 +212,11 @@ export function VaultScreen({
     const value = event.target.value;
     setNoteDraft((current) => ({ ...current, [field]: value }));
   };
+
+  const sortItems = (nextItems: DecryptedVaultItem[]) =>
+    [...nextItems].sort((left, right) =>
+      vaultItemDisplayTitle(left).localeCompare(vaultItemDisplayTitle(right)),
+    );
 
   const loadItems = async () => {
     if (!accessTokenRef.current) {
@@ -180,6 +295,17 @@ export function VaultScreen({
     setCreateOpen(true);
   };
 
+  const openEditForm = (item: DecryptedVaultItem) => {
+    const draft = draftFromItem(item);
+    setError(null);
+    setSuccess(null);
+    setEditItemId(item.id);
+    setEditType(item.itemType);
+    setEditLoginDraft(draft.loginDraft);
+    setEditNoteDraft(draft.noteDraft);
+    setEditOpen(true);
+  };
+
   const handleSectionChange = (section: VaultSection) => {
     setActiveSection(section);
     setSearchQuery("");
@@ -195,27 +321,22 @@ export function VaultScreen({
     try {
       const created =
         createType === "login"
-          ? await createVaultItem(accessTokenRef.current, "login", {
-              title: loginDraft.title?.trim() || undefined,
-              url: loginDraft.url?.trim() || undefined,
-              username: loginDraft.username?.trim() || undefined,
-              password: loginDraft.password || undefined,
-              notes: loginDraft.notes?.trim() || undefined,
-            })
-          : await createVaultItem(accessTokenRef.current, "note", {
-              title: noteDraft.title?.trim() || undefined,
-              content: noteDraft.content?.trim() || undefined,
-            });
+          ? await createVaultItem(
+              accessTokenRef.current,
+              "login",
+              loginPlaintextFromDraft(loginDraft),
+            )
+          : await createVaultItem(
+              accessTokenRef.current,
+              "note",
+              notePlaintextFromDraft(noteDraft),
+            );
 
       if (!isMountedRef.current) {
         return;
       }
 
-      setItems((current) =>
-        [...current, created].sort((left, right) =>
-          vaultItemDisplayTitle(left).localeCompare(vaultItemDisplayTitle(right)),
-        ),
-      );
+      setItems((current) => sortItems([...current, created]));
       setActiveSection(created.itemType === "note" ? "notes" : "logins");
       setSelectedItemId(created.id);
       setCreateOpen(false);
@@ -230,6 +351,88 @@ export function VaultScreen({
         return;
       }
       setError(GENERIC_CREATE_ERROR);
+    } finally {
+      if (isMountedRef.current) {
+        setIsSubmitting(false);
+      }
+    }
+  };
+
+  const handleUpdate = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!editItemId) {
+      return;
+    }
+
+    setError(null);
+    setSuccess(null);
+    setIsSubmitting(true);
+
+    try {
+      const updated =
+        editType === "login"
+          ? await updateVaultItem(
+              accessTokenRef.current,
+              editItemId,
+              "login",
+              loginPlaintextFromDraft(editLoginDraft),
+            )
+          : await updateVaultItem(
+              accessTokenRef.current,
+              editItemId,
+              "note",
+              notePlaintextFromDraft(editNoteDraft),
+            );
+
+      if (!isMountedRef.current) {
+        return;
+      }
+
+      setItems((current) =>
+        sortItems(current.map((item) => (item.id === updated.id ? updated : item))),
+      );
+      setSelectedItemId(updated.id);
+      setEditOpen(false);
+      setSuccess("Item updated.");
+    } catch (updateError) {
+      if (!isMountedRef.current) {
+        return;
+      }
+      handleVaultMutationError(updateError, GENERIC_UPDATE_ERROR, editItemId);
+    } finally {
+      if (isMountedRef.current) {
+        setIsSubmitting(false);
+      }
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget) {
+      return;
+    }
+
+    setError(null);
+    setSuccess(null);
+    setIsSubmitting(true);
+
+    try {
+      await deleteVaultItem(accessTokenRef.current, deleteTarget.id);
+
+      if (!isMountedRef.current) {
+        return;
+      }
+
+      setItems((current) => current.filter((item) => item.id !== deleteTarget.id));
+      if (selectedItemId === deleteTarget.id) {
+        setSelectedItemId(null);
+      }
+      setDeleteOpen(null);
+      setSuccess("Item deleted.");
+    } catch (deleteError) {
+      if (!isMountedRef.current) {
+        return;
+      }
+      handleVaultMutationError(deleteError, GENERIC_DELETE_ERROR, deleteTarget.id);
     } finally {
       if (isMountedRef.current) {
         setIsSubmitting(false);
@@ -267,7 +470,12 @@ export function VaultScreen({
             onSelectItem={setSelectedItemId}
             onRefresh={() => void loadItems()}
           />
-          <VaultItemDetail item={selectedItem} />
+          <VaultItemDetail
+            item={selectedItem}
+            isSubmitting={isSubmitting}
+            onEdit={openEditForm}
+            onDelete={setDeleteOpen}
+          />
         </div>
       </div>
 
@@ -280,6 +488,29 @@ export function VaultScreen({
         onCreateTypeChange={setCreateType}
         onLoginFieldChange={updateLoginField}
         onNoteFieldChange={updateNoteField}
+      />
+
+      <VaultCreateDialog
+        open={isEditOpen}
+        mode="edit"
+        isSubmitting={isSubmitting}
+        draft={{ createType: editType, loginDraft: editLoginDraft, noteDraft: editNoteDraft }}
+        onOpenChange={setEditOpen}
+        onSubmit={handleUpdate}
+        onCreateTypeChange={setEditType}
+        onLoginFieldChange={updateEditLoginField}
+        onNoteFieldChange={updateEditNoteField}
+      />
+
+      <VaultDeleteDialog
+        item={deleteTarget}
+        isSubmitting={isSubmitting}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeleteOpen(null);
+          }
+        }}
+        onConfirm={() => void handleDelete()}
       />
     </div>
   );

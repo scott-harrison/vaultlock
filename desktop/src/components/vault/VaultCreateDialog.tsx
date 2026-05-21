@@ -21,6 +21,7 @@ interface VaultCreateDialogProps {
   open: boolean;
   isSubmitting: boolean;
   draft: VaultCreateDraft;
+  mode?: "create" | "edit";
   onOpenChange: (open: boolean) => void;
   onSubmit: (event: React.FormEvent) => void;
   onCreateTypeChange: (type: VaultItemType) => void;
@@ -50,6 +51,7 @@ export function VaultCreateDialog({
   open,
   isSubmitting,
   draft,
+  mode = "create",
   onOpenChange,
   onSubmit,
   onCreateTypeChange,
@@ -62,25 +64,27 @@ export function VaultCreateDialog({
     <Dialog open={open} onOpenChange={(next) => !isSubmitting && onOpenChange(next)}>
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Add vault item</DialogTitle>
+          <DialogTitle>{mode === "edit" ? "Edit vault item" : "Add vault item"}</DialogTitle>
         </DialogHeader>
 
         <form id={formId} className="space-y-4" onSubmit={onSubmit}>
-          <div className="space-y-2">
-            <FieldLabel htmlFor={`${formId}-type`}>Item type</FieldLabel>
-            <select
-              id={`${formId}-type`}
-              className={cn(
-                "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
-              )}
-              value={draft.createType}
-              disabled={isSubmitting}
-              onChange={(event) => onCreateTypeChange(event.target.value as VaultItemType)}
-            >
-              <option value="login">Login</option>
-              <option value="note">Secure note</option>
-            </select>
-          </div>
+          {mode === "create" && (
+            <div className="space-y-2">
+              <FieldLabel htmlFor={`${formId}-type`}>Item type</FieldLabel>
+              <select
+                id={`${formId}-type`}
+                className={cn(
+                  "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
+                )}
+                value={draft.createType}
+                disabled={isSubmitting}
+                onChange={(event) => onCreateTypeChange(event.target.value as VaultItemType)}
+              >
+                <option value="login">Login</option>
+                <option value="note">Secure note</option>
+              </select>
+            </div>
+          )}
 
           {draft.createType === "login" ? (
             <>
@@ -175,7 +179,7 @@ export function VaultCreateDialog({
             Cancel
           </Button>
           <Button type="submit" form={formId} disabled={isSubmitting}>
-            {isSubmitting ? "Saving…" : "Save item"}
+            {isSubmitting ? "Saving…" : mode === "edit" ? "Save changes" : "Save item"}
           </Button>
         </DialogFooter>
       </DialogContent>
