@@ -39,6 +39,7 @@ import {
 } from "./lib/serverSettings";
 import { VAULT_LOCAL_KEYS_ERROR, VAULT_UNLOCK_ERROR, unlockVaultForUser } from "./lib/unlockVault";
 import { clearWrappedDekStorage, lockVault } from "./lib/vaultSession";
+import { clearAllVaultSyncTokens } from "./lib/vaultSync";
 import "./App.css";
 
 type WizardScreen = "connect" | "sign-in" | "register" | "check-email" | "unlock" | "vault";
@@ -388,6 +389,7 @@ function App() {
     lockVault();
     setIsVaultCreateOpen(false);
     await clearAllAuthData();
+    await clearAllVaultSyncTokens();
     setSession(null);
     setPendingVerificationEmail(null);
     setIsUnlocked(false);
@@ -407,6 +409,7 @@ function App() {
     if (urlChanged && session) {
       await clearWrappedDekStorage();
       await clearAllAuthData();
+      await clearAllVaultSyncTokens();
       setSession(null);
       setPendingVerificationEmail(null);
       setIsUnlocked(false);

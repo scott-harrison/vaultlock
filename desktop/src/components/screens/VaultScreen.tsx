@@ -9,7 +9,9 @@ import {
   type DecryptedVaultItem,
   createVaultItem,
   deleteVaultItem,
-  listDecryptedVaultItems,
+  loadVaultItems,
+  recordLocalVaultMutation,
+  syncVaultItems,
   updateVaultItem,
   vaultItemDisplaySubtitle,
   vaultItemDisplayTitle,
@@ -28,6 +30,7 @@ interface VaultScreenProps {
 }
 
 const GENERIC_VAULT_ERROR = "Couldn't load vault items. Try again.";
+const GENERIC_SYNC_ERROR = "Couldn't sync vault items. Try again.";
 const GENERIC_CREATE_ERROR = "Couldn't save this item. Try again.";
 const GENERIC_UPDATE_ERROR = "Couldn't update this item. Try again.";
 const GENERIC_DELETE_ERROR = "Couldn't delete this item. Try again.";
@@ -111,6 +114,7 @@ export function VaultScreen({
 
   const [items, setItems] = useState<DecryptedVaultItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -218,6 +222,21 @@ export function VaultScreen({
       vaultItemDisplayTitle(left).localeCompare(vaultItemDisplayTitle(right)),
     );
 
+  const applyLoadedItems = (nextItems: DecryptedVaultItem[]) => {
+    setItems(nextItems);
+    setSelectedItemId((current) =>
+      current && nextItems.some((item) => item.id === current) ? current : null,
+    );
+  };
+
+  const handleVaultRequestError = (requestError: unknown, fallbackMessage: string) => {
+    if (requestError instanceof VaultlockApiError && requestError.status === 401) {
+      notifySessionExpired();
+      return;
+    }
+    setError(fallbackMessage);
+  };
+
   const loadItems = async () => {
     if (!accessTokenRef.current) {
       if (isMountedRef.current) {
@@ -230,26 +249,54 @@ export function VaultScreen({
     setError(null);
     setIsLoading(true);
     try {
-      const nextItems = await listDecryptedVaultItems(accessTokenRef.current);
+      const nextItems = await loadVaultItems(accessTokenRef.current, email);
       if (!isMountedRef.current) {
         return;
       }
-      setItems(nextItems);
-      setSelectedItemId((current) =>
-        current && nextItems.some((item) => item.id === current) ? current : null,
-      );
+      applyLoadedItems(nextItems);
     } catch (loadError) {
       if (!isMountedRef.current) {
         return;
       }
-      if (loadError instanceof VaultlockApiError && loadError.status === 401) {
-        notifySessionExpired();
-        return;
-      }
-      setError(GENERIC_VAULT_ERROR);
+      handleVaultRequestError(loadError, GENERIC_VAULT_ERROR);
     } finally {
       if (isMountedRef.current) {
         setIsLoading(false);
+      }
+    }
+  };
+
+  const syncItems = async () => {
+    if (!accessTokenRef.current) {
+      notifySessionExpired();
+      return;
+    }
+
+    setError(null);
+    setIsSyncing(true);
+    try {
+      const result = await syncVaultItems(accessTokenRef.current, email, items);
+      if (!isMountedRef.current) {
+        return;
+      }
+      if (result.changed) {
+        applyLoadedItems(result.items);
+        if (result.items.length > items.length) {
+          setSuccess("Vault synced. New items were added.");
+        } else if (result.items.length > 0) {
+          setSuccess("Vault synced.");
+        }
+      } else {
+        setSuccess("Vault is up to date.");
+      }
+    } catch (syncError) {
+      if (!isMountedRef.current) {
+        return;
+      }
+      handleVaultRequestError(syncError, GENERIC_SYNC_ERROR);
+    } finally {
+      if (isMountedRef.current) {
+        setIsSyncing(false);
       }
     }
   };
@@ -336,7 +383,9 @@ export function VaultScreen({
         return;
       }
 
-      setItems((current) => sortItems([...current, created]));
+      const nextItems = sortItems([...items, created]);
+      setItems(nextItems);
+      await recordLocalVaultMutation(email, nextItems);
       setActiveSection(created.itemType === "note" ? "notes" : "logins");
       setSelectedItemId(created.id);
       setCreateOpen(false);
@@ -388,9 +437,9 @@ export function VaultScreen({
         return;
       }
 
-      setItems((current) =>
-        sortItems(current.map((item) => (item.id === updated.id ? updated : item))),
-      );
+      const nextItems = sortItems(items.map((item) => (item.id === updated.id ? updated : item)));
+      setItems(nextItems);
+      await recordLocalVaultMutation(email, nextItems);
       setSelectedItemId(updated.id);
       setEditOpen(false);
       setSuccess("Item updated.");
@@ -422,7 +471,9 @@ export function VaultScreen({
         return;
       }
 
-      setItems((current) => current.filter((item) => item.id !== deleteTarget.id));
+      const nextItems = items.filter((item) => item.id !== deleteTarget.id);
+      setItems(nextItems);
+      await recordLocalVaultMutation(email, nextItems);
       if (selectedItemId === deleteTarget.id) {
         setSelectedItemId(null);
       }
@@ -465,10 +516,11 @@ export function VaultScreen({
             selectedItemId={selectedItem?.id ?? selectedItemId}
             searchQuery={searchQuery}
             isLoading={isLoading}
+            isSyncing={isSyncing}
             sectionLabel={SECTION_LABELS[activeSection]}
             onSearchChange={setSearchQuery}
             onSelectItem={setSelectedItemId}
-            onRefresh={() => void loadItems()}
+            onSync={() => void syncItems()}
           />
           <VaultItemDetail
             item={selectedItem}

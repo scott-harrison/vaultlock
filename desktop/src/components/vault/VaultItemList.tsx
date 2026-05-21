@@ -15,10 +15,11 @@ interface VaultItemListProps {
   selectedItemId: string | null;
   searchQuery: string;
   isLoading: boolean;
+  isSyncing?: boolean;
   sectionLabel: string;
   onSearchChange: (query: string) => void;
   onSelectItem: (itemId: string) => void;
-  onRefresh: () => void;
+  onSync: () => void;
 }
 
 function ItemIcon({ itemType }: { itemType: VaultItemType }) {
@@ -35,10 +36,11 @@ export function VaultItemList({
   selectedItemId,
   searchQuery,
   isLoading,
+  isSyncing = false,
   sectionLabel,
   onSearchChange,
   onSelectItem,
-  onRefresh,
+  onSync,
 }: VaultItemListProps) {
   return (
     <section className="flex h-full w-80 shrink-0 flex-col border-r border-border bg-card/40">
@@ -47,10 +49,11 @@ export function VaultItemList({
           <h2 className="text-sm font-semibold">{sectionLabel}</h2>
           <button
             type="button"
-            className="text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
-            onClick={onRefresh}
+            className="text-xs font-medium text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
+            disabled={isLoading || isSyncing}
+            onClick={onSync}
           >
-            Refresh
+            {isSyncing ? "Syncing…" : "Sync"}
           </button>
         </div>
         <div className="relative">
