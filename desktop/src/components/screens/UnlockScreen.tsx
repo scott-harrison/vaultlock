@@ -59,7 +59,7 @@ export function UnlockScreen({
       {!showPasswordForm ? (
         <div className="space-y-3">
           <Button type="button" className={authPrimaryButtonClassName} onClick={openPasswordForm}>
-            Use master password
+            Use Master Password
           </Button>
         </div>
       ) : (

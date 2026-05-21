@@ -7,6 +7,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { LoginPasswordField } from "@/components/vault/LoginPasswordField";
 import { cn } from "@/lib/utils";
 import type { LoginItemPlaintext, NoteItemPlaintext, VaultItemType } from "@vaultlock/shared/types";
 import { useId } from "react";
@@ -29,6 +30,7 @@ interface VaultCreateDialogProps {
     field: keyof LoginItemPlaintext,
     event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
   ) => void;
+  onLoginPasswordChange: (password: string) => void;
   onNoteFieldChange: (
     field: keyof NoteItemPlaintext,
     event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
@@ -56,6 +58,7 @@ export function VaultCreateDialog({
   onSubmit,
   onCreateTypeChange,
   onLoginFieldChange,
+  onLoginPasswordChange,
   onNoteFieldChange,
 }: VaultCreateDialogProps) {
   const formId = useId();
@@ -119,17 +122,14 @@ export function VaultCreateDialog({
                   onChange={(event) => onLoginFieldChange("username", event)}
                 />
               </div>
-              <div className="space-y-2">
-                <FieldLabel htmlFor={`${formId}-password`}>Password</FieldLabel>
-                <Input
-                  id={`${formId}-password`}
-                  type="password"
-                  autoComplete="new-password"
-                  value={draft.loginDraft.password ?? ""}
-                  disabled={isSubmitting}
-                  onChange={(event) => onLoginFieldChange("password", event)}
-                />
-              </div>
+              <LoginPasswordField
+                id={`${formId}-password`}
+                password={draft.loginDraft.password ?? ""}
+                contextHints={[draft.loginDraft.title ?? "", draft.loginDraft.username ?? ""]}
+                disabled={isSubmitting}
+                onPasswordChange={onLoginPasswordChange}
+                onInputChange={(event) => onLoginFieldChange("password", event)}
+              />
               <div className="space-y-2">
                 <FieldLabel htmlFor={`${formId}-notes`}>Notes</FieldLabel>
                 <textarea
