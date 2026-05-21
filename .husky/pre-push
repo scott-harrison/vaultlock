@@ -2,6 +2,7 @@
 set -e
 
 pnpm exec biome check .
+node scripts/check-pinned-deps.mjs
 cargo fmt --all --manifest-path backend/Cargo.toml -- --check
 cargo clippy --locked --manifest-path backend/Cargo.toml --all-targets -- -D warnings
 cargo test --locked --manifest-path backend/Cargo.toml

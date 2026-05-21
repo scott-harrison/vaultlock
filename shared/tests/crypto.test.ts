@@ -11,6 +11,7 @@ import {
   hashMasterPasswordAuth,
   toBase64,
   unwrapDek,
+  verifyMasterPasswordAuth,
   wrapDek,
 } from "../src/crypto";
 
@@ -79,6 +80,13 @@ describe("argon2", () => {
   it("produces argon2id PHC hash for auth", async () => {
     const hash = await hashMasterPasswordAuth("correct-horse-battery-staple");
     expect(hash.startsWith("$argon2id$")).toBe(true);
+  });
+
+  it("verifies master password against PHC hash", async () => {
+    const password = "correct-horse-battery-staple";
+    const hash = await hashMasterPasswordAuth(password);
+    await expect(verifyMasterPasswordAuth(password, hash)).resolves.toBe(true);
+    await expect(verifyMasterPasswordAuth("wrong-password", hash)).resolves.toBe(false);
   });
 
   it("derives deterministic master key from email + password", async () => {

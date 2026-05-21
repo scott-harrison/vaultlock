@@ -6,7 +6,7 @@ mod repositories;
 mod vault;
 
 use crate::auth::jwt::JwtConfig;
-use crate::auth::{login, register, verify_email};
+use crate::auth::{login, register, verify_email, verify_email_open};
 use crate::middleware::{
     jwt_auth::jwt_auth_middleware,
     progressive_delay::ProgressiveDelay,
@@ -62,6 +62,7 @@ pub fn app(db: PgPool, jwt: JwtConfig) -> Router {
             "/verify-email",
             post(verify_email).route_layer(auth_rate_limit.clone()),
         )
+        .route("/verify-email/open", get(verify_email_open))
         .route("/login", post(login).route_layer(auth_rate_limit))
         .merge(vault_routes)
         .layer(CorsLayer::permissive())
