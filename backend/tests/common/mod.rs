@@ -16,8 +16,7 @@ use tower::ServiceExt;
 use vaultlock_backend::{app, auth::jwt::JwtConfig};
 
 const TEST_JWT_SECRET: &str = "integration-test-jwt-secret";
-const DEFAULT_TEST_DATABASE_URL: &str =
-    "postgres://vaultlock:vaultlock@127.0.0.1:5432/vaultlock";
+const DEFAULT_TEST_DATABASE_URL: &str = "postgres://vaultlock:vaultlock@127.0.0.1:5432/vaultlock";
 
 pub fn test_jwt_config() -> JwtConfig {
     JwtConfig {
@@ -128,9 +127,7 @@ async fn create_database(admin_url: &str, db_name: &str) -> PgPool {
         .expect("create test database");
     admin.close().await;
 
-    let (base, _) = admin_url
-        .rsplit_once('/')
-        .expect("admin database url");
+    let (base, _) = admin_url.rsplit_once('/').expect("admin database url");
     let database_url = format!("{base}/{db_name}");
 
     PgPoolOptions::new()
