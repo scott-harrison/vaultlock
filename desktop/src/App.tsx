@@ -10,6 +10,7 @@ import { RegisterScreen } from "./components/screens/RegisterScreen";
 import { SignInScreen } from "./components/screens/SignInScreen";
 import { UnlockScreen } from "./components/screens/UnlockScreen";
 import { VaultScreen } from "./components/screens/VaultScreen";
+import { TooltipProvider } from "./components/ui/tooltip";
 import { useAutoLock } from "./hooks/useAutoLock";
 import { useMountEffect } from "./hooks/useMountEffect";
 import { useVerifyDeepLink } from "./hooks/useVerifyDeepLink";
@@ -389,123 +390,125 @@ function App() {
   const showServerIndicator = Boolean(serverUrl) && screen !== "connect";
 
   return (
-    <div className="app-shell">
-      <TitleBar />
+    <TooltipProvider>
+      <div className="app-shell min-h-svh bg-background text-foreground">
+        <TitleBar />
 
-      <main className="app-main">
-        {showServerIndicator && serverUrl && (
-          <div className="app-toolbar">
-            <ServerStatusIndicator
-              serverUrl={serverUrl}
-              status={connectionStatus}
-              advanced={serverAdvanced}
-              isAuthenticated={Boolean(session)}
-              onRecheck={() => refreshConnectionStatus(serverUrl, serverAdvanced)}
-              onChangeServer={handleChangeServer}
-              onServerChangeRequiresSignOut={handleServerChangeRequiresSignOut}
-            />
-          </div>
-        )}
-
-        {isBootstrapping ? (
-          <section className="screen">
-            <p className="hint">Loading…</p>
-          </section>
-        ) : (
-          <>
-            {screen === "connect" && (
-              <ConnectServerScreen
-                initialUrl=""
-                initialAdvanced={serverAdvanced}
-                isSubmitting={isSubmitting}
-                error={screenError}
-                onConnect={handleConnect}
+        <main className="app-main">
+          {showServerIndicator && serverUrl && (
+            <div className="app-toolbar">
+              <ServerStatusIndicator
+                serverUrl={serverUrl}
+                status={connectionStatus}
+                advanced={serverAdvanced}
+                isAuthenticated={Boolean(session)}
+                onRecheck={() => refreshConnectionStatus(serverUrl, serverAdvanced)}
+                onChangeServer={handleChangeServer}
+                onServerChangeRequiresSignOut={handleServerChangeRequiresSignOut}
               />
-            )}
+            </div>
+          )}
 
-            {screen === "register" && (
-              <RegisterScreen
-                initialEmail={registerEmailDraft}
-                isSubmitting={isSubmitting}
-                error={screenError}
-                onRegister={handleRegister}
-                onGoToSignIn={() => {
-                  resetFeedback();
-                  setScreen("sign-in");
-                }}
-              />
-            )}
+          {isBootstrapping ? (
+            <section className="screen">
+              <p className="hint">Loading…</p>
+            </section>
+          ) : (
+            <>
+              {screen === "connect" && (
+                <ConnectServerScreen
+                  initialUrl=""
+                  initialAdvanced={serverAdvanced}
+                  isSubmitting={isSubmitting}
+                  error={screenError}
+                  onConnect={handleConnect}
+                />
+              )}
 
-            {screen === "sign-in" && (
-              <SignInScreen
-                initialEmail={signInEmailDraft || pendingVerificationEmail || ""}
-                isSubmitting={isSubmitting}
-                error={screenError}
-                onSignIn={handleSignIn}
-                onGoToRegister={() => {
-                  resetFeedback();
-                  setScreen("register");
-                }}
-                onGoToVerify={() => {
-                  resetFeedback();
-                  setScreen("check-email");
-                }}
-                hasPendingVerification={Boolean(pendingVerificationEmail)}
-              />
-            )}
+              {screen === "register" && (
+                <RegisterScreen
+                  initialEmail={registerEmailDraft}
+                  isSubmitting={isSubmitting}
+                  error={screenError}
+                  onRegister={handleRegister}
+                  onGoToSignIn={() => {
+                    resetFeedback();
+                    setScreen("sign-in");
+                  }}
+                />
+              )}
 
-            {screen === "check-email" && pendingVerificationEmail && (
-              <CheckEmailScreen
-                email={pendingVerificationEmail}
-                isSubmitting={isSubmitting}
-                error={screenError}
-                success={screenSuccess}
-                onVerify={handleVerify}
-                onGoToSignIn={() => {
-                  resetFeedback();
-                  setScreen("sign-in");
-                }}
-              />
-            )}
+              {screen === "sign-in" && (
+                <SignInScreen
+                  initialEmail={signInEmailDraft || pendingVerificationEmail || ""}
+                  isSubmitting={isSubmitting}
+                  error={screenError}
+                  onSignIn={handleSignIn}
+                  onGoToRegister={() => {
+                    resetFeedback();
+                    setScreen("register");
+                  }}
+                  onGoToVerify={() => {
+                    resetFeedback();
+                    setScreen("check-email");
+                  }}
+                  hasPendingVerification={Boolean(pendingVerificationEmail)}
+                />
+              )}
 
-            {screen === "unlock" && session && (
-              <UnlockScreen
-                email={session.email}
-                isSubmitting={isSubmitting}
-                error={screenError}
-                success={screenSuccess}
-                onUnlock={handleUnlock}
-                onSignOut={handleSignOut}
-              />
-            )}
+              {screen === "check-email" && pendingVerificationEmail && (
+                <CheckEmailScreen
+                  email={pendingVerificationEmail}
+                  isSubmitting={isSubmitting}
+                  error={screenError}
+                  success={screenSuccess}
+                  onVerify={handleVerify}
+                  onGoToSignIn={() => {
+                    resetFeedback();
+                    setScreen("sign-in");
+                  }}
+                />
+              )}
 
-            {screen === "vault" && session && !isUnlocked && (
-              <UnlockScreen
-                email={session.email}
-                isSubmitting={isSubmitting}
-                error={screenError}
-                success={screenSuccess}
-                onUnlock={handleUnlock}
-                onSignOut={handleSignOut}
-              />
-            )}
+              {screen === "unlock" && session && (
+                <UnlockScreen
+                  email={session.email}
+                  isSubmitting={isSubmitting}
+                  error={screenError}
+                  success={screenSuccess}
+                  onUnlock={handleUnlock}
+                  onSignOut={handleSignOut}
+                />
+              )}
 
-            {screen === "vault" && session && isUnlocked && (
-              <VaultScreen
-                accessToken={session.accessToken}
-                email={session.email}
-                onCreateFormOpenChange={setIsVaultCreateOpen}
-                onLock={() => lockVaultSession()}
-                onSessionExpired={handleSessionExpired}
-                onSignOut={handleSignOut}
-              />
-            )}
-          </>
-        )}
-      </main>
+              {screen === "vault" && session && !isUnlocked && (
+                <UnlockScreen
+                  email={session.email}
+                  isSubmitting={isSubmitting}
+                  error={screenError}
+                  success={screenSuccess}
+                  onUnlock={handleUnlock}
+                  onSignOut={handleSignOut}
+                />
+              )}
 
-      {loadingMessage && <LoadingOverlay message={loadingMessage} />}
-    </div>
+              {screen === "vault" && session && isUnlocked && (
+                <VaultScreen
+                  accessToken={session.accessToken}
+                  email={session.email}
+                  onCreateFormOpenChange={setIsVaultCreateOpen}
+                  onLock={() => lockVaultSession()}
+                  onSessionExpired={handleSessionExpired}
+                  onSignOut={handleSignOut}
+                />
+              )}
+            </>
+          )}
+        </main>
+
+        {loadingMessage && <LoadingOverlay message={loadingMessage} />}
+      </div>
+    </TooltipProvider>
   );
 }
 

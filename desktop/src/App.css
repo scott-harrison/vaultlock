@@ -58,8 +58,6 @@ body,
 
 body {
   margin: 0;
-  background: var(--bg);
-  color: var(--text);
 }
 
 button,
