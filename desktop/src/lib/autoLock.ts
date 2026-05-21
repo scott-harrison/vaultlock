@@ -8,6 +8,8 @@ export const AUTO_LOCK_CHECK_INTERVAL_MS = 1_000;
 export const AUTO_LOCK_ACTIVITY_EVENTS = [
   "click",
   "keydown",
+  "input",
+  "focusin",
   "mousedown",
   "pointerdown",
   "scroll",
