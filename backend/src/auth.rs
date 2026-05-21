@@ -295,7 +295,13 @@ fn validate_login_request(payload: &LoginRequest, stored_hash: &str) -> Result<b
 
     match (has_password, has_hash) {
         (true, false) => {
-            let password = payload.master_password.as_deref().unwrap_or("");
+            let Some(password) = payload
+                .master_password
+                .as_deref()
+                .filter(|value| !value.is_empty())
+            else {
+                return Ok(false);
+            };
             match verify_login_password(password, stored_hash) {
                 Ok(valid) => Ok(valid),
                 Err(e) => {
@@ -305,7 +311,13 @@ fn validate_login_request(payload: &LoginRequest, stored_hash: &str) -> Result<b
             }
         }
         (false, true) => {
-            let submitted = payload.master_password_hash.as_deref().unwrap_or("");
+            let Some(submitted) = payload
+                .master_password_hash
+                .as_deref()
+                .filter(|value| !value.is_empty())
+            else {
+                return Ok(false);
+            };
             Ok(verify_master_password_hash(submitted, stored_hash))
         }
         (false, false) => {
