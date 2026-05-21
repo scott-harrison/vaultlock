@@ -1,5 +1,5 @@
 import { VaultlockApiError } from "@vaultlock/shared/api";
-import { hashMasterPasswordAuth, verifyMasterPasswordAuth } from "@vaultlock/shared/crypto";
+import { hashMasterPasswordAuth } from "@vaultlock/shared/crypto";
 import { useCallback, useState } from "react";
 import { LoadingOverlay } from "./components/LoadingOverlay";
 import { type ConnectionStatus, ServerStatusIndicator } from "./components/ServerStatusIndicator";
@@ -33,7 +33,8 @@ import {
   saveServerAdvancedOptions,
   testServerConnection,
 } from "./lib/serverSettings";
-import { clearUnlockedMasterPassword, setUnlockedMasterPassword } from "./lib/vaultSession";
+import { VAULT_UNLOCK_ERROR, unlockVaultForUser } from "./lib/unlockVault";
+import { clearWrappedDekStorage, lockVault } from "./lib/vaultSession";
 import "./App.css";
 
 type WizardScreen = "connect" | "sign-in" | "register" | "check-email" | "unlock" | "vault";
@@ -41,7 +42,7 @@ type WizardScreen = "connect" | "sign-in" | "register" | "check-email" | "unlock
 const GENERIC_SIGN_IN_ERROR = "Couldn't sign in. Check your email and password.";
 const GENERIC_REGISTER_ERROR = "Couldn't create account. Try again or sign in.";
 const GENERIC_VERIFY_ERROR = "Couldn't verify your email. Check the token and try again.";
-const ENCRYPTION_MESSAGE = "Encryption in progress — securing your master password…";
+const ENCRYPTION_MESSAGE = "Deriving encryption keys…";
 const AUTO_LOCK_MESSAGE = "Vault locked due to inactivity.";
 
 async function persistCredentialsFromAuth(
@@ -238,17 +239,17 @@ function App() {
 
   useVerifyDeepLink(handleDeepLink);
 
-  const lockVault = useCallback(() => {
-    clearUnlockedMasterPassword();
+  const lockVaultSession = useCallback((message?: string) => {
+    lockVault();
     setScreenError(null);
-    setScreenSuccess(AUTO_LOCK_MESSAGE);
+    setScreenSuccess(message ?? null);
     setIsUnlocked(false);
     setScreen("unlock");
   }, []);
 
   useAutoLock({
     enabled: isUnlocked && screen === "vault",
-    onLock: lockVault,
+    onLock: () => lockVaultSession(AUTO_LOCK_MESSAGE),
   });
 
   const handleSignIn = async (email: string, password: string) => {
@@ -256,6 +257,7 @@ function App() {
     setSignInEmailDraft(email);
 
     setIsSubmitting(true);
+    setLoadingMessage(ENCRYPTION_MESSAGE);
     try {
       const client = await createApiClient();
       const response = await client.login({
@@ -273,18 +275,23 @@ function App() {
       await clearPendingVerificationEmail();
       setPendingVerificationEmail(null);
       setSession(nextSession);
-      setUnlockedMasterPassword(password);
+      await unlockVaultForUser(email, password);
       setIsUnlocked(true);
       setScreen("vault");
     } catch (error) {
+      lockVault();
+      setIsUnlocked(false);
       if (error instanceof VaultlockApiError && error.status === 403) {
         setScreen("check-email");
         setScreenError("Verify your email before signing in.");
+      } else if (error instanceof Error && error.message === VAULT_UNLOCK_ERROR) {
+        setScreenError(VAULT_UNLOCK_ERROR);
       } else {
         setScreenError(GENERIC_SIGN_IN_ERROR);
       }
     } finally {
       setIsSubmitting(false);
+      setLoadingMessage(null);
     }
   };
 
@@ -304,20 +311,17 @@ function App() {
         return;
       }
 
-      const passwordValid = await verifyMasterPasswordAuth(
-        password,
-        credentials.masterPasswordHash,
-      );
-      if (!passwordValid) {
-        setScreenError(GENERIC_SIGN_IN_ERROR);
-        return;
-      }
-
-      setUnlockedMasterPassword(password);
+      await unlockVaultForUser(session.email, password);
       setIsUnlocked(true);
       setScreen("vault");
-    } catch {
-      setScreenError(GENERIC_SIGN_IN_ERROR);
+    } catch (error) {
+      lockVault();
+      setIsUnlocked(false);
+      if (error instanceof Error && error.message === VAULT_UNLOCK_ERROR) {
+        setScreenError(VAULT_UNLOCK_ERROR);
+      } else {
+        setScreenError(GENERIC_SIGN_IN_ERROR);
+      }
     } finally {
       setIsSubmitting(false);
       setLoadingMessage(null);
@@ -326,7 +330,7 @@ function App() {
 
   const handleSignOut = async () => {
     resetFeedback();
-    clearUnlockedMasterPassword();
+    lockVault();
     await clearAllAuthData();
     setSession(null);
     setPendingVerificationEmail(null);
@@ -345,7 +349,7 @@ function App() {
     const urlChanged =
       serverUrl !== null && normalizeUrlForCompare(url) !== normalizeUrlForCompare(serverUrl);
     if (urlChanged && session) {
-      clearUnlockedMasterPassword();
+      await clearWrappedDekStorage();
       await clearAllAuthData();
       setSession(null);
       setPendingVerificationEmail(null);
@@ -460,13 +464,22 @@ function App() {
                 <div className="screen-header">
                   <h1>Vault</h1>
                   <p className="hint">
-                    Unlocked as <strong>{session.email}</strong>. Vault items and sync arrive in the
-                    next milestone.
+                    Unlocked as <strong>{session.email}</strong>. Encryption keys are loaded in
+                    memory — vault items arrive in the next milestone.
                   </p>
                 </div>
-                <button type="button" className="btn btn-secondary" onClick={handleSignOut}>
-                  Sign out
-                </button>
+                <div className="button-row">
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => lockVaultSession()}
+                  >
+                    Lock vault
+                  </button>
+                  <button type="button" className="btn btn-secondary" onClick={handleSignOut}>
+                    Sign out
+                  </button>
+                </div>
               </section>
             )}
           </>
