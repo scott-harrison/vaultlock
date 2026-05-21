@@ -1,10 +1,12 @@
 import { VaultItemDetail } from "@/components/VaultItemDetail";
 import { type VaultSection, VaultSidebar } from "@/components/layout/VaultSidebar";
+import { Toaster } from "@/components/ui/toaster";
 import { VaultCreateDialog } from "@/components/vault/VaultCreateDialog";
 import type { VaultCreateDraft } from "@/components/vault/VaultCreateDialog";
 import { VaultDeleteDialog } from "@/components/vault/VaultDeleteDialog";
 import { VaultItemList } from "@/components/vault/VaultItemList";
 import { useMountEffect } from "@/hooks/useMountEffect";
+import { useToast } from "@/hooks/useToast";
 import {
   type DecryptedVaultItem,
   createVaultItem,
@@ -116,8 +118,7 @@ export function VaultScreen({
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+  const { toasts, toast, dismiss } = useToast();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editItemId, setEditItemId] = useState<string | null>(null);
@@ -164,7 +165,7 @@ export function VaultScreen({
         return;
       }
       if (mutationError.status === 404) {
-        setError(ITEM_NOT_FOUND_ERROR);
+        toast(ITEM_NOT_FOUND_ERROR, "error");
         if (staleItemId) {
           setItems((current) => current.filter((item) => item.id !== staleItemId));
         }
@@ -174,7 +175,7 @@ export function VaultScreen({
         return;
       }
     }
-    setError(fallbackMessage);
+    toast(fallbackMessage, "error");
   };
 
   const notifySessionExpired = () => {
@@ -234,7 +235,7 @@ export function VaultScreen({
       notifySessionExpired();
       return;
     }
-    setError(fallbackMessage);
+    toast(fallbackMessage, "error");
   };
 
   const loadItems = async () => {
@@ -246,7 +247,6 @@ export function VaultScreen({
       return;
     }
 
-    setError(null);
     setIsLoading(true);
     try {
       const nextItems = await loadVaultItems(accessTokenRef.current, email);
@@ -272,7 +272,6 @@ export function VaultScreen({
       return;
     }
 
-    setError(null);
     setIsSyncing(true);
     try {
       const result = await syncVaultItems(accessTokenRef.current, email, items);
@@ -282,12 +281,12 @@ export function VaultScreen({
       if (result.changed) {
         applyLoadedItems(result.items);
         if (result.items.length > items.length) {
-          setSuccess("Vault synced. New items were added.");
+          toast("Vault synced. New items were added.", "success");
         } else if (result.items.length > 0) {
-          setSuccess("Vault synced.");
+          toast("Vault synced.", "success");
         }
       } else {
-        setSuccess("Vault is up to date.");
+        toast("Vault is up to date.", "success");
       }
     } catch (syncError) {
       if (!isMountedRef.current) {
@@ -310,6 +309,14 @@ export function VaultScreen({
     };
   });
 
+  const sectionCounts = useMemo(
+    () => ({
+      logins: items.filter((item) => item.itemType === "login").length,
+      notes: items.filter((item) => item.itemType === "note").length,
+    }),
+    [items],
+  );
+
   const filteredItems = useMemo(() => {
     const itemType = SECTION_ITEM_TYPE[activeSection];
     let result = itemType ? items.filter((item) => item.itemType === itemType) : items;
@@ -324,6 +331,9 @@ export function VaultScreen({
     return result;
   }, [activeSection, items, searchQuery]);
 
+  const activeSectionItemType = SECTION_ITEM_TYPE[activeSection];
+  const canCreateInSection = activeSectionItemType === "login" || activeSectionItemType === "note";
+
   const selectedItem =
     filteredItems.find((item) => item.id === selectedItemId) ??
     items.find((item) => item.id === selectedItemId) ??
@@ -336,16 +346,12 @@ export function VaultScreen({
   };
 
   const openCreateForm = () => {
-    setError(null);
-    setSuccess(null);
     resetCreateForm();
     setCreateOpen(true);
   };
 
   const openEditForm = (item: DecryptedVaultItem) => {
     const draft = draftFromItem(item);
-    setError(null);
-    setSuccess(null);
     setEditItemId(item.id);
     setEditType(item.itemType);
     setEditLoginDraft(draft.loginDraft);
@@ -361,8 +367,6 @@ export function VaultScreen({
 
   const handleCreate = async (event: React.FormEvent) => {
     event.preventDefault();
-    setError(null);
-    setSuccess(null);
     setIsSubmitting(true);
 
     try {
@@ -390,7 +394,7 @@ export function VaultScreen({
       setSelectedItemId(created.id);
       setCreateOpen(false);
       resetCreateForm();
-      setSuccess("Item saved.");
+      toast("Item saved.", "success");
     } catch (createError) {
       if (!isMountedRef.current) {
         return;
@@ -399,7 +403,7 @@ export function VaultScreen({
         notifySessionExpired();
         return;
       }
-      setError(GENERIC_CREATE_ERROR);
+      toast(GENERIC_CREATE_ERROR, "error");
     } finally {
       if (isMountedRef.current) {
         setIsSubmitting(false);
@@ -413,8 +417,6 @@ export function VaultScreen({
       return;
     }
 
-    setError(null);
-    setSuccess(null);
     setIsSubmitting(true);
 
     try {
@@ -442,7 +444,7 @@ export function VaultScreen({
       await recordLocalVaultMutation(email, nextItems);
       setSelectedItemId(updated.id);
       setEditOpen(false);
-      setSuccess("Item updated.");
+      toast("Item updated.", "success");
     } catch (updateError) {
       if (!isMountedRef.current) {
         return;
@@ -460,8 +462,6 @@ export function VaultScreen({
       return;
     }
 
-    setError(null);
-    setSuccess(null);
     setIsSubmitting(true);
 
     try {
@@ -478,7 +478,7 @@ export function VaultScreen({
         setSelectedItemId(null);
       }
       setDeleteOpen(null);
-      setSuccess("Item deleted.");
+      toast("Item deleted.", "success");
     } catch (deleteError) {
       if (!isMountedRef.current) {
         return;
@@ -496,20 +496,14 @@ export function VaultScreen({
       <VaultSidebar
         activeSection={activeSection}
         email={email}
+        sectionCounts={sectionCounts}
         onSectionChange={handleSectionChange}
         onNewItem={openCreateForm}
         onLock={onLock}
         onSignOut={onSignOut}
       />
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        {(error || success) && (
-          <div className="border-b border-border px-4 py-2 text-sm">
-            {error && <p className="text-destructive">{error}</p>}
-            {success && <p className="text-primary">{success}</p>}
-          </div>
-        )}
-
+      <div className="flex min-h-0 flex-1 flex-col">
         <div className="flex min-h-0 flex-1">
           <VaultItemList
             items={filteredItems}
@@ -518,18 +512,23 @@ export function VaultScreen({
             isLoading={isLoading}
             isSyncing={isSyncing}
             sectionLabel={SECTION_LABELS[activeSection]}
+            sectionItemType={activeSectionItemType}
             onSearchChange={setSearchQuery}
             onSelectItem={setSelectedItemId}
             onSync={() => void syncItems()}
+            onAddItem={canCreateInSection ? openCreateForm : undefined}
           />
           <VaultItemDetail
             item={selectedItem}
             isSubmitting={isSubmitting}
             onEdit={openEditForm}
             onDelete={setDeleteOpen}
+            onNotify={toast}
           />
         </div>
       </div>
+
+      <Toaster toasts={toasts} onDismiss={dismiss} />
 
       <VaultCreateDialog
         open={isCreateOpen}

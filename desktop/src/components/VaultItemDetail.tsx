@@ -1,11 +1,14 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { VaultEmptyState } from "@/components/vault/VaultEmptyState";
+import { VaultItemTypeIcon } from "@/components/vault/VaultItemTypeIcon";
+import type { ToastVariant } from "@/hooks/useToast";
 import { cn } from "@/lib/utils";
 import type { DecryptedVaultItem } from "@/lib/vaultItems";
 import { vaultItemDisplayTitle } from "@/lib/vaultItems";
 import type { LoginItemPlaintext, NoteItemPlaintext } from "@vaultlock/shared/types";
-import { Eye, EyeOff, Pencil, Trash2 } from "lucide-react";
+import { Eye, EyeOff, MousePointerClick, Pencil, Trash2 } from "lucide-react";
 import { useId, useState } from "react";
 
 interface VaultItemDetailProps {
@@ -13,6 +16,7 @@ interface VaultItemDetailProps {
   isSubmitting?: boolean;
   onEdit?: (item: DecryptedVaultItem) => void;
   onDelete?: (item: DecryptedVaultItem) => void;
+  onNotify?: (message: string, variant?: ToastVariant) => void;
 }
 
 function DetailField({
@@ -184,23 +188,27 @@ export function VaultItemDetail({
   isSubmitting = false,
   onEdit,
   onDelete,
+  onNotify,
 }: VaultItemDetailProps) {
   const [copyMessage, setCopyMessage] = useState<string | null>(null);
 
   const handleCopied = () => {
+    if (onNotify) {
+      onNotify("Copied to clipboard.", "success");
+      return;
+    }
     setCopyMessage("Copied to clipboard.");
     window.setTimeout(() => setCopyMessage(null), 2000);
   };
 
   if (!item) {
     return (
-      <section className="flex h-full flex-1 items-center justify-center bg-background p-8">
-        <div className="max-w-sm text-center">
-          <h2 className="text-lg font-semibold">Select an item</h2>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Choose a login or note from the list to view its details here.
-          </p>
-        </div>
+      <section className="flex h-full flex-1 items-center justify-center bg-background">
+        <VaultEmptyState
+          icon={MousePointerClick}
+          title="Select an item"
+          description="Choose a login or note from the list to view and copy its details here."
+        />
       </section>
     );
   }
@@ -223,16 +231,23 @@ export function VaultItemDetail({
     >
       <div className="border-b border-border px-6 py-5">
         <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0 space-y-2">
-            <Badge variant="secondary" className="capitalize">
-              {item.itemType}
-            </Badge>
-            <h2
-              id={`vault-detail-${item.id}`}
-              className="truncate text-2xl font-semibold tracking-tight"
-            >
-              {vaultItemDisplayTitle(item)}
-            </h2>
+          <div className="flex min-w-0 items-start gap-3">
+            <VaultItemTypeIcon
+              itemType={item.itemType}
+              className="mt-0.5 size-10"
+              iconClassName="size-5"
+            />
+            <div className="min-w-0 space-y-2">
+              <Badge variant="secondary" className="capitalize">
+                {item.itemType}
+              </Badge>
+              <h2
+                id={`vault-detail-${item.id}`}
+                className="truncate text-2xl font-semibold tracking-tight"
+              >
+                {vaultItemDisplayTitle(item)}
+              </h2>
+            </div>
           </div>
           {canModify && (onEdit || onDelete) && (
             <div className="flex shrink-0 gap-1">
@@ -265,7 +280,7 @@ export function VaultItemDetail({
             </div>
           )}
         </div>
-        {copyMessage && <p className="mt-3 text-sm text-primary">{copyMessage}</p>}
+        {copyMessage && !onNotify && <p className="mt-3 text-sm text-primary">{copyMessage}</p>}
       </div>
 
       <div className="flex-1 overflow-y-auto px-6 py-5">

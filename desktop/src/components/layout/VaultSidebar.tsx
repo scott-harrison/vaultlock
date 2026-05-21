@@ -1,5 +1,7 @@
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { CreditCard, KeyRound, Lock, LogOut, NotebookPen, Plus, Star } from "lucide-react";
 
@@ -8,6 +10,7 @@ export type VaultSection = "logins" | "notes" | "cards" | "favourites";
 interface VaultSidebarProps {
   activeSection: VaultSection;
   email: string;
+  sectionCounts?: Partial<Record<VaultSection, number>>;
   className?: string;
   onSectionChange: (section: VaultSection) => void;
   onNewItem: () => void;
@@ -20,16 +23,87 @@ const NAV_ITEMS: Array<{
   label: string;
   icon: typeof KeyRound;
   disabled?: boolean;
+  disabledHint?: string;
 }> = [
   { id: "logins", label: "Logins", icon: KeyRound },
-  { id: "cards", label: "Credit cards", icon: CreditCard, disabled: true },
+  {
+    id: "cards",
+    label: "Credit cards",
+    icon: CreditCard,
+    disabled: true,
+    disabledHint: "Credit cards coming soon",
+  },
   { id: "notes", label: "Notes", icon: NotebookPen },
-  { id: "favourites", label: "Favourites", icon: Star, disabled: true },
+  {
+    id: "favourites",
+    label: "Favourites",
+    icon: Star,
+    disabled: true,
+    disabledHint: "Favourites coming soon",
+  },
 ];
+
+function NavButton({
+  active,
+  disabled,
+  disabledHint,
+  label,
+  icon: Icon,
+  count,
+  onClick,
+}: {
+  active: boolean;
+  disabled?: boolean;
+  disabledHint?: string;
+  label: string;
+  icon: typeof KeyRound;
+  count?: number;
+  onClick: () => void;
+}) {
+  const button = (
+    <button
+      type="button"
+      disabled={disabled}
+      className={cn(
+        "flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+        active
+          ? "bg-sidebar-accent text-sidebar-accent-foreground"
+          : "text-sidebar-foreground/80 hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground",
+        disabled && "cursor-not-allowed opacity-40 hover:bg-transparent",
+      )}
+      onClick={onClick}
+    >
+      <Icon className="size-4 shrink-0" aria-hidden />
+      <span className="min-w-0 flex-1 truncate text-left">{label}</span>
+      {typeof count === "number" && count > 0 && !disabled && (
+        <Badge
+          variant={active ? "default" : "secondary"}
+          className="h-5 min-w-5 shrink-0 justify-center px-1.5 text-[10px]"
+        >
+          {count > 99 ? "99+" : count}
+        </Badge>
+      )}
+    </button>
+  );
+
+  if (disabled && disabledHint) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className="block w-full">{button}</span>
+        </TooltipTrigger>
+        <TooltipContent side="right">{disabledHint}</TooltipContent>
+      </Tooltip>
+    );
+  }
+
+  return button;
+}
 
 export function VaultSidebar({
   activeSection,
   email,
+  sectionCounts,
   className,
   onSectionChange,
   onNewItem,
@@ -55,27 +129,18 @@ export function VaultSidebar({
       </div>
 
       <nav className="flex flex-1 flex-col gap-1 px-2">
-        {NAV_ITEMS.map(({ id, label, icon: Icon, disabled }) => {
-          const active = activeSection === id;
-          return (
-            <button
-              key={id}
-              type="button"
-              disabled={disabled}
-              className={cn(
-                "flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-                active
-                  ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                  : "text-sidebar-foreground/80 hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground",
-                disabled && "cursor-not-allowed opacity-40 hover:bg-transparent",
-              )}
-              onClick={() => onSectionChange(id)}
-            >
-              <Icon className="size-4 shrink-0" aria-hidden />
-              {label}
-            </button>
-          );
-        })}
+        {NAV_ITEMS.map(({ id, label, icon: Icon, disabled, disabledHint }) => (
+          <NavButton
+            key={id}
+            active={activeSection === id}
+            disabled={disabled}
+            disabledHint={disabledHint}
+            label={label}
+            icon={Icon}
+            count={sectionCounts?.[id]}
+            onClick={() => onSectionChange(id)}
+          />
+        ))}
       </nav>
 
       <div className="mt-auto space-y-2 p-3">
