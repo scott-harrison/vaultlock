@@ -1,12 +1,10 @@
 import { VaultItemDetail } from "@/components/VaultItemDetail";
 import { type VaultSection, VaultSidebar } from "@/components/layout/VaultSidebar";
-import { Toaster } from "@/components/ui/toaster";
 import { VaultCreateDialog } from "@/components/vault/VaultCreateDialog";
 import type { VaultCreateDraft } from "@/components/vault/VaultCreateDialog";
 import { VaultDeleteDialog } from "@/components/vault/VaultDeleteDialog";
 import { VaultItemList } from "@/components/vault/VaultItemList";
 import { useMountEffect } from "@/hooks/useMountEffect";
-import { useToast } from "@/hooks/useToast";
 import {
   type DecryptedVaultItem,
   createVaultItem,
@@ -21,6 +19,7 @@ import {
 import { VaultlockApiError } from "@vaultlock/shared/api";
 import type { LoginItemPlaintext, NoteItemPlaintext, VaultItemType } from "@vaultlock/shared/types";
 import { useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 
 interface VaultScreenProps {
   accessToken: string;
@@ -118,7 +117,6 @@ export function VaultScreen({
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { toasts, toast, dismiss } = useToast();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editItemId, setEditItemId] = useState<string | null>(null);
@@ -165,7 +163,7 @@ export function VaultScreen({
         return;
       }
       if (mutationError.status === 404) {
-        toast(ITEM_NOT_FOUND_ERROR, "error");
+        toast.error(ITEM_NOT_FOUND_ERROR);
         if (staleItemId) {
           setItems((current) => current.filter((item) => item.id !== staleItemId));
         }
@@ -175,7 +173,7 @@ export function VaultScreen({
         return;
       }
     }
-    toast(fallbackMessage, "error");
+    toast.error(fallbackMessage);
   };
 
   const notifySessionExpired = () => {
@@ -235,7 +233,7 @@ export function VaultScreen({
       notifySessionExpired();
       return;
     }
-    toast(fallbackMessage, "error");
+    toast.error(fallbackMessage);
   };
 
   const loadItems = async () => {
@@ -281,12 +279,12 @@ export function VaultScreen({
       if (result.changed) {
         applyLoadedItems(result.items);
         if (result.items.length > items.length) {
-          toast("Vault synced. New items were added.", "success");
+          toast.success("Vault synced. New items were added.");
         } else if (result.items.length > 0) {
-          toast("Vault synced.", "success");
+          toast.success("Vault synced.");
         }
       } else {
-        toast("Vault is up to date.", "success");
+        toast.success("Vault is up to date.");
       }
     } catch (syncError) {
       if (!isMountedRef.current) {
@@ -394,7 +392,7 @@ export function VaultScreen({
       setSelectedItemId(created.id);
       setCreateOpen(false);
       resetCreateForm();
-      toast("Item saved.", "success");
+      toast.success("Item saved.");
     } catch (createError) {
       if (!isMountedRef.current) {
         return;
@@ -403,7 +401,7 @@ export function VaultScreen({
         notifySessionExpired();
         return;
       }
-      toast(GENERIC_CREATE_ERROR, "error");
+      toast.error(GENERIC_CREATE_ERROR);
     } finally {
       if (isMountedRef.current) {
         setIsSubmitting(false);
@@ -444,7 +442,7 @@ export function VaultScreen({
       await recordLocalVaultMutation(email, nextItems);
       setSelectedItemId(updated.id);
       setEditOpen(false);
-      toast("Item updated.", "success");
+      toast.success("Item updated.");
     } catch (updateError) {
       if (!isMountedRef.current) {
         return;
@@ -478,7 +476,7 @@ export function VaultScreen({
         setSelectedItemId(null);
       }
       setDeleteOpen(null);
-      toast("Item deleted.", "success");
+      toast.success("Item deleted.");
     } catch (deleteError) {
       if (!isMountedRef.current) {
         return;
@@ -523,12 +521,9 @@ export function VaultScreen({
             isSubmitting={isSubmitting}
             onEdit={openEditForm}
             onDelete={setDeleteOpen}
-            onNotify={toast}
           />
         </div>
       </div>
-
-      <Toaster toasts={toasts} onDismiss={dismiss} />
 
       <VaultCreateDialog
         open={isCreateOpen}

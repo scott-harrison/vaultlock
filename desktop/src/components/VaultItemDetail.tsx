@@ -3,20 +3,19 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { VaultEmptyState } from "@/components/vault/VaultEmptyState";
 import { VaultItemTypeIcon } from "@/components/vault/VaultItemTypeIcon";
-import type { ToastVariant } from "@/hooks/useToast";
 import { cn } from "@/lib/utils";
 import type { DecryptedVaultItem } from "@/lib/vaultItems";
 import { vaultItemDisplayTitle } from "@/lib/vaultItems";
 import type { LoginItemPlaintext, NoteItemPlaintext } from "@vaultlock/shared/types";
 import { Eye, EyeOff, MousePointerClick, Pencil, Trash2 } from "lucide-react";
 import { useId, useState } from "react";
+import { toast } from "sonner";
 
 interface VaultItemDetailProps {
   item: DecryptedVaultItem | null;
   isSubmitting?: boolean;
   onEdit?: (item: DecryptedVaultItem) => void;
   onDelete?: (item: DecryptedVaultItem) => void;
-  onNotify?: (message: string, variant?: ToastVariant) => void;
 }
 
 function DetailField({
@@ -188,17 +187,9 @@ export function VaultItemDetail({
   isSubmitting = false,
   onEdit,
   onDelete,
-  onNotify,
 }: VaultItemDetailProps) {
-  const [copyMessage, setCopyMessage] = useState<string | null>(null);
-
   const handleCopied = () => {
-    if (onNotify) {
-      onNotify("Copied to clipboard.", "success");
-      return;
-    }
-    setCopyMessage("Copied to clipboard.");
-    window.setTimeout(() => setCopyMessage(null), 2000);
+    toast.success("Copied to clipboard.");
   };
 
   if (!item) {
@@ -280,7 +271,6 @@ export function VaultItemDetail({
             </div>
           )}
         </div>
-        {copyMessage && !onNotify && <p className="mt-3 text-sm text-primary">{copyMessage}</p>}
       </div>
 
       <div className="flex-1 overflow-y-auto px-6 py-5">

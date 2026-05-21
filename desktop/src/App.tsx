@@ -11,6 +11,7 @@ import { RegisterScreen } from "./components/screens/RegisterScreen";
 import { SignInScreen } from "./components/screens/SignInScreen";
 import { UnlockScreen } from "./components/screens/UnlockScreen";
 import { VaultScreen } from "./components/screens/VaultScreen";
+import { Toaster } from "./components/ui/sonner";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { useAutoLock } from "./hooks/useAutoLock";
 import { useMountEffect } from "./hooks/useMountEffect";
@@ -547,6 +548,7 @@ function App() {
 
         {loadingMessage && <LoadingOverlay message={loadingMessage} />}
       </div>
+      <Toaster richColors closeButton position="bottom-right" />
     </TooltipProvider>
   );
 }
