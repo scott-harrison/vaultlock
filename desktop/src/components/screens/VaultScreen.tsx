@@ -1,15 +1,18 @@
-import { VaultlockApiError } from "@vaultlock/shared/api";
-import type { LoginItemPlaintext, NoteItemPlaintext, VaultItemType } from "@vaultlock/shared/types";
-import { useId, useRef, useState } from "react";
-import { useMountEffect } from "../../hooks/useMountEffect";
+import { VaultItemDetail } from "@/components/VaultItemDetail";
+import { type VaultSection, VaultSidebar } from "@/components/layout/VaultSidebar";
+import { VaultCreateDialog } from "@/components/vault/VaultCreateDialog";
+import { VaultItemList } from "@/components/vault/VaultItemList";
+import { useMountEffect } from "@/hooks/useMountEffect";
 import {
   type DecryptedVaultItem,
   createVaultItem,
   listDecryptedVaultItems,
   vaultItemDisplaySubtitle,
   vaultItemDisplayTitle,
-} from "../../lib/vaultItems";
-import { VaultItemDetail } from "../VaultItemDetail";
+} from "@/lib/vaultItems";
+import { VaultlockApiError } from "@vaultlock/shared/api";
+import type { LoginItemPlaintext, NoteItemPlaintext, VaultItemType } from "@vaultlock/shared/types";
+import { useMemo, useRef, useState } from "react";
 
 interface VaultScreenProps {
   accessToken: string;
@@ -23,21 +26,24 @@ interface VaultScreenProps {
 const GENERIC_VAULT_ERROR = "Couldn't load vault items. Try again.";
 const GENERIC_CREATE_ERROR = "Couldn't save this item. Try again.";
 
+const SECTION_LABELS: Record<VaultSection, string> = {
+  logins: "Logins",
+  notes: "Notes",
+  cards: "Credit cards",
+  favourites: "Favourites",
+};
+
+const SECTION_ITEM_TYPE: Partial<Record<VaultSection, VaultItemType>> = {
+  logins: "login",
+  notes: "note",
+};
+
 function emptyLoginDraft(): LoginItemPlaintext {
-  return {
-    title: "",
-    url: "",
-    username: "",
-    password: "",
-    notes: "",
-  };
+  return { title: "", url: "", username: "", password: "", notes: "" };
 }
 
 function emptyNoteDraft(): NoteItemPlaintext {
-  return {
-    title: "",
-    content: "",
-  };
+  return { title: "", content: "" };
 }
 
 export function VaultScreen({
@@ -48,16 +54,18 @@ export function VaultScreen({
   onSessionExpired,
   onSignOut,
 }: VaultScreenProps) {
-  const formId = useId();
   const isMountedRef = useRef(true);
   const accessTokenRef = useRef(accessToken);
   const onSessionExpiredRef = useRef(onSessionExpired);
+
   const [items, setItems] = useState<DecryptedVaultItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [activeSection, setActiveSection] = useState<VaultSection>("logins");
+  const [searchQuery, setSearchQuery] = useState("");
   const [createType, setCreateType] = useState<VaultItemType>("login");
   const [loginDraft, setLoginDraft] = useState(emptyLoginDraft);
   const [noteDraft, setNoteDraft] = useState(emptyNoteDraft);
@@ -140,8 +148,27 @@ export function VaultScreen({
     };
   });
 
+  const filteredItems = useMemo(() => {
+    const itemType = SECTION_ITEM_TYPE[activeSection];
+    let result = itemType ? items.filter((item) => item.itemType === itemType) : items;
+    const query = searchQuery.trim().toLowerCase();
+    if (query) {
+      result = result.filter((item) => {
+        const title = vaultItemDisplayTitle(item).toLowerCase();
+        const subtitle = vaultItemDisplaySubtitle(item)?.toLowerCase() ?? "";
+        return title.includes(query) || subtitle.includes(query);
+      });
+    }
+    return result;
+  }, [activeSection, items, searchQuery]);
+
+  const selectedItem =
+    filteredItems.find((item) => item.id === selectedItemId) ??
+    items.find((item) => item.id === selectedItemId) ??
+    null;
+
   const resetCreateForm = () => {
-    setCreateType("login");
+    setCreateType(activeSection === "notes" ? "note" : "login");
     setLoginDraft(emptyLoginDraft());
     setNoteDraft(emptyNoteDraft());
   };
@@ -149,16 +176,14 @@ export function VaultScreen({
   const openCreateForm = () => {
     setError(null);
     setSuccess(null);
-    setSelectedItemId(null);
     resetCreateForm();
     setCreateOpen(true);
   };
 
-  const closeCreateForm = () => {
-    if (isSubmitting) {
-      return;
-    }
-    setCreateOpen(false);
+  const handleSectionChange = (section: VaultSection) => {
+    setActiveSection(section);
+    setSearchQuery("");
+    setSelectedItemId(null);
   };
 
   const handleCreate = async (event: React.FormEvent) => {
@@ -191,6 +216,7 @@ export function VaultScreen({
           vaultItemDisplayTitle(left).localeCompare(vaultItemDisplayTitle(right)),
         ),
       );
+      setActiveSection(created.itemType === "note" ? "notes" : "logins");
       setSelectedItemId(created.id);
       setCreateOpen(false);
       resetCreateForm();
@@ -211,208 +237,50 @@ export function VaultScreen({
     }
   };
 
-  const selectedItem = items.find((item) => item.id === selectedItemId) ?? null;
-
   return (
-    <section className="screen vault-screen">
-      <div className="screen-header">
-        <h1>Vault</h1>
-        <p className="hint">
-          Unlocked as <strong>{email}</strong>
-        </p>
+    <div className="flex h-[calc(100svh-2.75rem)] w-full overflow-hidden">
+      <VaultSidebar
+        activeSection={activeSection}
+        email={email}
+        onSectionChange={handleSectionChange}
+        onNewItem={openCreateForm}
+        onLock={onLock}
+        onSignOut={onSignOut}
+      />
+
+      <div className="flex min-w-0 flex-1 flex-col">
+        {(error || success) && (
+          <div className="border-b border-border px-4 py-2 text-sm">
+            {error && <p className="text-destructive">{error}</p>}
+            {success && <p className="text-primary">{success}</p>}
+          </div>
+        )}
+
+        <div className="flex min-h-0 flex-1">
+          <VaultItemList
+            items={filteredItems}
+            selectedItemId={selectedItem?.id ?? selectedItemId}
+            searchQuery={searchQuery}
+            isLoading={isLoading}
+            sectionLabel={SECTION_LABELS[activeSection]}
+            onSearchChange={setSearchQuery}
+            onSelectItem={setSelectedItemId}
+            onRefresh={() => void loadItems()}
+          />
+          <VaultItemDetail item={selectedItem} />
+        </div>
       </div>
 
-      <div className="vault-toolbar">
-        <button
-          type="button"
-          className="btn btn-primary"
-          onClick={isCreateOpen ? closeCreateForm : openCreateForm}
-        >
-          {isCreateOpen ? "Cancel add" : "Add item"}
-        </button>
-        <button type="button" className="btn btn-secondary" onClick={() => void loadItems()}>
-          Refresh
-        </button>
-      </div>
-
-      {error && <p className="feedback feedback-error">{error}</p>}
-      {success && <p className="feedback feedback-success">{success}</p>}
-
-      {isCreateOpen && (
-        <section className="vault-create-panel" aria-labelledby={`${formId}-create-title`}>
-          <h2 id={`${formId}-create-title`} className="vault-create-title">
-            Add vault item
-          </h2>
-
-          <form className="screen-form" onSubmit={handleCreate}>
-            <label className="field-label" htmlFor={`${formId}-type`}>
-              Item type
-            </label>
-            <select
-              id={`${formId}-type`}
-              className="text-input"
-              value={createType}
-              disabled={isSubmitting}
-              onChange={(event) => setCreateType(event.target.value as VaultItemType)}
-            >
-              <option value="login">Login</option>
-              <option value="note">Secure note</option>
-            </select>
-
-            {createType === "login" ? (
-              <>
-                <label className="field-label" htmlFor={`${formId}-title`}>
-                  Title
-                </label>
-                <input
-                  id={`${formId}-title`}
-                  className="text-input"
-                  type="text"
-                  placeholder="e.g. GitHub"
-                  value={loginDraft.title ?? ""}
-                  disabled={isSubmitting}
-                  onChange={(event) => updateLoginField("title", event)}
-                />
-
-                <label className="field-label" htmlFor={`${formId}-url`}>
-                  URL
-                </label>
-                <input
-                  id={`${formId}-url`}
-                  className="text-input"
-                  type="text"
-                  inputMode="url"
-                  placeholder="https://"
-                  value={loginDraft.url ?? ""}
-                  disabled={isSubmitting}
-                  onChange={(event) => updateLoginField("url", event)}
-                />
-
-                <label className="field-label" htmlFor={`${formId}-username`}>
-                  Username
-                </label>
-                <input
-                  id={`${formId}-username`}
-                  className="text-input"
-                  type="text"
-                  autoComplete="username"
-                  value={loginDraft.username ?? ""}
-                  disabled={isSubmitting}
-                  onChange={(event) => updateLoginField("username", event)}
-                />
-
-                <label className="field-label" htmlFor={`${formId}-password`}>
-                  Password
-                </label>
-                <input
-                  id={`${formId}-password`}
-                  className="text-input"
-                  type="password"
-                  autoComplete="new-password"
-                  value={loginDraft.password ?? ""}
-                  disabled={isSubmitting}
-                  onChange={(event) => updateLoginField("password", event)}
-                />
-
-                <label className="field-label" htmlFor={`${formId}-notes`}>
-                  Notes
-                </label>
-                <textarea
-                  id={`${formId}-notes`}
-                  className="text-input text-area"
-                  rows={3}
-                  value={loginDraft.notes ?? ""}
-                  disabled={isSubmitting}
-                  onChange={(event) => updateLoginField("notes", event)}
-                />
-              </>
-            ) : (
-              <>
-                <label className="field-label" htmlFor={`${formId}-note-title`}>
-                  Title
-                </label>
-                <input
-                  id={`${formId}-note-title`}
-                  className="text-input"
-                  type="text"
-                  placeholder="e.g. Wi-Fi password"
-                  value={noteDraft.title ?? ""}
-                  disabled={isSubmitting}
-                  onChange={(event) => updateNoteField("title", event)}
-                />
-
-                <label className="field-label" htmlFor={`${formId}-content`}>
-                  Content
-                </label>
-                <textarea
-                  id={`${formId}-content`}
-                  className="text-input text-area"
-                  rows={5}
-                  value={noteDraft.content ?? ""}
-                  disabled={isSubmitting}
-                  onChange={(event) => updateNoteField("content", event)}
-                />
-              </>
-            )}
-
-            <div className="button-row">
-              <button
-                type="button"
-                className="btn btn-secondary"
-                disabled={isSubmitting}
-                onClick={closeCreateForm}
-              >
-                Cancel
-              </button>
-              <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
-                {isSubmitting ? "Saving…" : "Save item"}
-              </button>
-            </div>
-          </form>
-        </section>
-      )}
-
-      {isLoading ? (
-        <p className="hint">Loading items…</p>
-      ) : items.length === 0 ? (
-        <p className="hint">No items yet. Add a login or secure note to get started.</p>
-      ) : (
-        <ul className="vault-list">
-          {items.map((item) => {
-            const subtitle = vaultItemDisplaySubtitle(item);
-            const isSelected = item.id === selectedItemId;
-            return (
-              <li key={item.id}>
-                <button
-                  type="button"
-                  className={`vault-item${isSelected ? " vault-item-selected" : ""}`}
-                  aria-pressed={isSelected}
-                  onClick={() => setSelectedItemId(item.id)}
-                >
-                  <div className="vault-item-main">
-                    <span className="vault-item-type">{item.itemType}</span>
-                    <strong className="vault-item-title">{vaultItemDisplayTitle(item)}</strong>
-                    {subtitle && <span className="vault-item-subtitle">{subtitle}</span>}
-                  </div>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-
-      {selectedItem && (
-        <VaultItemDetail item={selectedItem} onClose={() => setSelectedItemId(null)} />
-      )}
-
-      <div className="button-row">
-        <button type="button" className="btn btn-secondary" onClick={onLock}>
-          Lock vault
-        </button>
-        <button type="button" className="btn btn-secondary" onClick={onSignOut}>
-          Sign out
-        </button>
-      </div>
-    </section>
+      <VaultCreateDialog
+        open={isCreateOpen}
+        isSubmitting={isSubmitting}
+        draft={{ createType, loginDraft, noteDraft }}
+        onOpenChange={setCreateOpen}
+        onSubmit={handleCreate}
+        onCreateTypeChange={setCreateType}
+        onLoginFieldChange={updateLoginField}
+        onNoteFieldChange={updateNoteField}
+      />
+    </div>
   );
 }

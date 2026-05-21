@@ -1,6 +1,10 @@
+import { PasswordStrengthMeter } from "@/components/PasswordStrengthMeter";
+import { AuthFeedback } from "@/components/auth/AuthFeedback";
+import { AuthField } from "@/components/auth/AuthField";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { evaluatePasswordStrength } from "@/lib/passwordStrength";
 import { useId, useMemo, useState } from "react";
-import { evaluatePasswordStrength } from "../../lib/passwordStrength";
-import { PasswordStrengthMeter } from "../PasswordStrengthMeter";
 
 interface RegisterScreenProps {
   initialEmail?: string;
@@ -9,6 +13,11 @@ interface RegisterScreenProps {
   onRegister: (email: string, password: string) => void;
   onGoToSignIn: () => void;
 }
+
+const authInputClassName =
+  "h-11 rounded-lg border-border/80 bg-muted/30 shadow-none focus-visible:ring-primary/40";
+const authPrimaryButtonClassName =
+  "h-11 w-full rounded-full bg-foreground text-background shadow-sm hover:bg-foreground/90";
 
 function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
@@ -46,83 +55,90 @@ export function RegisterScreen({
     confirmPassword.length > 0 && password !== confirmPassword ? "Passwords do not match." : null;
 
   return (
-    <section className="screen">
-      <div className="screen-header">
-        <h1>Create your account</h1>
-        <p className="hint">Your master password encrypts your vault. Choose a strong one.</p>
+    <div className="space-y-8">
+      <div className="space-y-2">
+        <h1 className="text-3xl font-bold tracking-tight">Create your account</h1>
+        <p className="text-sm text-muted-foreground">
+          Your master password encrypts your vault. Choose a strong one — we cannot recover it.
+        </p>
       </div>
 
-      <form className="screen-form" onSubmit={handleSubmit}>
-        <label className="field-label" htmlFor={`${formId}-email`}>
-          Email
-        </label>
-        <input
-          id={`${formId}-email`}
-          className="text-input"
-          type="email"
-          autoComplete="email"
-          value={email}
-          disabled={isSubmitting}
-          onChange={(event) => setEmail(event.currentTarget.value)}
-        />
+      <form className="space-y-4" onSubmit={handleSubmit}>
+        <AuthField label="Email" htmlFor={`${formId}-email`}>
+          <Input
+            id={`${formId}-email`}
+            className={authInputClassName}
+            type="email"
+            autoComplete="email"
+            value={email}
+            disabled={isSubmitting}
+            onChange={(event) => setEmail(event.target.value)}
+          />
+        </AuthField>
 
-        <label className="field-label" htmlFor={`${formId}-password`}>
-          Master password
-        </label>
-        <input
-          id={`${formId}-password`}
-          className="text-input"
-          type="password"
-          autoComplete="new-password"
-          value={password}
-          disabled={isSubmitting}
-          onChange={(event) => setPassword(event.currentTarget.value)}
-        />
+        <AuthField label="Master password" htmlFor={`${formId}-password`}>
+          <Input
+            id={`${formId}-password`}
+            className={authInputClassName}
+            type="password"
+            autoComplete="new-password"
+            value={password}
+            disabled={isSubmitting}
+            onChange={(event) => setPassword(event.target.value)}
+          />
+        </AuthField>
         {password && <PasswordStrengthMeter strength={strength} />}
 
-        <label className="field-label" htmlFor={`${formId}-confirm`}>
-          Confirm password
-        </label>
-        <input
-          id={`${formId}-confirm`}
-          className="text-input"
-          type="password"
-          autoComplete="new-password"
-          value={confirmPassword}
-          disabled={isSubmitting}
-          onChange={(event) => setConfirmPassword(event.currentTarget.value)}
-        />
+        <AuthField label="Confirm password" htmlFor={`${formId}-confirm`}>
+          <Input
+            id={`${formId}-confirm`}
+            className={authInputClassName}
+            type="password"
+            autoComplete="new-password"
+            value={confirmPassword}
+            disabled={isSubmitting}
+            onChange={(event) => setConfirmPassword(event.target.value)}
+          />
+        </AuthField>
 
-        {passwordsMismatch && <p className="feedback feedback-error">{passwordsMismatch}</p>}
+        {passwordsMismatch && <AuthFeedback variant="error">{passwordsMismatch}</AuthFeedback>}
         {error && (
-          <p className="feedback feedback-error">
+          <AuthFeedback variant="error">
             {error}
             {error.includes("already exists") && (
               <>
                 {" "}
-                <button type="button" className="link-btn" onClick={onGoToSignIn}>
+                <button
+                  type="button"
+                  className="font-medium underline-offset-4 hover:underline"
+                  onClick={onGoToSignIn}
+                >
                   Sign in instead
                 </button>
               </>
             )}
-          </p>
+          </AuthFeedback>
         )}
 
-        <button
+        <Button
           type="submit"
-          className="btn btn-primary btn-block"
+          className={authPrimaryButtonClassName}
           disabled={isSubmitting || !strength.isStrongEnough || Boolean(passwordsMismatch)}
         >
-          Create account
-        </button>
+          {isSubmitting ? "Creating account…" : "Create account"}
+        </Button>
       </form>
 
-      <p className="screen-footer">
+      <p className="text-center text-sm text-muted-foreground">
         Already have an account?{" "}
-        <button type="button" className="link-btn" onClick={onGoToSignIn}>
+        <button
+          type="button"
+          className="font-medium text-foreground underline-offset-4 hover:underline"
+          onClick={onGoToSignIn}
+        >
           Sign in
         </button>
       </p>
-    </section>
+    </div>
   );
 }
