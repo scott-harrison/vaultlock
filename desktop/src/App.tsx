@@ -37,13 +37,14 @@ import {
   saveServerAdvancedOptions,
   testServerConnection,
 } from "./lib/serverSettings";
-import { VAULT_UNLOCK_ERROR, unlockVaultForUser } from "./lib/unlockVault";
+import { VAULT_LOCAL_KEYS_ERROR, VAULT_UNLOCK_ERROR, unlockVaultForUser } from "./lib/unlockVault";
 import { clearWrappedDekStorage, lockVault } from "./lib/vaultSession";
 import "./App.css";
 
 type WizardScreen = "connect" | "sign-in" | "register" | "check-email" | "unlock" | "vault";
 
 const GENERIC_SIGN_IN_ERROR = "Couldn't sign in. Check your email and password.";
+const GENERIC_UNLOCK_ERROR = "Couldn't unlock your vault. Try again.";
 const GENERIC_REGISTER_ERROR = "Couldn't create account. Try again or sign in.";
 const GENERIC_VERIFY_ERROR = "Couldn't verify your email. Check the token and try again.";
 const ENCRYPTION_MESSAGE = "Deriving encryption keys…";
@@ -53,9 +54,26 @@ async function persistCredentialsFromAuth(
   email: string,
   response: { master_password_hash?: string },
 ): Promise<void> {
-  if (response.master_password_hash) {
-    await saveCredentials({ email, masterPasswordHash: response.master_password_hash });
+  if (!response.master_password_hash?.trim()) {
+    throw new Error("Server did not return a master password hash.");
   }
+  await saveCredentials({ email, masterPasswordHash: response.master_password_hash });
+}
+
+function authErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof VaultlockApiError) {
+    if (error.status === 401) {
+      return error.message || GENERIC_SIGN_IN_ERROR;
+    }
+    if (error.status >= 500 && error.message.toLowerCase().includes("database")) {
+      return "The server couldn't reach its database. Make sure PostgreSQL is running, then try again.";
+    }
+    return error.message || fallback;
+  }
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+  return fallback;
 }
 
 function resolveInitialScreen(
@@ -268,12 +286,15 @@ function App() {
 
     setIsSubmitting(true);
     setLoadingMessage(ENCRYPTION_MESSAGE);
+    let authenticated = false;
+
     try {
       const client = await createApiClient();
       const response = await client.login({
         email,
         master_password: password,
       });
+      authenticated = true;
 
       const nextSession = sessionFromAuthResponse(email, response);
       await saveSession(nextSession);
@@ -281,7 +302,7 @@ function App() {
       await clearPendingVerificationEmail();
       setPendingVerificationEmail(null);
       setSession(nextSession);
-      await unlockVaultForUser(email, password);
+      await unlockVaultForUser(email, password, response.master_password_hash);
       setIsVaultCreateOpen(false);
       setIsUnlocked(true);
       setScreen("vault");
@@ -291,11 +312,22 @@ function App() {
       if (error instanceof VaultlockApiError && error.status === 403) {
         setScreen("check-email");
         setScreenError("Verify your email before signing in.");
-      } else if (error instanceof Error && error.message === VAULT_UNLOCK_ERROR) {
-        setScreenError(VAULT_UNLOCK_ERROR);
-      } else {
-        setScreenError(GENERIC_SIGN_IN_ERROR);
+        return;
       }
+
+      if (authenticated) {
+        setScreen("unlock");
+        if (error instanceof Error && error.message === VAULT_UNLOCK_ERROR) {
+          setScreenError(VAULT_UNLOCK_ERROR);
+        } else if (error instanceof Error && error.message === VAULT_LOCAL_KEYS_ERROR) {
+          setScreenError(VAULT_LOCAL_KEYS_ERROR);
+        } else {
+          setScreenError(authErrorMessage(error, GENERIC_UNLOCK_ERROR));
+        }
+        return;
+      }
+
+      setScreenError(authErrorMessage(error, GENERIC_SIGN_IN_ERROR));
     } finally {
       setIsSubmitting(false);
       setLoadingMessage(null);
@@ -328,7 +360,7 @@ function App() {
       await saveSession(nextSession);
       await persistCredentialsFromAuth(session.email, response);
       setSession(nextSession);
-      await unlockVaultForUser(session.email, password);
+      await unlockVaultForUser(session.email, password, response.master_password_hash);
       setIsVaultCreateOpen(false);
       setIsUnlocked(true);
       setScreen("vault");
@@ -340,8 +372,10 @@ function App() {
         setScreenError("Verify your email before signing in.");
       } else if (error instanceof Error && error.message === VAULT_UNLOCK_ERROR) {
         setScreenError(VAULT_UNLOCK_ERROR);
+      } else if (error instanceof Error && error.message === VAULT_LOCAL_KEYS_ERROR) {
+        setScreenError(VAULT_LOCAL_KEYS_ERROR);
       } else {
-        setScreenError(GENERIC_SIGN_IN_ERROR);
+        setScreenError(authErrorMessage(error, GENERIC_UNLOCK_ERROR));
       }
     } finally {
       setIsSubmitting(false);
