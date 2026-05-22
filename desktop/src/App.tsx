@@ -29,6 +29,8 @@ import {
   saveSession,
   sessionFromAuthResponse,
 } from "./lib/authSession";
+import { getBiometricUnlockStatus } from "./lib/biometricUnlock";
+import { disableBiometricQuickUnlock, unlockVaultWithBiometric } from "./lib/biometricVaultUnlock";
 import { refreshAuthSession } from "./lib/refreshSession";
 import {
   DEFAULT_SERVER_ADVANCED,
@@ -52,6 +54,8 @@ const GENERIC_REGISTER_ERROR = "Couldn't create account. Try again or sign in.";
 const GENERIC_VERIFY_ERROR = "Couldn't verify your email. Check the token and try again.";
 const ENCRYPTION_MESSAGE = "Deriving encryption keys…";
 const AUTO_LOCK_MESSAGE = "Vault locked due to inactivity.";
+const GENERIC_BIOMETRIC_UNLOCK_ERROR =
+  "Biometric unlock failed. Use your master password or sign in again.";
 
 async function persistCredentialsFromAuth(
   email: string,
@@ -378,6 +382,7 @@ function App() {
       await persistCredentialsFromAuth(session.email, response);
       setSession(nextSession);
       await unlockVaultForUser(session.email, password, response.master_password_hash);
+
       setIsVaultCreateOpen(false);
       setIsUnlocked(true);
       setScreen("vault");
@@ -400,10 +405,48 @@ function App() {
     }
   };
 
+  const handleBiometricUnlock = async () => {
+    resetFeedback();
+    if (!session) {
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const biometricStatus = await getBiometricUnlockStatus(session.email);
+      if (!biometricStatus.enabled) {
+        setScreenError(GENERIC_BIOMETRIC_UNLOCK_ERROR);
+        return;
+      }
+
+      await unlockVaultWithBiometric(session.email, biometricStatus.label);
+
+      try {
+        const refreshed = await refreshAuthSession(session);
+        setSession(refreshed);
+      } catch {
+        // Keep existing session; vault API may still refresh on 401.
+      }
+
+      setIsVaultCreateOpen(false);
+      setIsUnlocked(true);
+      setScreen("vault");
+    } catch {
+      lockVault();
+      setIsUnlocked(false);
+      setScreenError(GENERIC_BIOMETRIC_UNLOCK_ERROR);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleSignOut = async () => {
     resetFeedback();
     lockVault();
     setIsVaultCreateOpen(false);
+    if (session) {
+      await disableBiometricQuickUnlock(session.email).catch(() => undefined);
+    }
     await clearAllAuthData();
     await clearAllVaultSyncTokens();
     setSession(null);
@@ -423,6 +466,7 @@ function App() {
     const urlChanged =
       serverUrl !== null && normalizeUrlForCompare(url) !== normalizeUrlForCompare(serverUrl);
     if (urlChanged && session) {
+      await disableBiometricQuickUnlock(session.email).catch(() => undefined);
       await clearWrappedDekStorage();
       await clearAllAuthData();
       await clearAllVaultSyncTokens();
@@ -543,6 +587,7 @@ function App() {
                     error={screenError}
                     success={screenSuccess}
                     onUnlock={handleUnlock}
+                    onBiometricUnlock={() => void handleBiometricUnlock()}
                     onSignOut={handleSignOut}
                   />
                 )}
@@ -554,6 +599,7 @@ function App() {
                     error={screenError}
                     success={screenSuccess}
                     onUnlock={handleUnlock}
+                    onBiometricUnlock={() => void handleBiometricUnlock()}
                     onSignOut={handleSignOut}
                   />
                 )}

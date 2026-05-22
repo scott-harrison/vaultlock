@@ -1,5 +1,6 @@
 import { VaultItemDetail } from "@/components/VaultItemDetail";
 import { type VaultSection, VaultSidebar } from "@/components/layout/VaultSidebar";
+import { VaultSettingsScreen } from "@/components/screens/VaultSettingsScreen";
 import { PasswordGeneratorDialog } from "@/components/vault/PasswordGeneratorDialog";
 import { VaultCreateDialog } from "@/components/vault/VaultCreateDialog";
 import type { VaultCreateDraft } from "@/components/vault/VaultCreateDialog";
@@ -123,6 +124,7 @@ export function VaultScreen({
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isPasswordGeneratorOpen, setIsPasswordGeneratorOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -396,7 +398,17 @@ export function VaultScreen({
     setEditOpen(true);
   };
 
+  const openSettings = () => {
+    setSelectedItemId(null);
+    setIsSettingsOpen(true);
+  };
+
+  const closeSettings = () => {
+    setIsSettingsOpen(false);
+  };
+
   const handleSectionChange = (section: VaultSection) => {
+    setIsSettingsOpen(false);
     setActiveSection(section);
     setSearchQuery("");
     setSelectedItemId(null);
@@ -517,32 +529,37 @@ export function VaultScreen({
         onSectionChange={handleSectionChange}
         onNewItem={openCreateForm}
         onGeneratePassword={() => setIsPasswordGeneratorOpen(true)}
+        onOpenSettings={openSettings}
         onLock={onLock}
         onSignOut={onSignOut}
       />
 
       <div className="flex min-h-0 flex-1 flex-col">
-        <div className="flex min-h-0 flex-1">
-          <VaultItemList
-            items={filteredItems}
-            selectedItemId={selectedItem?.id ?? selectedItemId}
-            searchQuery={searchQuery}
-            isLoading={isLoading}
-            isSyncing={isSyncing}
-            sectionLabel={SECTION_LABELS[activeSection]}
-            sectionItemType={activeSectionItemType}
-            onSearchChange={setSearchQuery}
-            onSelectItem={setSelectedItemId}
-            onSync={() => void syncItems()}
-            onAddItem={canCreateInSection ? openCreateForm : undefined}
-          />
-          <VaultItemDetail
-            item={selectedItem}
-            isSubmitting={isSubmitting}
-            onEdit={openEditForm}
-            onDelete={setDeleteOpen}
-          />
-        </div>
+        {isSettingsOpen ? (
+          <VaultSettingsScreen email={email} onClose={closeSettings} />
+        ) : (
+          <div className="flex min-h-0 flex-1">
+            <VaultItemList
+              items={filteredItems}
+              selectedItemId={selectedItem?.id ?? selectedItemId}
+              searchQuery={searchQuery}
+              isLoading={isLoading}
+              isSyncing={isSyncing}
+              sectionLabel={SECTION_LABELS[activeSection]}
+              sectionItemType={activeSectionItemType}
+              onSearchChange={setSearchQuery}
+              onSelectItem={setSelectedItemId}
+              onSync={() => void syncItems()}
+              onAddItem={canCreateInSection ? openCreateForm : undefined}
+            />
+            <VaultItemDetail
+              item={selectedItem}
+              isSubmitting={isSubmitting}
+              onEdit={openEditForm}
+              onDelete={setDeleteOpen}
+            />
+          </div>
+        )}
       </div>
 
       <VaultCreateDialog

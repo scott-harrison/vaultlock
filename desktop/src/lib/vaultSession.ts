@@ -116,6 +116,11 @@ export function lockVault(): void {
   dataEncryptionKey = null;
 }
 
+export function restoreUnlockedDek(dek: Uint8Array): void {
+  lockVault();
+  dataEncryptionKey = dek;
+}
+
 export async function clearWrappedDekStorage(): Promise<void> {
   lockVault();
   const store = await getKeysStore();

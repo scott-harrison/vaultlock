@@ -1,0 +1,11 @@
+{
+  "build": {
+    "runner": "../scripts/macos-dev-runner.sh"
+  },
+  "bundle": {
+    "macOS": {
+      "entitlements": "Entitlements.plist",
+      "signingIdentity": "-"
+    }
+  }
+}

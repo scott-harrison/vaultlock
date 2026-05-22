@@ -13,6 +13,7 @@ pub fn run() {
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_store::Builder::default().build())
+        .plugin(tauri_plugin_biometry::init())
         .setup(|_app| {
             #[cfg(any(windows, target_os = "linux"))]
             {
