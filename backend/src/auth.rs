@@ -1,4 +1,5 @@
 pub mod jwt;
+pub mod refresh_token;
 
 use axum::{
     extract::{Query, State},
@@ -6,16 +7,22 @@ use axum::{
     response::Html,
     Json,
 };
+use chrono::{Duration, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    auth::jwt::{generate_access_token, generate_refresh_token, JwtConfig},
+    auth::{
+        jwt::{generate_access_token, generate_refresh_token, validate_token},
+        refresh_token::hash_refresh_token,
+    },
     crypto::argon2::{
         validate_master_password_hash, verify_login_password, verify_master_password_hash,
     },
-    models::user::CreateUser,
-    repositories::user_repository::UserRepository,
+    models::{refresh_token::CreateRefreshToken, user::CreateUser},
+    repositories::{
+        refresh_token_repository::RefreshTokenRepository, user_repository::UserRepository,
+    },
     AppState,
 };
 
@@ -44,6 +51,11 @@ pub struct VerifyEmailRequest {
 #[derive(Deserialize)]
 pub struct VerifyEmailOpenQuery {
     pub token: String,
+}
+
+#[derive(Deserialize)]
+pub struct RefreshRequest {
+    pub refresh_token: String,
 }
 
 #[derive(Serialize)]
@@ -165,7 +177,8 @@ pub async fn verify_email(
 
     match repo.verify_email(&payload.token).await {
         Ok(Some(user)) => {
-            match issue_auth_success(&user, "Email verified successfully".to_string()) {
+            match issue_auth_success(&state, &user, "Email verified successfully".to_string()).await
+            {
                 Ok(response) => (StatusCode::OK, Json(response)),
                 Err(e) => {
                     tracing::warn!(?e, "failed to issue tokens after verification");
@@ -267,7 +280,7 @@ pub async fn login(
 
     if is_valid {
         state.login_delay.clear(&payload.email).await;
-        match issue_auth_success(&user, "Login successful".to_string()) {
+        match issue_auth_success(&state, &user, "Login successful".to_string()).await {
             Ok(response) => (StatusCode::OK, Json(response)),
             Err(e) => {
                 tracing::warn!(?e, "failed to issue tokens");
@@ -329,17 +342,146 @@ fn validate_login_request(payload: &LoginRequest, stored_hash: &str) -> Result<b
     }
 }
 
-fn issue_auth_success(
+pub async fn refresh(
+    State(state): State<AppState>,
+    Json(payload): Json<RefreshRequest>,
+) -> (StatusCode, Json<AuthResponse>) {
+    let refresh_token = payload.refresh_token.trim();
+    if refresh_token.is_empty() {
+        return invalid_refresh_token();
+    }
+
+    let claims = match validate_token(refresh_token, &state.jwt.secret) {
+        Ok(claims) => claims,
+        Err(error) => {
+            tracing::debug!(?error, "refresh token JWT validation failed");
+            return invalid_refresh_token();
+        }
+    };
+
+    let token_hash = hash_refresh_token(refresh_token);
+    let repo = RefreshTokenRepository::new(state.db.clone());
+
+    let stored = match repo.find_any_by_token_hash(&token_hash).await {
+        Ok(record) => record,
+        Err(error) => {
+            tracing::warn!(?error, "database error during refresh");
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(AuthResponse::error("Database error".to_string())),
+            );
+        }
+    };
+
+    let Some(stored) = stored else {
+        return invalid_refresh_token();
+    };
+
+    if stored.user_id != claims.sub {
+        tracing::warn!(
+            stored_user_id = %stored.user_id,
+            claims_user_id = %claims.sub,
+            "refresh token user mismatch"
+        );
+        return invalid_refresh_token();
+    }
+
+    if stored.revoked {
+        if let Err(error) = repo.revoke_all_for_user(stored.user_id).await {
+            tracing::warn!(?error, "failed to revoke all refresh tokens after reuse");
+        }
+        tracing::warn!(
+            user_id = %stored.user_id,
+            "revoked refresh token reuse detected"
+        );
+        return invalid_refresh_token();
+    }
+
+    if stored.expires_at <= Utc::now() {
+        let _ = repo.revoke(stored.id).await;
+        return invalid_refresh_token();
+    }
+
+    match rotate_tokens(&state, stored.id, stored.user_id).await {
+        Ok((access_token, refresh_token)) => (
+            StatusCode::OK,
+            Json(AuthResponse::new(
+                access_token,
+                refresh_token,
+                "Token refreshed".to_string(),
+                None,
+            )),
+        ),
+        Err(error) => {
+            tracing::warn!(?error, "failed to rotate refresh token");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(AuthResponse::error("Failed to refresh tokens".to_string())),
+            )
+        }
+    }
+}
+
+async fn issue_auth_success(
+    state: &AppState,
     user: &crate::models::user::User,
     message: String,
 ) -> Result<AuthResponse, Box<dyn std::error::Error + Send + Sync>> {
-    let (access_token, refresh_token) = issue_tokens(user.id)?;
+    let (access_token, refresh_token) = issue_token_pair(state, user.id).await?;
     Ok(AuthResponse::new(
         access_token,
         refresh_token,
         message,
         Some(user.master_password_hash.clone()),
     ))
+}
+
+async fn rotate_tokens(
+    state: &AppState,
+    previous_id: Uuid,
+    user_id: Uuid,
+) -> Result<(String, String), Box<dyn std::error::Error + Send + Sync>> {
+    let access_token = generate_access_token(user_id, &state.jwt)?;
+    let refresh_token = generate_refresh_token(user_id, &state.jwt)?;
+    let expires_at = refresh_token_expires_at(&state.jwt);
+    let token_hash = hash_refresh_token(&refresh_token);
+
+    RefreshTokenRepository::new(state.db.clone())
+        .rotate(
+            previous_id,
+            CreateRefreshToken {
+                user_id,
+                token_hash,
+                expires_at,
+            },
+        )
+        .await?;
+
+    Ok((access_token, refresh_token))
+}
+
+async fn issue_token_pair(
+    state: &AppState,
+    user_id: Uuid,
+) -> Result<(String, String), Box<dyn std::error::Error + Send + Sync>> {
+    let access_token = generate_access_token(user_id, &state.jwt)?;
+    let refresh_token = generate_refresh_token(user_id, &state.jwt)?;
+    let expires_at = refresh_token_expires_at(&state.jwt);
+    let token_hash = hash_refresh_token(&refresh_token);
+
+    RefreshTokenRepository::new(state.db.clone())
+        .create(CreateRefreshToken {
+            user_id,
+            token_hash,
+            expires_at,
+        })
+        .await?;
+
+    Ok((access_token, refresh_token))
+}
+
+fn refresh_token_expires_at(jwt: &crate::auth::jwt::JwtConfig) -> chrono::DateTime<Utc> {
+    Utc::now() + Duration::days(jwt.refresh_token_expiry_days)
 }
 
 fn invalid_credentials() -> (StatusCode, Json<AuthResponse>) {
@@ -349,13 +491,13 @@ fn invalid_credentials() -> (StatusCode, Json<AuthResponse>) {
     )
 }
 
-fn issue_tokens(
-    user_id: uuid::Uuid,
-) -> Result<(String, String), Box<dyn std::error::Error + Send + Sync>> {
-    let config = JwtConfig::from_env()?;
-    let access_token = generate_access_token(user_id, &config)?;
-    let refresh_token = generate_refresh_token(user_id, &config)?;
-    Ok((access_token, refresh_token))
+fn invalid_refresh_token() -> (StatusCode, Json<AuthResponse>) {
+    (
+        StatusCode::UNAUTHORIZED,
+        Json(AuthResponse::error(
+            "Invalid or expired refresh token".to_string(),
+        )),
+    )
 }
 
 fn html_escape(value: &str) -> String {

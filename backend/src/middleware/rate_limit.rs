@@ -19,7 +19,13 @@ use std::{
 };
 use tokio::sync::Mutex;
 
-const MAX_REQUESTS: usize = 5;
+fn max_requests() -> usize {
+    std::env::var("AUTH_RATE_LIMIT_MAX")
+        .ok()
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(5)
+}
+
 const WINDOW: Duration = Duration::from_secs(60);
 
 #[derive(Clone)]
@@ -42,7 +48,7 @@ impl AuthRateLimiter {
         let timestamps = requests.entry(key.to_string()).or_default();
         timestamps.retain(|t| now.duration_since(*t) < WINDOW);
 
-        if timestamps.len() >= MAX_REQUESTS {
+        if timestamps.len() >= max_requests() {
             return Err(StatusCode::TOO_MANY_REQUESTS);
         }
 

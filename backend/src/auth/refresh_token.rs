@@ -1,31 +1,25 @@
-use rand::RngCore;
 use sha2::{Digest, Sha256};
 
-/// Hashes a refresh token using SHA-256 + random salt
-/// (Fast hash is acceptable for refresh tokens)
-pub fn hash_refresh_token(token: &str) -> (String, String) {
-    let mut salt = [0u8; 16];
-    rand::thread_rng().fill_bytes(&mut salt);
-
+/// Deterministic SHA-256 hash for refresh token storage and lookup.
+/// Refresh JWTs are high-entropy; a fast hash is acceptable here.
+#[must_use]
+pub fn hash_refresh_token(token: &str) -> String {
     let mut hasher = Sha256::new();
-    hasher.update(salt);
     hasher.update(token.as_bytes());
-    let hash = hasher.finalize();
-
-    (hex::encode(hash), hex::encode(salt))
+    hex::encode(hasher.finalize())
 }
 
-/// Verifies a refresh token against stored hash + salt
-pub fn verify_refresh_token(token: &str, hash: &str, salt: &str) -> bool {
-    let salt_bytes = match hex::decode(salt) {
-        Ok(b) => b,
-        Err(_) => return false,
-    };
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-    let mut hasher = Sha256::new();
-    hasher.update(&salt_bytes);
-    hasher.update(token.as_bytes());
-    let computed = hex::encode(hasher.finalize());
+    #[test]
+    fn hash_is_stable_for_same_token() {
+        assert_eq!(hash_refresh_token("abc"), hash_refresh_token("abc"));
+    }
 
-    computed == hash
+    #[test]
+    fn hash_differs_for_different_tokens() {
+        assert_ne!(hash_refresh_token("abc"), hash_refresh_token("def"));
+    }
 }

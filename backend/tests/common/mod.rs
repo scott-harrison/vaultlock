@@ -162,6 +162,7 @@ pub struct TestApp {
 impl TestApp {
     pub async fn spawn() -> Self {
         std::env::set_var("JWT_SECRET", TEST_JWT_SECRET);
+        std::env::set_var("AUTH_RATE_LIMIT_MAX", "50");
 
         let server = postgres_server();
         ensure_orphan_cleanup(&server.admin_database_url).await;
