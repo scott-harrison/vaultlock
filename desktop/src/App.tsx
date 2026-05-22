@@ -29,6 +29,7 @@ import {
   saveSession,
   sessionFromAuthResponse,
 } from "./lib/authSession";
+import { refreshAuthSession } from "./lib/refreshSession";
 import {
   DEFAULT_SERVER_ADVANCED,
   type ServerAdvancedOptions,
@@ -260,6 +261,20 @@ function App() {
 
   useVerifyDeepLink(handleDeepLink);
 
+  const handleRefreshSession = useCallback(async (): Promise<AuthSession | null> => {
+    if (!session?.refreshToken) {
+      return null;
+    }
+
+    try {
+      const next = await refreshAuthSession(session);
+      setSession(next);
+      return next;
+    } catch {
+      return null;
+    }
+  }, [session]);
+
   const handleSessionExpired = useCallback(() => {
     lockVault();
     setIsVaultCreateOpen(false);
@@ -440,6 +455,7 @@ function App() {
             email={session.email}
             onCreateFormOpenChange={setIsVaultCreateOpen}
             onLock={() => lockVaultSession()}
+            onRefreshSession={handleRefreshSession}
             onSessionExpired={handleSessionExpired}
             onSignOut={handleSignOut}
           />

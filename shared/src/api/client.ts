@@ -1,6 +1,7 @@
 import type {
   AuthResponse,
   LoginRequest,
+  RefreshRequest,
   RegisterRequest,
   RegisterResponse,
   VerifyEmailRequest,
@@ -64,6 +65,10 @@ export class VaultlockApiClient {
 
   async login(payload: LoginRequest): Promise<AuthResponse> {
     return this.requestJson("POST", "/login", { body: JSON.stringify(payload) });
+  }
+
+  async refresh(payload: RefreshRequest): Promise<AuthResponse> {
+    return this.requestJson("POST", "/refresh", { body: JSON.stringify(payload) });
   }
 
   async listVaultItems(accessToken: string, since?: string): Promise<VaultItemListResponse> {

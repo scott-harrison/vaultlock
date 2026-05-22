@@ -29,6 +29,10 @@ export interface AuthResponse {
   master_password_hash?: string;
 }
 
+export interface RefreshRequest {
+  refresh_token: string;
+}
+
 export interface ApiErrorBody {
   message: string;
 }
