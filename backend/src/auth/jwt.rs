@@ -8,6 +8,7 @@ pub struct Claims {
     pub sub: Uuid,
     pub exp: i64,
     pub iat: i64,
+    pub jti: Uuid,
 }
 
 #[derive(Clone)]
@@ -48,6 +49,7 @@ pub fn generate_access_token(
         sub: user_id,
         exp: exp.timestamp(),
         iat: now.timestamp(),
+        jti: Uuid::new_v4(),
     };
 
     encode(
@@ -73,6 +75,7 @@ pub fn generate_refresh_token(
         sub: user_id,
         exp: exp.timestamp(),
         iat: now.timestamp(),
+        jti: Uuid::new_v4(),
     };
 
     encode(

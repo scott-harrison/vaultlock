@@ -1,0 +1,53 @@
+meta {
+  name: Refresh tokens
+  type: http
+  seq: 4
+}
+
+docs {
+  Rotates a refresh token and returns a new access + refresh token pair.
+
+  **POST** `{{baseUrl}}/refresh`
+
+  | Field | Description |
+  |-------|-------------|
+  | `refresh_token` | Valid refresh JWT from login or a previous refresh |
+
+  **Responses**
+  - `200` — new `access_token`, `token` (alias), and `refresh_token`
+  - `401` — invalid, expired, or revoked refresh token
+  - `429` — rate limited (same limits as login/register)
+
+  Run **Login** first so `{{refreshToken}}` is set, or paste a token manually.
+}
+
+post {
+  url: {{baseUrl}}/refresh
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "refresh_token": "{{refreshToken}}"
+  }
+}
+
+assert {
+  res.status: eq 200
+  res.body.message: eq Token refreshed
+  res.body.access_token: isDefined
+  res.body.token: isDefined
+  res.body.refresh_token: isDefined
+}
+
+script:post-response {
+  const body = res.getBody();
+  const token = body.access_token || body.token;
+  if (token) {
+    bru.setVar("accessToken", token);
+  }
+  if (body.refresh_token) {
+    bru.setVar("refreshToken", body.refresh_token);
+  }
+}
