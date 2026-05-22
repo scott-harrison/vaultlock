@@ -3,7 +3,17 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { CreditCard, KeyRound, Lock, LogOut, NotebookPen, Plus, Star, Wand2 } from "lucide-react";
+import {
+  CreditCard,
+  KeyRound,
+  Lock,
+  LogOut,
+  NotebookPen,
+  Plus,
+  Settings,
+  Star,
+  Wand2,
+} from "lucide-react";
 
 export type VaultSection = "logins" | "notes" | "cards" | "favourites";
 
@@ -15,6 +25,7 @@ interface VaultSidebarProps {
   onSectionChange: (section: VaultSection) => void;
   onNewItem: () => void;
   onGeneratePassword: () => void;
+  onOpenSettings: () => void;
   onLock: () => void;
   onSignOut: () => void;
 }
@@ -109,6 +120,7 @@ export function VaultSidebar({
   onSectionChange,
   onNewItem,
   onGeneratePassword,
+  onOpenSettings,
   onLock,
   onSignOut,
 }: VaultSidebarProps) {
@@ -175,6 +187,10 @@ export function VaultSidebar({
           </Tooltip>
         </div>
         <Separator className="bg-sidebar-border" />
+        <Button className="w-full justify-start" variant="ghost" size="sm" onClick={onOpenSettings}>
+          <Settings className="size-4" aria-hidden />
+          Settings
+        </Button>
         <Button className="w-full justify-start" variant="ghost" size="sm" onClick={onLock}>
           <Lock className="size-4" aria-hidden />
           Lock vault
