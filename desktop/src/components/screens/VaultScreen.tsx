@@ -6,6 +6,7 @@ import type { VaultCreateDraft } from "@/components/vault/VaultCreateDialog";
 import { VaultDeleteDialog } from "@/components/vault/VaultDeleteDialog";
 import { VaultItemList } from "@/components/vault/VaultItemList";
 import { useMountEffect } from "@/hooks/useMountEffect";
+import type { AuthSession } from "@/lib/authSession";
 import {
   type DecryptedVaultItem,
   createVaultItem,
@@ -17,6 +18,7 @@ import {
   vaultItemDisplaySubtitle,
   vaultItemDisplayTitle,
 } from "@/lib/vaultItems";
+import { withAccessTokenRetry } from "@/lib/withAccessTokenRetry";
 import { VaultlockApiError } from "@vaultlock/shared/api";
 import type { LoginItemPlaintext, NoteItemPlaintext, VaultItemType } from "@vaultlock/shared/types";
 import { useMemo, useRef, useState } from "react";
@@ -27,6 +29,7 @@ interface VaultScreenProps {
   email: string;
   onCreateFormOpenChange?: (isOpen: boolean) => void;
   onLock: () => void;
+  onRefreshSession: () => Promise<AuthSession | null>;
   onSessionExpired: () => void;
   onSignOut: () => void;
 }
@@ -107,11 +110,13 @@ export function VaultScreen({
   email,
   onCreateFormOpenChange,
   onLock,
+  onRefreshSession,
   onSessionExpired,
   onSignOut,
 }: VaultScreenProps) {
   const isMountedRef = useRef(true);
   const accessTokenRef = useRef(accessToken);
+  const onRefreshSessionRef = useRef(onRefreshSession);
   const onSessionExpiredRef = useRef(onSessionExpired);
 
   const [items, setItems] = useState<DecryptedVaultItem[]>([]);
@@ -134,7 +139,16 @@ export function VaultScreen({
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
 
   accessTokenRef.current = accessToken;
+  onRefreshSessionRef.current = onRefreshSession;
   onSessionExpiredRef.current = onSessionExpired;
+
+  const runWithAccessToken = async <T,>(operation: (token: string) => Promise<T>): Promise<T> => {
+    return withAccessTokenRetry(
+      accessTokenRef.current,
+      () => onRefreshSessionRef.current(),
+      operation,
+    );
+  };
 
   const setCreateOpen = (next: boolean) => {
     setIsCreateOpen(next);
@@ -263,7 +277,7 @@ export function VaultScreen({
 
     setIsLoading(true);
     try {
-      const nextItems = await loadVaultItems(accessTokenRef.current, email);
+      const nextItems = await runWithAccessToken((token) => loadVaultItems(token, email));
       if (!isMountedRef.current) {
         return;
       }
@@ -288,7 +302,7 @@ export function VaultScreen({
 
     setIsSyncing(true);
     try {
-      const result = await syncVaultItems(accessTokenRef.current, email, items);
+      const result = await runWithAccessToken((token) => syncVaultItems(token, email, items));
       if (!isMountedRef.current) {
         return;
       }
@@ -393,18 +407,11 @@ export function VaultScreen({
     setIsSubmitting(true);
 
     try {
-      const created =
+      const created = await runWithAccessToken((token) =>
         createType === "login"
-          ? await createVaultItem(
-              accessTokenRef.current,
-              "login",
-              loginPlaintextFromDraft(loginDraft),
-            )
-          : await createVaultItem(
-              accessTokenRef.current,
-              "note",
-              notePlaintextFromDraft(noteDraft),
-            );
+          ? createVaultItem(token, "login", loginPlaintextFromDraft(loginDraft))
+          : createVaultItem(token, "note", notePlaintextFromDraft(noteDraft)),
+      );
 
       if (!isMountedRef.current) {
         return;
@@ -422,11 +429,7 @@ export function VaultScreen({
       if (!isMountedRef.current) {
         return;
       }
-      if (createError instanceof VaultlockApiError && createError.status === 401) {
-        notifySessionExpired();
-        return;
-      }
-      toast.error(GENERIC_CREATE_ERROR);
+      handleVaultMutationError(createError, GENERIC_CREATE_ERROR);
     } finally {
       if (isMountedRef.current) {
         setIsSubmitting(false);
@@ -443,20 +446,11 @@ export function VaultScreen({
     setIsSubmitting(true);
 
     try {
-      const updated =
+      const updated = await runWithAccessToken((token) =>
         editType === "login"
-          ? await updateVaultItem(
-              accessTokenRef.current,
-              editItemId,
-              "login",
-              loginPlaintextFromDraft(editLoginDraft),
-            )
-          : await updateVaultItem(
-              accessTokenRef.current,
-              editItemId,
-              "note",
-              notePlaintextFromDraft(editNoteDraft),
-            );
+          ? updateVaultItem(token, editItemId, "login", loginPlaintextFromDraft(editLoginDraft))
+          : updateVaultItem(token, editItemId, "note", notePlaintextFromDraft(editNoteDraft)),
+      );
 
       if (!isMountedRef.current) {
         return;
@@ -488,7 +482,7 @@ export function VaultScreen({
     setIsSubmitting(true);
 
     try {
-      await deleteVaultItem(accessTokenRef.current, deleteTarget.id);
+      await runWithAccessToken((token) => deleteVaultItem(token, deleteTarget.id));
 
       if (!isMountedRef.current) {
         return;

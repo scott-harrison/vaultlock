@@ -55,6 +55,39 @@ describe("VaultlockApiClient", () => {
     fetchSpy.mockRestore();
   });
 
+  it("refreshes auth tokens", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        access_token: "new-access",
+        token: "new-access",
+        refresh_token: "new-refresh",
+        message: "Token refreshed",
+      }),
+    });
+
+    const client = new VaultlockApiClient({
+      baseUrl: "http://localhost:8080",
+      fetch: fetchMock,
+    });
+
+    await expect(client.refresh({ refresh_token: "old-refresh" })).resolves.toEqual({
+      access_token: "new-access",
+      token: "new-access",
+      refresh_token: "new-refresh",
+      message: "Token refreshed",
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://localhost:8080/refresh",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ refresh_token: "old-refresh" }),
+      }),
+    );
+  });
+
   it("throws VaultlockApiError on failure", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: false,
