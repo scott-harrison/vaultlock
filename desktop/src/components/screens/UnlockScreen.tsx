@@ -4,7 +4,7 @@ import { AuthUserChip } from "@/components/auth/AuthUserChip";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useMountEffect } from "@/hooks/useMountEffect";
-import { type BiometricUnlockStatus, getBiometricUnlockStatus } from "@/lib/biometricUnlock";
+import { getBiometricQuickUnlockAvailability } from "@/lib/securitySettings";
 import { cn } from "@/lib/utils";
 import { Fingerprint } from "lucide-react";
 import { useId, useRef, useState } from "react";
@@ -37,19 +37,18 @@ export function UnlockScreen({
   const passwordRef = useRef<HTMLInputElement>(null);
   const [password, setPassword] = useState("");
   const [showPasswordForm, setShowPasswordForm] = useState(false);
-  const [biometricStatus, setBiometricStatus] = useState<BiometricUnlockStatus>({
-    available: false,
-    enabled: false,
-    label: "Biometrics",
-    usesDevFallback: false,
-  });
+  const [showBiometricUnlock, setShowBiometricUnlock] = useState(false);
+  const [biometricLabel, setBiometricLabel] = useState("Biometrics");
+  const [masterPasswordReauthRequired, setMasterPasswordReauthRequired] = useState(false);
 
   useMountEffect(() => {
     let cancelled = false;
 
-    void getBiometricUnlockStatus(email).then((status) => {
+    void getBiometricQuickUnlockAvailability(email).then((availability) => {
       if (!cancelled) {
-        setBiometricStatus(status);
+        setShowBiometricUnlock(availability.showBiometricUnlock);
+        setBiometricLabel(availability.status.label);
+        setMasterPasswordReauthRequired(availability.masterPasswordReauthRequired);
       }
     });
 
@@ -70,8 +69,6 @@ export function UnlockScreen({
     });
   };
 
-  const showBiometricUnlock = biometricStatus.available && biometricStatus.enabled;
-
   return (
     <div className="space-y-8">
       <AuthUserChip email={email} onSwitchAccount={onSignOut} />
@@ -79,9 +76,11 @@ export function UnlockScreen({
       <div className="space-y-2">
         <h1 className="text-3xl font-bold tracking-tight">Unlock your vault</h1>
         <p className="text-sm text-muted-foreground">
-          {showBiometricUnlock
-            ? `Use ${biometricStatus.label} or your master password to decrypt items on this device.`
-            : "Enter your master password to decrypt your items on this device."}
+          {masterPasswordReauthRequired
+            ? "Enter your master password to continue. Periodic re-authentication is required."
+            : showBiometricUnlock
+              ? `Use ${biometricLabel} or your master password to decrypt items on this device.`
+              : "Enter your master password to decrypt your items on this device."}
         </p>
       </div>
 
@@ -95,7 +94,7 @@ export function UnlockScreen({
               onClick={onBiometricUnlock}
             >
               <Fingerprint className="size-4" aria-hidden />
-              Unlock with {biometricStatus.label}
+              Unlock with {biometricLabel}
             </Button>
           )}
           <Button
@@ -108,7 +107,7 @@ export function UnlockScreen({
             variant={showBiometricUnlock ? "outline" : "default"}
             onClick={openPasswordForm}
           >
-            Use Master Password
+            Use master password
           </Button>
         </div>
       ) : (

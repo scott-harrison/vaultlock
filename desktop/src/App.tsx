@@ -29,9 +29,15 @@ import {
   saveSession,
   sessionFromAuthResponse,
 } from "./lib/authSession";
+import { AUTO_LOCK_MS } from "./lib/autoLock";
 import { getBiometricUnlockStatus } from "./lib/biometricUnlock";
 import { disableBiometricQuickUnlock, unlockVaultWithBiometric } from "./lib/biometricVaultUnlock";
 import { refreshAuthSession } from "./lib/refreshSession";
+import {
+  isMasterPasswordReauthRequired,
+  loadAutoLockTimeoutMs,
+  recordMasterPasswordUnlock,
+} from "./lib/securitySettings";
 import {
   DEFAULT_SERVER_ADVANCED,
   type ServerAdvancedOptions,
@@ -56,6 +62,8 @@ const ENCRYPTION_MESSAGE = "Deriving encryption keys…";
 const AUTO_LOCK_MESSAGE = "Vault locked due to inactivity.";
 const GENERIC_BIOMETRIC_UNLOCK_ERROR =
   "Biometric unlock failed. Use your master password or sign in again.";
+const MASTER_PASSWORD_REAUTH_MESSAGE =
+  "Enter your master password to continue. Periodic re-authentication is required.";
 
 async function persistCredentialsFromAuth(
   email: string,
@@ -118,6 +126,11 @@ function App() {
   const [screenSuccess, setScreenSuccess] = useState<string | null>(null);
   const [registerEmailDraft, setRegisterEmailDraft] = useState("");
   const [signInEmailDraft, setSignInEmailDraft] = useState("");
+  const [autoLockTimeoutMs, setAutoLockTimeoutMs] = useState<number | null>(null);
+
+  const reloadAutoLockSettings = useCallback(async () => {
+    setAutoLockTimeoutMs(await loadAutoLockTimeoutMs());
+  }, []);
 
   const refreshConnectionStatus = async (url: string, advanced: ServerAdvancedOptions) => {
     setConnectionStatus("checking");
@@ -137,8 +150,9 @@ function App() {
       loadServerAdvancedOptions(),
       loadSession(),
       loadPendingVerificationEmail(),
+      loadAutoLockTimeoutMs(),
     ])
-      .then(async ([url, advanced, loadedSession, pendingEmail]) => {
+      .then(async ([url, advanced, loadedSession, pendingEmail, autoLockMs]) => {
         if (cancelled) {
           return;
         }
@@ -147,6 +161,7 @@ function App() {
         setServerAdvanced(advanced);
         setSession(loadedSession);
         setPendingVerificationEmail(pendingEmail);
+        setAutoLockTimeoutMs(autoLockMs);
         setScreen(resolveInitialScreen(url, loadedSession, pendingEmail));
 
         if (url) {
@@ -297,7 +312,8 @@ function App() {
   }, []);
 
   useAutoLock({
-    enabled: isUnlocked && screen === "vault" && !isVaultCreateOpen,
+    enabled: isUnlocked && screen === "vault" && !isVaultCreateOpen && autoLockTimeoutMs !== null,
+    timeoutMs: autoLockTimeoutMs ?? AUTO_LOCK_MS,
     onLock: () => lockVaultSession(AUTO_LOCK_MESSAGE),
   });
 
@@ -324,6 +340,7 @@ function App() {
       setPendingVerificationEmail(null);
       setSession(nextSession);
       await unlockVaultForUser(email, password, response.master_password_hash);
+      await recordMasterPasswordUnlock(email);
       setIsVaultCreateOpen(false);
       setIsUnlocked(true);
       setScreen("vault");
@@ -382,6 +399,7 @@ function App() {
       await persistCredentialsFromAuth(session.email, response);
       setSession(nextSession);
       await unlockVaultForUser(session.email, password, response.master_password_hash);
+      await recordMasterPasswordUnlock(session.email);
 
       setIsVaultCreateOpen(false);
       setIsUnlocked(true);
@@ -413,6 +431,11 @@ function App() {
 
     setIsSubmitting(true);
     try {
+      if (await isMasterPasswordReauthRequired(session.email)) {
+        setScreenError(MASTER_PASSWORD_REAUTH_MESSAGE);
+        return;
+      }
+
       const biometricStatus = await getBiometricUnlockStatus(session.email);
       if (!biometricStatus.enabled) {
         setScreenError(GENERIC_BIOMETRIC_UNLOCK_ERROR);
@@ -500,6 +523,7 @@ function App() {
             onCreateFormOpenChange={setIsVaultCreateOpen}
             onLock={() => lockVaultSession()}
             onRefreshSession={handleRefreshSession}
+            onSecuritySettingsChange={() => void reloadAutoLockSettings()}
             onSessionExpired={handleSessionExpired}
             onSignOut={handleSignOut}
           />
