@@ -5,9 +5,14 @@ import { ArrowLeft } from "lucide-react";
 interface VaultSettingsScreenProps {
   email: string;
   onClose: () => void;
+  onSecuritySettingsChange?: () => void;
 }
 
-export function VaultSettingsScreen({ email, onClose }: VaultSettingsScreenProps) {
+export function VaultSettingsScreen({
+  email,
+  onClose,
+  onSecuritySettingsChange,
+}: VaultSettingsScreenProps) {
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-auto">
       <div className="border-b border-border px-6 py-4">
@@ -28,7 +33,7 @@ export function VaultSettingsScreen({ email, onClose }: VaultSettingsScreenProps
               Control how you unlock Vaultlock on this device.
             </p>
           </div>
-          <SecuritySettingsSection email={email} />
+          <SecuritySettingsSection email={email} onSettingsChange={onSecuritySettingsChange} />
         </section>
       </div>
     </div>

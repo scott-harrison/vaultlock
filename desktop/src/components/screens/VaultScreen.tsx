@@ -31,6 +31,7 @@ interface VaultScreenProps {
   onCreateFormOpenChange?: (isOpen: boolean) => void;
   onLock: () => void;
   onRefreshSession: () => Promise<AuthSession | null>;
+  onSecuritySettingsChange?: () => void;
   onSessionExpired: () => void;
   onSignOut: () => void;
 }
@@ -112,6 +113,7 @@ export function VaultScreen({
   onCreateFormOpenChange,
   onLock,
   onRefreshSession,
+  onSecuritySettingsChange,
   onSessionExpired,
   onSignOut,
 }: VaultScreenProps) {
@@ -536,7 +538,11 @@ export function VaultScreen({
 
       <div className="flex min-h-0 flex-1 flex-col">
         {isSettingsOpen ? (
-          <VaultSettingsScreen email={email} onClose={closeSettings} />
+          <VaultSettingsScreen
+            email={email}
+            onClose={closeSettings}
+            onSecuritySettingsChange={onSecuritySettingsChange}
+          />
         ) : (
           <div className="flex min-h-0 flex-1">
             <VaultItemList
