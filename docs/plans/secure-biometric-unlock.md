@@ -1,8 +1,8 @@
 # Secure Biometric Vault Unlock
 
-**Status:** Proposed  
+**Status:** Partially implemented (desktop shipped May 2026)  
 **Date:** May 20, 2026  
-**Related:** [PROJECT_PLAN.md](../PROJECT_PLAN.md) §4 (security architecture), Phase 2 passkeys
+**Related:** [PROJECT_PLAN.md](../PROJECT_PLAN.md) §4 (security architecture), Phase 2 passkeys, [ADR-0003](../adr/0003-biometric-quick-unlock.md), [BIOMETRIC_QUICK_UNLOCK.md](../BIOMETRIC_QUICK_UNLOCK.md)
 
 ## Overview
 
@@ -15,11 +15,13 @@ Add optional biometric **quick unlock** as a local-only layer on top of master-p
 
 ---
 
-## Current state (important constraint)
+## Current state
 
-Vaultlock has **no client unlock flow yet** — only backend JWT login from a client-supplied Argon2id PHC hash and crypto helpers (`wrap_dek` / `unwrap_dek`) in [backend/src/crypto/aes_gcm.rs](../../backend/src/crypto/aes_gcm.rs) and [extension/src/crypto/aes_gcm.ts](../../extension/src/crypto/aes_gcm.ts). The documented zero-knowledge model ([PROJECT_PLAN.md](../PROJECT_PLAN.md) §4) — separate login hash, `wrapped_dek` on user, client-only decryption — is **not wired**.
+**Desktop (Tauri):** Client unlock, local `wrapped_dek`, vault session, auto-lock, and biometric quick unlock are **implemented** (#155, #156). See [ADR-0003](../adr/0003-biometric-quick-unlock.md) and [BIOMETRIC_QUICK_UNLOCK.md](../BIOMETRIC_QUICK_UNLOCK.md).
 
-**Biometrics must not be built before core unlock exists.** Biometric unlock is a convenience gate on a **locally stored, randomly generated key** — never a replacement for master-password KDF.
+**Extension / mobile:** Core unlock and biometrics are **not implemented** yet. The extension still has crypto helpers only; WebAuthn PRF quick unlock is tracked in #137.
+
+Biometric unlock remains a convenience gate on a **locally stored, randomly generated key** — never a replacement for master-password KDF.
 
 ---
 
@@ -92,7 +94,7 @@ Add to planned `shared/crypto/` (or duplicate minimally until shared package exi
    - Clear envelope
    - On master password change: **always** invalidate quick unlock everywhere
 
-When implemented, fold the threat model and platform matrix into [ADR-0003](../adr/0003-biometric-quick-unlock.md) (to be created).
+The threat model and desktop platform decisions are recorded in [ADR-0003](../adr/0003-biometric-quick-unlock.md).
 
 ---
 
@@ -109,7 +111,7 @@ When implemented, fold the threat model and platform matrix into [ADR-0003](../a
 - Android: `setUserAuthenticationRequired(true)` + strong biometric only
 - Settings: toggle “Unlock with biometrics”, timeout (1 min / 5 min / 15 min / never)
 
-### Desktop (Tauri, planned) — same-device biometrics
+### Desktop (Tauri) — same-device biometrics ✅ shipped
 
 | OS | Approach |
 |----|----------|
@@ -195,8 +197,8 @@ JWT session remains independent: quick unlock only restores local `dek`; API cal
 | 1 | ADR-0003 + `QuickUnlock` module in `shared/crypto/` |
 | 2 | Mobile: secure store adapter + settings UI + tests (Detox/manual checklist) |
 | 3 | Extension: WebAuthn PRF adapter + popup unlock UI + feature detection |
-| 4 | Tauri desktop: Keychain/Hello adapter (when `desktop/` crate exists) |
-| 5 | Invalidate on password change, lock, logout, failed biometric (exponential backoff) |
+| 4 | Tauri desktop: Keychain/Hello adapter ✅ |
+| 5 | Invalidate on password change, failed biometric backoff — **partial** (sign-out and server URL change clear enrollment; password change not yet wired) |
 
 ### Phase 2 — Phone approves desktop/extension
 
@@ -235,7 +237,7 @@ Per [TESTING.md](../TESTING.md):
 - `mobile/biometric-quick-unlock`
 - `extension/webauthn-prf-quick-unlock`
 - `desktop/keychain-quick-unlock` (when Tauri lands)
-- `docs/adr-0003-biometric-unlock`
+- `docs/adr/0003-biometric-quick-unlock.md` ✅
 - `sync/device-pairing-phone-unlock` — Phase 2
 
 ---

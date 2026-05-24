@@ -10,6 +10,7 @@ Stop paying subscriptions — take full control of your data.
 
 - Passwords, secure notes, and TOTP
 - Zero-knowledge E2EE (Argon2id + AES-256-GCM)
+- Desktop biometric quick unlock (Touch ID / Windows Hello) with auto-lock and master-password re-auth
 - Strong password generator
 - Browser extension (autofill)
 - Desktop app (Tauri)
@@ -48,11 +49,17 @@ See [TESTING.md](./TESTING.md)
 
 ## Self Hosting
 
-See [SELF_HOSTING.md](./SELF_HOSTING.md)
+See [SELF_HOSTING.md](./docs/SELF_HOSTING.md)
+
+## Security (biometric quick unlock)
+
+See [BIOMETRIC_QUICK_UNLOCK.md](./docs/BIOMETRIC_QUICK_UNLOCK.md) for how Touch ID / Windows Hello quick unlock works on desktop.
 
 ## Architecture Decision Records
 
 - [ADR-0001: Monorepo Layout](./docs/adr/0001-monorepo-layout.md)
+- [ADR-0002: Mobile Distribution Strategy](./docs/adr/0002-mobile-distribution-strategy.md)
+- [ADR-0003: Biometric Quick Unlock](./docs/adr/0003-biometric-quick-unlock.md)
 
 ## License
 
