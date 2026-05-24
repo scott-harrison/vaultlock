@@ -237,6 +237,16 @@ Tauri expects Vite on **1420** (`desktop/vite.config.ts`). Free the port or stop
 
   **Cursor / VS Code terminals** sometimes start without `~/.cargo/bin` on `PATH`. Either restart the terminal after installing Rust, or run `source "$HOME/.cargo/env"` before `pnpm desktop:dev`.
 
+### Touch ID / Face ID in macOS dev builds
+
+Unsigned debug builds cannot always access the macOS data-protection keychain. The desktop app handles this as follows:
+
+- **`pnpm desktop:dev`** on macOS uses `desktop/scripts/macos-dev-runner.sh` to ad-hoc sign the debug binary with keychain entitlements before launch.
+- If keychain storage still fails in dev, the app falls back to `biometric-dev-fallback.json` (local file) while still requiring a biometric prompt. Settings shows a notice when this dev fallback is active.
+- **Release builds** (`pnpm --filter @vaultlock/desktop tauri build`) use the system keychain — test biometrics on release builds before trusting dev behavior.
+
+See [BIOMETRIC_QUICK_UNLOCK.md](./BIOMETRIC_QUICK_UNLOCK.md) for user-facing security guidance.
+
 ### Tauri build errors on Windows
 
 - Confirm **MSVC** toolchains are installed (not GNU alone)

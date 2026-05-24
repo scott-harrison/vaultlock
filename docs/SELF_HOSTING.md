@@ -172,15 +172,19 @@ DOMAIN=yourdomain.com
 
 ## First-Time Setup After Deployment
 
-1. Open the web UI
-2. Create your first account (email + master password)
-3. The master password is **never sent to the server** — it derives your encryption keys locally
-4. Import data from 1Password / Bitwarden / CSV if desired (export tools will be provided)
+1. Install the **desktop app** (or extension, when available) on each device — there is no browser web vault UI.
+2. In the app, set your **server URL** (e.g. `https://vault.example.com`) and confirm the health check.
+3. Create your first account (email + master password).
+4. The master password is **never sent to the server** — it derives your encryption keys locally.
+5. Optional: after unlocking, open **Settings → Security** to enable biometric quick unlock, auto-lock, and periodic master-password re-auth. See [BIOMETRIC_QUICK_UNLOCK.md](./BIOMETRIC_QUICK_UNLOCK.md).
+6. Import data from 1Password / Bitwarden / CSV if desired (export tools will be provided).
 
 ## Security Best Practices
 
 - Use a strong, unique master password (we recommend a passphrase)
 - Enable 2FA / passkeys on your account once supported
+- On desktop clients, use **auto-lock** and **periodic master password re-authentication** (Settings → Security); see [BIOMETRIC_QUICK_UNLOCK.md](./BIOMETRIC_QUICK_UNLOCK.md)
+- Biometric quick unlock is **client-local only** — no server configuration or extra env vars required
 - Keep your server OS and Docker images updated
 - Regular encrypted backups of the Postgres volume
 - Consider fail2ban or CrowdSec for brute-force protection on the login endpoint
