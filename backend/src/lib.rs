@@ -36,7 +36,7 @@ pub fn app(db: PgPool, jwt: JwtConfig) -> Router {
         login_delay: ProgressiveDelay::new(),
         jwt,
     };
-    let auth_rate_limit = from_fn_with_state(AuthRateLimiter::new(), auth_rate_limit_middleware);
+    let auth_rate_limit = from_fn_with_state(AuthRateLimiter::from_env(), auth_rate_limit_middleware);
     let jwt_auth = from_fn_with_state(state.clone(), jwt_auth_middleware);
 
     let vault_routes = Router::new()
