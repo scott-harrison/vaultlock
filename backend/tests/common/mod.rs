@@ -98,8 +98,14 @@ async fn cleanup_orphan_test_databases(admin_url: &str) {
     };
 
     for db_name in db_names {
+        // Safe: db_name is generated internally by next_database_name() (timestamp + counter).
+        // We use raw_sql for dynamic DDL (CREATE/DROP DATABASE) which sqlx 0.9+ requires
+        // for non-literal queries.
         let drop_sql = format!(r#"DROP DATABASE IF EXISTS "{db_name}" WITH (FORCE)"#);
-        let _ = sqlx::query(&drop_sql).execute(&admin).await;
+        // Safe internal test DB name (never user-controlled). Explicitly marked audited per sqlx 0.9.
+        let _ = sqlx::raw_sql(sqlx::AssertSqlSafe(drop_sql))
+            .execute(&admin)
+            .await;
     }
 
     admin.close().await;
@@ -120,8 +126,12 @@ async fn create_database(admin_url: &str, db_name: &str) -> PgPool {
         .await
         .expect("postgres admin connection");
 
+    // Safe: db_name is generated internally by next_database_name() (timestamp + counter).
+    // We use raw_sql for dynamic DDL (CREATE/DROP DATABASE) which sqlx 0.9+ requires
+    // for non-literal queries.
     let create_sql = format!(r#"CREATE DATABASE "{db_name}""#);
-    sqlx::query(&create_sql)
+    // Safe internal test DB name (never user-controlled). Explicitly marked audited per sqlx 0.9.
+    sqlx::raw_sql(sqlx::AssertSqlSafe(create_sql))
         .execute(&admin)
         .await
         .expect("create test database");
@@ -146,8 +156,14 @@ async fn drop_database(admin_url: &str, db_name: &str) {
         return;
     };
 
+    // Safe: db_name is generated internally by next_database_name() (timestamp + counter).
+    // We use raw_sql for dynamic DDL (CREATE/DROP DATABASE) which sqlx 0.9+ requires
+    // for non-literal queries.
     let drop_sql = format!(r#"DROP DATABASE IF EXISTS "{db_name}" WITH (FORCE)"#);
-    let _ = sqlx::query(&drop_sql).execute(&admin).await;
+    // Safe internal test DB name (never user-controlled). Explicitly marked audited per sqlx 0.9.
+    let _ = sqlx::raw_sql(sqlx::AssertSqlSafe(drop_sql))
+        .execute(&admin)
+        .await;
     admin.close().await;
 }
 
