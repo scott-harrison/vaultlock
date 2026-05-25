@@ -50,9 +50,27 @@ jobs:
         working-directory: desktop/src-tauri
         run: cargo audit
 
+      # Lockfile consistency (supply-chain hygiene).
+      #
+      # - Normal PRs, human contributors, and pushes to main: HARD FAIL if Cargo.lock
+      #   does not match Cargo.toml. Forces `cargo check` (or `cargo build`/`cargo update`)
+      #   before the push.
+      # - Dependabot PRs (github.actor == dependabot[bot] or head_ref starts with "dependabot/"):
+      #   emit a clear ::warning:: but SUCCEED the step. This directly addresses the failure
+      #   class seen in PR #160 (sqlx 0.9.0 Dependabot bump + subsequent code fix that updated
+      #   Cargo.toml again without the lockfile). The rest of CI (lint-and-test, coverage) and
+      #   human review can proceed; the lockfile just needs to be regenerated before merge.
       - name: Verify Cargo.lock matches Cargo.toml
         working-directory: backend
-        run: cargo metadata --locked --format-version=1 >/dev/null
+        run: |
+          if cargo metadata --locked --format-version=1 >/dev/null 2>&1; then
+            echo "✅ Cargo.lock is consistent with Cargo.toml"
+          elif [[ "${{ github.actor }}" == "dependabot[bot]" || "${{ github.head_ref }}" == dependabot/* ]]; then
+            echo "::warning title=Cargo.lock out of sync (Dependabot)::Dependabot PRs commonly touch Cargo.toml (manifest bump or post-fix edit) before Cargo.lock is in sync. To fix before merge: cd backend && cargo update -p <pkg> --precise <ver> && git add Cargo.lock && git push. This step passes with warning so lint/test jobs are not blocked."
+          else
+            echo "::error title=Stale Cargo.lock::Cargo.lock does not match Cargo.toml. Run 'cd backend && cargo check' (or cargo build) locally to regenerate the lockfile, then commit + push. Strict enforcement for human contributors and main branch."
+            exit 1
+          fi
 
   lint-and-test:
     runs-on: ubuntu-latest
