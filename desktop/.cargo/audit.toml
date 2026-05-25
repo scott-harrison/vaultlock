@@ -1,0 +1,10 @@
+# RUSTSEC-2024-0429: glib::VariantStrIter unsoundness (fixed in glib >= 0.20.0).
+#
+# Why ignored: transitive Linux-only dep — tauri → wry → webkit2gtk → gtk-rs 0.18 → glib 0.18.5.
+# We cannot bump glib alone; requires upstream Tauri/wry gtk-rs 0.20 migration.
+# macOS/Windows desktop builds do not link glib.
+#
+# Tracking: https://github.com/scott-harrison/vaultlock/issues/159
+# Remove this ignore when that issue is resolved.
+[advisories]
+ignore = ["RUSTSEC-2024-0429"]
