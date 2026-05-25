@@ -32,6 +32,16 @@ updates:
       - dependency-name: reqwest
         update-types: [version-update:semver-major]
 
+  - package-ecosystem: cargo
+    directory: /desktop/src-tauri
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    ignore:
+      # Tauri/wry Linux GTK stack; wait for upstream gtk-rs 0.20 migration (RUSTSEC-2024-0429).
+      - dependency-name: glib
+        update-types: [version-update:semver-major]
+
   - package-ecosystem: github-actions
     directory: /
     schedule:

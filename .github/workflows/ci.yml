@@ -35,13 +35,19 @@ jobs:
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: backend
+          workspaces: |
+            backend
+            desktop/src-tauri
 
       - name: Install cargo-audit
         run: cargo install cargo-audit --locked --quiet
 
-      - name: Audit Rust dependencies
+      - name: Audit Rust dependencies (backend)
         working-directory: backend
+        run: cargo audit
+
+      - name: Audit Rust dependencies (desktop)
+        working-directory: desktop/src-tauri
         run: cargo audit
 
       - name: Verify Cargo.lock matches Cargo.toml
