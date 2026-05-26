@@ -290,6 +290,7 @@ impl Drop for TestApp {
     }
 }
 
+#[allow(dead_code)]
 pub fn assert_status(response: Response, expected: StatusCode) -> Response {
     assert_eq!(response.status(), expected);
     response
