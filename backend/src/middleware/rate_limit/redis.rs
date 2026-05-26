@@ -31,7 +31,7 @@ impl RedisStore {
             .duration_since(UNIX_EPOCH)
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
             .as_millis();
-        let window_ms = u64::from(window_secs()) * 1000;
+        let window_ms = window_secs() * 1000;
         let now_ms = u64::try_from(now_ms).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
         let window_start = now_ms.saturating_sub(window_ms);
         let member = format!("{now_ms}-{}", Uuid::new_v4());
@@ -62,7 +62,7 @@ impl RedisStore {
             return Err(StatusCode::TOO_MANY_REQUESTS);
         }
 
-        let _: Result<(), _> = conn.expire(&redis_key, ttl as i64).await;
+        let _: Result<(), _> = conn.expire(&redis_key, ttl.cast_signed()).await;
         Ok(())
     }
 }

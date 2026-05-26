@@ -39,7 +39,7 @@ pub fn window() -> Duration {
 enum RateLimitStore {
     Memory(MemoryStore),
     Postgres(PostgresStore),
-    Redis(RedisStore),
+    Redis(Box<RedisStore>),
 }
 
 impl RateLimitStore {
@@ -58,18 +58,26 @@ pub struct AuthRateLimiter {
 }
 
 impl AuthRateLimiter {
+    #[must_use]
     pub fn in_memory() -> Self {
         Self {
             store: RateLimitStore::Memory(MemoryStore::new()),
         }
     }
 
-    pub fn postgres(pool: PgPool) -> Self {
+    #[must_use]
+    pub const fn postgres(pool: PgPool) -> Self {
         Self {
             store: RateLimitStore::Postgres(PostgresStore::new(pool)),
         }
     }
 
+    /// Builds a rate limiter from `RATE_LIMIT_STORE` and related env vars.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `RATE_LIMIT_STORE` is invalid, when `REDIS_URL` is
+    /// missing for the Redis store, or when connecting to Redis fails.
     pub async fn from_env(pool: &PgPool) -> Result<Self, String> {
         let store_kind = std::env::var("RATE_LIMIT_STORE").unwrap_or_else(|_| "memory".to_string());
 
@@ -82,7 +90,7 @@ impl AuthRateLimiter {
                 let redis_store = RedisStore::connect(&redis_url)
                     .await
                     .map_err(|error| format!("failed to connect to Redis: {error}"))?;
-                RateLimitStore::Redis(redis_store)
+                RateLimitStore::Redis(Box::new(redis_store))
             }
             other => {
                 return Err(format!(
@@ -94,6 +102,11 @@ impl AuthRateLimiter {
         Ok(Self { store })
     }
 
+    /// Records a request for `key` and returns `Err` when the rate limit is exceeded.
+    ///
+    /// # Errors
+    ///
+    /// Returns `StatusCode::TOO_MANY_REQUESTS` when the limit is exceeded.
     pub async fn check(&self, key: &str) -> Result<(), StatusCode> {
         self.store.check(key).await
     }
