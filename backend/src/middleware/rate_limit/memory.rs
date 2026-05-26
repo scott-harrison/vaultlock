@@ -1,10 +1,6 @@
 use super::{max_requests, window};
 use axum::http::StatusCode;
-use std::{
-    collections::HashMap,
-    sync::Arc,
-    time::Instant,
-};
+use std::{collections::HashMap, sync::Arc, time::Instant};
 use tokio::sync::Mutex;
 
 #[derive(Clone, Default)]

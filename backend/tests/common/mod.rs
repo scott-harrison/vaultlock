@@ -13,11 +13,7 @@ use std::net::SocketAddr;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::OnceLock;
 use tower::ServiceExt;
-use vaultlock_backend::{
-    app,
-    auth::jwt::JwtConfig,
-    AuthRateLimiter,
-};
+use vaultlock_backend::{app, auth::jwt::JwtConfig, AuthRateLimiter};
 
 const TEST_JWT_SECRET: &str = "integration-test-jwt-secret";
 const DEFAULT_TEST_DATABASE_URL: &str = "postgres://vaultlock:vaultlock@127.0.0.1:5432/vaultlock";

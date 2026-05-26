@@ -1,11 +1,7 @@
 use sqlx::postgres::PgPoolOptions;
 use std::net::SocketAddr;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
-use vaultlock_backend::{
-    app,
-    auth::jwt::JwtConfig,
-    AuthRateLimiter,
-};
+use vaultlock_backend::{app, auth::jwt::JwtConfig, AuthRateLimiter};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

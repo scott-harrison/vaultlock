@@ -10,8 +10,7 @@ pub use middleware::rate_limit::AuthRateLimiter;
 use crate::auth::jwt::JwtConfig;
 use crate::auth::{login, refresh, register, verify_email, verify_email_open};
 use crate::middleware::{
-    jwt_auth::jwt_auth_middleware,
-    progressive_delay::ProgressiveDelay,
+    jwt_auth::jwt_auth_middleware, progressive_delay::ProgressiveDelay,
     rate_limit::auth_rate_limit_middleware,
 };
 use crate::vault::{

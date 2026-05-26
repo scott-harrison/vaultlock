@@ -3,11 +3,7 @@ use axum::http::{Request, StatusCode};
 use sqlx::postgres::PgPoolOptions;
 use std::error::Error;
 use tower::ServiceExt; // for `oneshot`
-use vaultlock_backend::{
-    app,
-    auth::jwt::JwtConfig,
-    AuthRateLimiter,
-};
+use vaultlock_backend::{app, auth::jwt::JwtConfig, AuthRateLimiter};
 
 #[tokio::test]
 async fn health_check_works() -> Result<(), Box<dyn Error>> {
