@@ -26,6 +26,7 @@ We use a modern, secure stack:
 
 - **Caddy** (reverse proxy + automatic HTTPS via Let's Encrypt — free certificates)
 - **PostgreSQL** (reliable database)
+- **Redis** (optional — shared auth rate-limit state for multi-instance deployments)
 - **Rust Backend** (Axum + SQLx — high performance, memory-safe)
 - **React Frontend** (served statically or via backend)
 
@@ -141,10 +142,22 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       RUST_LOG: info
       PORT: 8080
+      # Share auth rate limits across replicas (register, verify-email, login, refresh)
+      RATE_LIMIT_STORE: postgres
     depends_on:
       db:
         condition: service_healthy
     # No ports exposed — only accessible via Caddy
+
+  # Optional — enable when running multiple backend replicas with RATE_LIMIT_STORE=redis
+  # redis:
+  #   image: redis:7-alpine
+  #   restart: unless-stopped
+  #   healthcheck:
+  #     test: ["CMD", "redis-cli", "ping"]
+  #     interval: 5s
+  #     timeout: 3s
+  #     retries: 5
 
 volumes:
   postgres_data:
@@ -160,6 +173,16 @@ DB_PASSWORD=your-super-secure-random-password-here
 
 # JWT for session management (generate with: openssl rand -hex 32)
 JWT_SECRET=your-64-char-hex-secret
+
+# Auth rate limiting — memory (single instance), postgres, or redis (multi-instance)
+RATE_LIMIT_STORE=postgres
+
+# Required when RATE_LIMIT_STORE=redis
+# REDIS_URL=redis://redis:6379
+
+# Optional auth rate limit tuning (defaults: 5 requests / 60 seconds per IP)
+# AUTH_RATE_LIMIT_MAX=5
+# AUTH_RATE_LIMIT_WINDOW_SECS=60
 
 # Optional: Admin panel token (for /admin)
 ADMIN_TOKEN=another-long-random-string

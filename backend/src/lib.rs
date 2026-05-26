@@ -5,12 +5,14 @@ mod models;
 mod repositories;
 mod vault;
 
+pub use middleware::rate_limit::AuthRateLimiter;
+
 use crate::auth::jwt::JwtConfig;
 use crate::auth::{login, refresh, register, verify_email, verify_email_open};
 use crate::middleware::{
     jwt_auth::jwt_auth_middleware,
     progressive_delay::ProgressiveDelay,
-    rate_limit::{auth_rate_limit_middleware, AuthRateLimiter},
+    rate_limit::auth_rate_limit_middleware,
 };
 use crate::vault::{
     create_vault_item, delete_vault_item, get_vault_item, list_vault_items, update_vault_item,
@@ -30,13 +32,13 @@ pub struct AppState {
     pub jwt: JwtConfig,
 }
 
-pub fn app(db: PgPool, jwt: JwtConfig) -> Router {
+pub fn app(db: PgPool, jwt: JwtConfig, auth_rate_limiter: AuthRateLimiter) -> Router {
     let state = AppState {
         db,
         login_delay: ProgressiveDelay::new(),
         jwt,
     };
-    let auth_rate_limit = from_fn_with_state(AuthRateLimiter::new(), auth_rate_limit_middleware);
+    let auth_rate_limit = from_fn_with_state(auth_rate_limiter, auth_rate_limit_middleware);
     let jwt_auth = from_fn_with_state(state.clone(), jwt_auth_middleware);
 
     let vault_routes = Router::new()
