@@ -1,3 +1,4 @@
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useId, useState } from "react";
 import { type ServerAdvancedOptions, shouldWarnInsecureHttp } from "../lib/serverSettings";
 
@@ -86,9 +87,12 @@ export function ServerStatusIndicator({
         <span className="server-indicator-text">{statusText}</span>
       </button>
 
-      {isOpen && (
-        <dialog className="modal" open aria-labelledby={`${formId}-title`}>
-          <h2 id={`${formId}-title`}>Server connection</h2>
+      <Dialog open={isOpen} onOpenChange={(next) => !isSaving && setIsOpen(next)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle id={`${formId}-title`}>Server connection</DialogTitle>
+          </DialogHeader>
+
           <p className="hint">
             Status: <strong>{statusText}</strong>
           </p>
@@ -175,8 +179,8 @@ export function ServerStatusIndicator({
           <button type="button" className="link-btn modal-close" onClick={() => setIsOpen(false)}>
             Close
           </button>
-        </dialog>
-      )}
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
