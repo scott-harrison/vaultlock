@@ -40,6 +40,15 @@ export default defineConfig({
         strict_min_version: "109.0", // Manifest V3 support
       },
     },
+
+    // Content scripts will be expanded in 12-06+
+    content_scripts: [
+      {
+        matches: ["<all_urls>"],
+        js: ["src/contents/password-field-detector.ts"],
+        run_at: "document_idle",
+      },
+    ],
   },
 
   // Tell Plasmo to build for both major browsers during development
