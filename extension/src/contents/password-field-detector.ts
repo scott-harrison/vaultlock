@@ -1,60 +1,112 @@
 /**
  * Content script for VaultLock (12-06+).
  *
- * Responsibilities in this sub-task:
- * - Detect password input fields on the page.
- * - (Future) Detect associated username/email fields.
- * - Inject a small visual indicator (icon or badge) next to password fields.
- * - Communicate with the extension when the user interacts with the indicator.
+ * Current responsibilities:
+ * - Detect password fields
+ * - Detect likely username / email fields (including multi-step login forms)
+ * - Associate related fields when possible
+ * - Inject visual indicators next to relevant login fields
  *
- * This is the foundation for autofill.
+ * This is the foundation for smarter autofill in later sub-tasks (12-07+).
  */
 
 console.log("[VaultLock Content] Password field detector loaded");
 
-// Basic password field detection
+// --- Utility: Check if element is visible enough to be a real form field ---
+function isVisibleField(input: HTMLInputElement): boolean {
+  const style = window.getComputedStyle(input);
+  return (
+    style.display !== "none" &&
+    style.visibility !== "hidden" &&
+    input.offsetWidth > 20 &&
+    input.offsetHeight > 10 &&
+    !input.disabled &&
+    !input.readOnly
+  );
+}
+
+// --- Detect password fields ---
 function findPasswordFields(): HTMLInputElement[] {
   const passwordInputs = Array.from(
     document.querySelectorAll<HTMLInputElement>('input[type="password"]'),
   );
 
-  // Filter out hidden or very small fields (common for anti-bot / honeypots)
-  return passwordInputs.filter((input) => {
-    const style = window.getComputedStyle(input);
-    return (
-      style.display !== "none" &&
-      style.visibility !== "hidden" &&
-      input.offsetWidth > 20 &&
-      input.offsetHeight > 10
-    );
+  return passwordInputs.filter(isVisibleField);
+}
+
+// --- Detect likely username / email fields ---
+function findUsernameOrEmailFields(): HTMLInputElement[] {
+  const candidates = Array.from(
+    document.querySelectorAll<HTMLInputElement>(
+      'input[type="text"], input[type="email"], input:not([type])',
+    ),
+  );
+
+  const usernameLikeNames = [
+    "user",
+    "username",
+    "login",
+    "email",
+    "e-mail",
+    "userid",
+    "user_id",
+    "account",
+    "identity",
+    "identifier",
+  ];
+
+  const usernameLikeAutocomplete = ["username", "email", "username webauthn"];
+
+  return candidates.filter((input) => {
+    if (!isVisibleField(input)) return false;
+
+    const name = (input.name || "").toLowerCase();
+    const id = (input.id || "").toLowerCase();
+    const autocomplete = (input.autocomplete || "").toLowerCase();
+    const placeholder = (input.placeholder || "").toLowerCase();
+
+    // Strong signals
+    if (autocomplete && usernameLikeAutocomplete.some((a) => autocomplete.includes(a))) {
+      return true;
+    }
+
+    const combined = `${name} ${id} ${placeholder}`;
+
+    return usernameLikeNames.some((keyword) => combined.includes(keyword));
   });
 }
 
-function injectIndicator(field: HTMLInputElement) {
+function injectIndicator(field: HTMLInputElement, fieldType: "username" | "password") {
   // Avoid injecting multiple times
   if (field.dataset.vaultlockIndicator) return;
   field.dataset.vaultlockIndicator = "true";
 
-  // Create a small indicator
+  const label = fieldType === "password" ? "VL" : "U";
+  const title =
+    fieldType === "password"
+      ? "VaultLock - Click to fill credentials"
+      : "VaultLock - Username / Email field detected";
+
   const indicator = document.createElement("div");
-  indicator.textContent = "VL";
-  indicator.title = "VaultLock - Click to fill credentials";
+  indicator.textContent = label;
+  indicator.title = title;
   indicator.style.cssText = `
     position: absolute;
-    right: 8px;
+    right: 6px;
     top: 50%;
     transform: translateY(-50%);
-    background: #2563eb;
+    background: ${fieldType === "password" ? "#2563eb" : "#16a34a"};
     color: white;
-    font-size: 10px;
+    font-size: 9px;
     font-weight: 600;
-    padding: 2px 5px;
-    border-radius: 3px;
+    padding: 1px 4px;
+    border-radius: 2px;
     cursor: pointer;
     z-index: 2147483647;
     user-select: none;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.25);
     font-family: system-ui, sans-serif;
+    line-height: 1;
   `;
 
   // Position it relative to the input
@@ -62,37 +114,50 @@ function injectIndicator(field: HTMLInputElement) {
   wrapper.style.position = "relative";
   wrapper.style.display = "inline-block";
 
-  // Insert wrapper and move the field inside
   if (field.parentNode) {
     field.parentNode.insertBefore(wrapper, field);
     wrapper.appendChild(field);
     wrapper.appendChild(indicator);
   }
 
-  // Basic click handler (will be expanded in 12-07)
   indicator.addEventListener("click", (e) => {
     e.preventDefault();
     e.stopImmediatePropagation();
 
-    console.log("[VaultLock Content] Indicator clicked for field:", field);
+    console.log(`[VaultLock Content] ${fieldType} indicator clicked:`, field);
 
-    // For now just alert — real fill logic comes in 12-07
-    alert("VaultLock: Fill functionality coming soon (12-07)");
+    // Placeholder - real fill logic in 12-07
+    alert(`VaultLock: ${fieldType === "password" ? "Password" : "Username"} fill coming in 12-07`);
   });
 }
 
-// Initial scan
-function scanForPasswordFields() {
-  const fields = findPasswordFields();
-  fields.forEach(injectIndicator);
+// Scan for both username/email and password fields
+function scanForLoginFields() {
+  const passwordFields = findPasswordFields();
+  const usernameFields = findUsernameOrEmailFields();
+
+  // Inject indicators
+  for (const field of passwordFields) injectIndicator(field, "password");
+  for (const field of usernameFields) injectIndicator(field, "username");
+
+  // Basic multi-step awareness logging (for debugging / future use)
+  if (usernameFields.length > 0 && passwordFields.length === 0) {
+    console.log("[VaultLock Content] Likely first step of login (username/email only)");
+  }
+  if (passwordFields.length > 0 && usernameFields.length === 0) {
+    console.log("[VaultLock Content] Likely second step of login (password only)");
+  }
+  if (usernameFields.length > 0 && passwordFields.length > 0) {
+    console.log("[VaultLock Content] Classic single-page login form detected");
+  }
 }
 
 // Run on load
-scanForPasswordFields();
+scanForLoginFields();
 
-// Also watch for dynamically added fields (common in SPAs and modern login forms)
+// Watch for dynamically added fields (SPAs, React, etc.)
 const observer = new MutationObserver(() => {
-  scanForPasswordFields();
+  scanForLoginFields();
 });
 
 observer.observe(document.body || document.documentElement, {
@@ -100,11 +165,13 @@ observer.observe(document.body || document.documentElement, {
   subtree: true,
 });
 
-// Re-scan when the page becomes visible again (some sites lazy-load forms)
+// Re-scan when page becomes visible again
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden) {
-    scanForPasswordFields();
+    scanForLoginFields();
   }
 });
 
-console.log("[VaultLock Content] Password field detector initialized");
+console.log(
+  "[VaultLock Content] Field detector initialized (username + password + multi-step signals)",
+);
