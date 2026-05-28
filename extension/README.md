@@ -8,7 +8,7 @@ This directory is being developed as part of **Epic #12** (see GitHub issue #10)
 
 ### Sub-task Progress
 
-- [x] **12-01: Plasmo scaffold** — Basic structure, dev/build pipeline, integration with `@vaultlock/shared`
+- [x] **12-01: Plasmo scaffold** — Structure, `plasmo dev/build`, TypeScript, `@vaultlock/shared` integration, basic storage layer, multi-browser support
 - [ ] 12-02: Server connection settings + health check
 - [ ] 12-03: Shared crypto integration
 - [ ] 12-04: Auth + master password unlock
@@ -37,6 +37,8 @@ The `plasmo dev` command will open a new Chrome window with the extension loaded
 ```
 extension/
 ├── src/
+│   ├── lib/
+│   │   └── storage.ts      # Typed chrome.storage helpers (foundation for 12-02+)
 │   ├── popup.tsx           # Extension popup UI
 │   ├── options.tsx         # Options page (opens in tab)
 │   ├── background.ts       # Service worker

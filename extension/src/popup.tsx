@@ -1,21 +1,35 @@
 import { toBase64 } from "@vaultlock/shared/crypto";
 import { useEffect, useState } from "react";
+import { getServerSettings } from "./lib/storage";
 
 function IndexPopup() {
   const [status, setStatus] = useState<"loading" | "ready">("loading");
   const [demo, setDemo] = useState("");
+  const [serverUrl, setServerUrl] = useState("");
 
   useEffect(() => {
-    // Demonstrate that we can successfully import from @vaultlock/shared
-    try {
-      const sample = new TextEncoder().encode("vaultlock");
-      const encoded = toBase64(sample);
-      setDemo(encoded);
-      setStatus("ready");
-    } catch (err) {
-      console.error("Failed to import from @vaultlock/shared", err);
+    async function init() {
+      // Demonstrate successful import from @vaultlock/shared
+      try {
+        const sample = new TextEncoder().encode("vaultlock");
+        const encoded = toBase64(sample);
+        setDemo(encoded);
+      } catch (err) {
+        console.error("Failed to import from @vaultlock/shared", err);
+      }
+
+      // Demonstrate the storage helper layer created in 12-01
+      try {
+        const settings = await getServerSettings();
+        setServerUrl(settings.serverUrl);
+      } catch (err) {
+        console.error("Storage helper error", err);
+      }
+
       setStatus("ready");
     }
+
+    init();
   }, []);
 
   return (
@@ -40,6 +54,9 @@ function IndexPopup() {
             <p style={{ fontSize: 12, color: "#555", wordBreak: "break-all" }}>
               Demo (toBase64): {demo}
             </p>
+          )}
+          {serverUrl && (
+            <p style={{ fontSize: 12, color: "#555", marginTop: 4 }}>Server: {serverUrl}</p>
           )}
           <button
             type="button"
