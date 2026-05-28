@@ -7,6 +7,9 @@
 
 import { VaultlockApiClient } from "@vaultlock/shared/api";
 import type {
+  CardItemPlaintext,
+  LoginItemPlaintext,
+  NoteItemPlaintext,
   VaultItemListResponse,
   VaultItemPlaintext,
   VaultItemResponse,
@@ -79,22 +82,22 @@ export function getDisplayTitle(item: DecryptedVaultItem): string {
   const p = item.plaintext;
 
   if (item.itemType === "login") {
-    const login = p as import("@vaultlock/shared/types").LoginItemPlaintext;
+    const login = p as LoginItemPlaintext;
     return login.title || login.username || login.url || "Login";
   }
 
   if (item.itemType === "note") {
-    const note = p as import("@vaultlock/shared/types").NoteItemPlaintext;
+    const note = p as NoteItemPlaintext;
     return note.title || (note.content ? note.content.slice(0, 40) : "Note");
   }
 
-  const card = p as import("@vaultlock/shared/types").CardItemPlaintext;
+  const card = p as CardItemPlaintext;
   return card.title || "Item";
 }
 
 export function getDisplaySubtitle(item: DecryptedVaultItem): string | null {
   if (item.itemType === "login") {
-    const login = item.plaintext as import("@vaultlock/shared/types").LoginItemPlaintext;
+    const login = item.plaintext as LoginItemPlaintext;
     return login.username || login.url || null;
   }
   return null;
