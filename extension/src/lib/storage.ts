@@ -81,3 +81,19 @@ export async function saveVaultSyncToken(token: string): Promise<void> {
 export async function clearVaultSyncToken(): Promise<void> {
   await storage.remove(KEYS.VAULT_SYNC_TOKEN);
 }
+
+/** Last known connection test result */
+export type LastConnectionStatus = {
+  url: string;
+  success: boolean;
+  timestamp: number;
+  error?: string;
+};
+
+export async function getLastConnectionStatus(): Promise<LastConnectionStatus | null> {
+  return (await storage.get<LastConnectionStatus>("last_connection_status")) ?? null;
+}
+
+export async function saveLastConnectionStatus(status: LastConnectionStatus): Promise<void> {
+  await storage.set("last_connection_status", status);
+}

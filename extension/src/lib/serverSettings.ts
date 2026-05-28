@@ -4,7 +4,13 @@
  */
 
 import { VaultlockApiClient } from "@vaultlock/shared/api";
-import { type ServerSettings, getServerSettings, saveServerSettings } from "./storage";
+import {
+  type LastConnectionStatus,
+  type ServerSettings,
+  getServerSettings,
+  saveLastConnectionStatus,
+  saveServerSettings,
+} from "./storage";
 
 export interface ServerAdvancedOptions {
   requestTimeoutMs: number;
@@ -43,13 +49,34 @@ export function createTimedFetch(timeoutMs: number): typeof fetch {
 export async function testServerConnection(
   baseUrl: string,
   advanced: ServerAdvancedOptions = DEFAULT_SERVER_ADVANCED,
-): Promise<boolean> {
+): Promise<{ success: boolean; error?: string }> {
   const normalized = normalizeServerBaseUrl(baseUrl);
-  const client = new VaultlockApiClient({
-    baseUrl: normalized,
-    fetch: createTimedFetch(advanced.requestTimeoutMs),
-  });
-  return client.healthCheck();
+
+  try {
+    const client = new VaultlockApiClient({
+      baseUrl: normalized,
+      fetch: createTimedFetch(advanced.requestTimeoutMs),
+    });
+    const ok = await client.healthCheck();
+
+    await saveLastConnectionStatus({
+      url: normalized,
+      success: ok,
+      timestamp: Date.now(),
+      error: ok ? undefined : "Health check did not return 'ok'",
+    });
+
+    return { success: ok, error: ok ? undefined : "Health check did not return 'ok'" };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Connection failed";
+    await saveLastConnectionStatus({
+      url: normalized,
+      success: false,
+      timestamp: Date.now(),
+      error: message,
+    });
+    return { success: false, error: message };
+  }
 }
 
 export async function saveServerConnection(
@@ -57,9 +84,10 @@ export async function saveServerConnection(
   advanced: ServerAdvancedOptions,
 ): Promise<string> {
   const normalized = normalizeServerBaseUrl(baseUrl);
-  const ok = await testServerConnection(normalized, advanced);
-  if (!ok) {
-    throw new Error("Could not connect to the server. Check the URL and try again.");
+  const result = await testServerConnection(normalized, advanced);
+
+  if (!result.success) {
+    throw new Error(result.error || "Could not connect to the server.");
   }
 
   await saveServerSettings({
@@ -74,13 +102,17 @@ export async function saveServerConnection(
 export async function loadServerSettingsWithAdvanced(): Promise<{
   url: string;
   advanced: ServerAdvancedOptions;
+  lastStatus?: LastConnectionStatus;
 }> {
   const settings = await getServerSettings();
+  const lastStatus = await import("./storage").then((m) => m.getLastConnectionStatus());
+
   return {
     url: settings.serverUrl,
     advanced: {
       requestTimeoutMs: settings.requestTimeoutMs,
       allowInsecureHttp: settings.allowInsecureHttp,
     },
+    lastStatus: lastStatus ?? undefined,
   };
 }
