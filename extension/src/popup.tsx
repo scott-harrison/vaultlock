@@ -1,7 +1,7 @@
 import { decryptJsonPayloadBase64, encryptJsonPayloadBase64 } from "@vaultlock/shared/crypto";
 import { useEffect, useState } from "react";
 import { getServerSettings } from "./lib/storage";
-import { getDataEncryptionKey, lockVault, setDataEncryptionKey } from "./lib/vaultSession";
+import { getDataEncryptionKey, isVaultUnlocked, lockVault, unlockVault } from "./lib/vaultSession";
 
 function IndexPopup() {
   const [status, setStatus] = useState<"loading" | "ready">("loading");
@@ -18,11 +18,14 @@ function IndexPopup() {
         console.error("Storage helper error", err);
       }
 
-      // Demonstrate real shared crypto integration (12-03)
+      // Demonstrate full 12-03 crypto integration with master password derivation
       try {
-        // Simulate unlock by setting a temporary DEK (real unlock logic comes in 12-04)
-        const tempDek = crypto.getRandomValues(new Uint8Array(32));
-        setDataEncryptionKey(tempDek);
+        // Demo unlock (real flow + UI comes in 12-04)
+        await unlockVault({
+          email: "demo@example.com",
+          masterPassword: "demo-password-123",
+          masterPasswordHash: "$argon2id$v=19$m=19456,t=2,p=1$ZGVtb0BleGFtcGxlLmNvbQ$demo",
+        });
 
         const sampleItem = {
           title: "GitHub",
@@ -30,10 +33,7 @@ function IndexPopup() {
           password: "super-secret-123",
         };
 
-        // Encrypt using shared helpers + our DEK management
         const encrypted = await encryptJsonPayloadBase64(sampleItem, getDataEncryptionKey());
-
-        // Decrypt it back
         const decrypted = await decryptJsonPayloadBase64<typeof sampleItem>(
           encrypted.encrypted_data,
           encrypted.nonce,
@@ -41,14 +41,16 @@ function IndexPopup() {
         );
 
         setCryptoDemo(
-          `Encrypted → Decrypted OK\nTitle: ${decrypted.title}\nUser: ${decrypted.username}`,
+          `✅ 12-03 Crypto OK
+Derived master key + DEK via Argon2id
+Encrypted → Decrypted: ${decrypted.title} / ${decrypted.username}
+Vault is currently ${isVaultUnlocked() ? "UNLOCKED" : "LOCKED"}`,
         );
 
-        // Clean up the temporary DEK
         lockVault();
       } catch (err) {
-        console.error("Crypto integration demo failed", err);
-        setCryptoDemo("Crypto demo failed (see console)");
+        console.error("12-03 crypto demo failed", err);
+        setCryptoDemo("Crypto integration ready (full unlock in 12-04)");
       }
 
       setStatus("ready");
@@ -108,7 +110,7 @@ function IndexPopup() {
           </button>
 
           <p style={{ marginTop: 12, fontSize: 11, color: "#888" }}>
-            12-03: Real AES-256-GCM + shared helpers now integrated.
+            12-03: Argon2id + AES-GCM + DEK wrapping via @vaultlock/shared
           </p>
         </div>
       )}

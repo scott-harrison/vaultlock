@@ -82,7 +82,7 @@ export async function clearVaultSyncToken(): Promise<void> {
   await storage.remove(KEYS.VAULT_SYNC_TOKEN);
 }
 
-/** Last known connection test result */
+/** Last known connection test result (from 12-02) */
 export type LastConnectionStatus = {
   url: string;
   success: boolean;
@@ -96,4 +96,39 @@ export async function getLastConnectionStatus(): Promise<LastConnectionStatus | 
 
 export async function saveLastConnectionStatus(status: LastConnectionStatus): Promise<void> {
   await storage.set("last_connection_status", status);
+}
+
+/** Wrapped DEK storage (encrypted with master key) - from 12-03 */
+export interface WrappedDekRecord {
+  email: string;
+  nonce: string;
+  ciphertext: string;
+}
+
+const WRAPPED_DEK_KEY = "wrapped_dek";
+
+export async function loadWrappedDek(email: string): Promise<WrappedDekRecord | null> {
+  const record = await storage.get<WrappedDekRecord>(WRAPPED_DEK_KEY);
+  const normalized = email.trim().toLowerCase();
+  if (!record || record.email !== normalized) {
+    return null;
+  }
+  return record;
+}
+
+export async function saveWrappedDek(
+  email: string,
+  nonce: string,
+  ciphertext: string,
+): Promise<void> {
+  const normalized = email.trim().toLowerCase();
+  await storage.set(WRAPPED_DEK_KEY, {
+    email: normalized,
+    nonce,
+    ciphertext,
+  });
+}
+
+export async function clearWrappedDek(): Promise<void> {
+  await storage.remove(WRAPPED_DEK_KEY);
 }
