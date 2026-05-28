@@ -13,7 +13,7 @@ use std::net::SocketAddr;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::OnceLock;
 use tower::ServiceExt;
-use vaultlock_backend::{app, auth::jwt::JwtConfig};
+use vaultlock_backend::{app, auth::jwt::JwtConfig, AuthRateLimiter};
 
 const TEST_JWT_SECRET: &str = "integration-test-jwt-secret";
 const DEFAULT_TEST_DATABASE_URL: &str = "postgres://vaultlock:vaultlock@127.0.0.1:5432/vaultlock";
@@ -179,6 +179,7 @@ impl TestApp {
     pub async fn spawn() -> Self {
         std::env::set_var("JWT_SECRET", TEST_JWT_SECRET);
         std::env::set_var("AUTH_RATE_LIMIT_MAX", "50");
+        std::env::set_var("RATE_LIMIT_STORE", "memory");
 
         let server = postgres_server();
         ensure_orphan_cleanup(&server.admin_database_url).await;
@@ -190,7 +191,8 @@ impl TestApp {
             .await
             .expect("migrations");
 
-        let router = app(pool.clone(), test_jwt_config());
+        let auth_rate_limiter = AuthRateLimiter::in_memory();
+        let router = app(pool.clone(), test_jwt_config(), auth_rate_limiter);
 
         Self {
             pool,
@@ -288,6 +290,7 @@ impl Drop for TestApp {
     }
 }
 
+#[allow(dead_code)]
 pub fn assert_status(response: Response, expected: StatusCode) -> Response {
     assert_eq!(response.status(), expected);
     response
