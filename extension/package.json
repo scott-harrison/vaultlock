@@ -10,6 +10,7 @@
     "format": "biome format --write ."
   },
   "dependencies": {
+    "@vaultlock/shared": "workspace:*",
     "plasmo": "0.89.5"
   }
 }
