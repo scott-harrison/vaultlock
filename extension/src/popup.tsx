@@ -6,8 +6,7 @@ import { isVaultUnlocked, lockVault } from "./lib/vaultSession";
 type AuthState = "loading" | "needs-server" | "login" | "unlock" | "unlocked";
 
 function VaultListView({ onLock, onLogout }: { onLock: () => void; onLogout: () => void }) {
-  // biome-ignore lint/suspicious/noExplicitAny: temporary for 12-05 starter
-  const [items, setItems] = useState<Record<string, any>[]>([]);
+  const [items, setItems] = useState<import("./lib/vaultItems").DecryptedVaultItem[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
 

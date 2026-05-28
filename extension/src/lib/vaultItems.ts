@@ -6,7 +6,12 @@
  */
 
 import { VaultlockApiClient } from "@vaultlock/shared/api";
-import type { VaultItemListResponse, VaultItemResponse } from "@vaultlock/shared/types";
+import type {
+  VaultItemListResponse,
+  VaultItemPlaintext,
+  VaultItemResponse,
+  VaultItemType,
+} from "@vaultlock/shared/types";
 
 import { getAuthSession } from "./auth";
 import { createTimedFetch } from "./serverSettings";
@@ -15,11 +20,10 @@ import { decryptVaultItem } from "./vaultCrypto";
 
 export interface DecryptedVaultItem {
   id: string;
-  itemType: string;
+  itemType: VaultItemType;
   createdAt: string;
   updatedAt: string;
-  // biome-ignore lint/suspicious/noExplicitAny: will be strongly typed later
-  plaintext: Record<string, any>; // Will be more strongly typed later
+  plaintext: VaultItemPlaintext;
 }
 
 export async function fetchAndDecryptVaultItems(since?: string): Promise<DecryptedVaultItem[]> {
@@ -41,8 +45,7 @@ export async function fetchAndDecryptVaultItems(since?: string): Promise<Decrypt
 
   for (const item of response.items) {
     try {
-      // biome-ignore lint/suspicious/noExplicitAny: temporary until types are tightened
-      const plaintext = await decryptVaultItem(item as any); // TODO: improve typing once VaultItemResponse is stricter
+      const plaintext = await decryptVaultItem(item);
       decryptedItems.push({
         id: item.id,
         itemType: item.item_type,
@@ -68,19 +71,25 @@ export function sortVaultItems(items: DecryptedVaultItem[]): DecryptedVaultItem[
 
 export function getDisplayTitle(item: DecryptedVaultItem): string {
   const p = item.plaintext;
+
   if (item.itemType === "login") {
-    return p.title || p.username || p.url || "Login";
+    const login = p as import("@vaultlock/shared/types").LoginItemPlaintext;
+    return login.title || login.username || login.url || "Login";
   }
+
   if (item.itemType === "note") {
-    return p.title || (p.content ? p.content.slice(0, 40) : "Note");
+    const note = p as import("@vaultlock/shared/types").NoteItemPlaintext;
+    return note.title || (note.content ? note.content.slice(0, 40) : "Note");
   }
-  return p.title || "Item";
+
+  const card = p as import("@vaultlock/shared/types").CardItemPlaintext;
+  return card.title || "Item";
 }
 
 export function getDisplaySubtitle(item: DecryptedVaultItem): string | null {
-  const p = item.plaintext;
   if (item.itemType === "login") {
-    return p.username || p.url || null;
+    const login = item.plaintext as import("@vaultlock/shared/types").LoginItemPlaintext;
+    return login.username || login.url || null;
   }
   return null;
 }
