@@ -195,10 +195,20 @@ function injectIndicator(field: HTMLInputElement, fieldType: "username" | "passw
     e.preventDefault();
     e.stopImmediatePropagation();
 
-    console.log(`[VaultLock Content] ${fieldType} indicator clicked:`, field);
+    const hostname = window.location.hostname;
 
-    // Placeholder - real fill logic in 12-07
-    alert(`VaultLock: ${fieldType === "password" ? "Password" : "Username"} fill coming in 12-07`);
+    console.log(`[VaultLock Content] ${fieldType} indicator clicked on ${hostname}`);
+
+    // Send context to background (12-07 will use this to show matching vault items)
+    chrome.runtime.sendMessage({
+      type: "INDICATOR_CLICKED",
+      hostname,
+      fieldType,
+      associatedFieldId: field.dataset.vaultlockAssociatedUsernameId || undefined,
+    });
+
+    // The background will try to open the popup with the fill context.
+    // Real form filling logic will be implemented in 12-07.
   });
 }
 

@@ -167,6 +167,8 @@ export default function IndexPopup() {
   const [serverUrl, setServerUrl] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
+  // biome-ignore lint/suspicious/noExplicitAny: will be properly typed when messaging is expanded in 12-07
+  const [pendingFillRequest, setPendingFillRequest] = useState<any>(null);
 
   useEffect(() => {
     async function init() {
@@ -187,6 +189,15 @@ export default function IndexPopup() {
 
         if (isVaultUnlocked()) {
           setAuthState("unlocked");
+
+          // Check if the background sent us a fill request (from content script indicator click)
+          chrome.runtime.sendMessage({ type: "GET_PENDING_FILL_REQUEST" }).then((request) => {
+            if (request) {
+              setPendingFillRequest(request);
+              console.log("[VaultLock Popup] Pending fill request received:", request);
+              // In a full 12-07 implementation we would filter vault items by hostname here
+            }
+          });
         } else {
           // User is logged in but vault is locked → show unlock screen
           setEmail(session.email);
@@ -319,7 +330,27 @@ export default function IndexPopup() {
         </form>
       )}
 
-      {authState === "unlocked" && <VaultListView onLock={handleLock} onLogout={handleLogout} />}
+      {authState === "unlocked" && (
+        <>
+          {pendingFillRequest && (
+            <div
+              style={{
+                background: "#fef3c7",
+                border: "1px solid #f59e0b",
+                padding: 8,
+                borderRadius: 4,
+                marginBottom: 8,
+                fontSize: 12,
+              }}
+            >
+              <strong>Fill request from this page:</strong> {pendingFillRequest.hostname}
+              <br />
+              <small>Matching vault items will appear below (full matching in 12-07)</small>
+            </div>
+          )}
+          <VaultListView onLock={handleLock} onLogout={handleLogout} />
+        </>
+      )}
     </div>
   );
 }
