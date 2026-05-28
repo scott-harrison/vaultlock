@@ -1,29 +1,54 @@
-import { toBase64 } from "@vaultlock/shared/crypto";
+import { decryptJsonPayloadBase64, encryptJsonPayloadBase64 } from "@vaultlock/shared/crypto";
 import { useEffect, useState } from "react";
 import { getServerSettings } from "./lib/storage";
+import { getDataEncryptionKey, lockVault, setDataEncryptionKey } from "./lib/vaultSession";
 
 function IndexPopup() {
   const [status, setStatus] = useState<"loading" | "ready">("loading");
-  const [demo, setDemo] = useState("");
   const [serverUrl, setServerUrl] = useState("");
+  const [cryptoDemo, setCryptoDemo] = useState("");
 
   useEffect(() => {
     async function init() {
-      // Demonstrate successful import from @vaultlock/shared
-      try {
-        const sample = new TextEncoder().encode("vaultlock");
-        const encoded = toBase64(sample);
-        setDemo(encoded);
-      } catch (err) {
-        console.error("Failed to import from @vaultlock/shared", err);
-      }
-
-      // Demonstrate the storage helper layer created in 12-01
+      // Demonstrate the storage helper layer
       try {
         const settings = await getServerSettings();
         setServerUrl(settings.serverUrl);
       } catch (err) {
         console.error("Storage helper error", err);
+      }
+
+      // Demonstrate real shared crypto integration (12-03)
+      try {
+        // Simulate unlock by setting a temporary DEK (real unlock logic comes in 12-04)
+        const tempDek = crypto.getRandomValues(new Uint8Array(32));
+        setDataEncryptionKey(tempDek);
+
+        const sampleItem = {
+          title: "GitHub",
+          username: "user@example.com",
+          password: "super-secret-123",
+        };
+
+        // Encrypt using shared helpers + our DEK management
+        const encrypted = await encryptJsonPayloadBase64(sampleItem, getDataEncryptionKey());
+
+        // Decrypt it back
+        const decrypted = await decryptJsonPayloadBase64<typeof sampleItem>(
+          encrypted.encrypted_data,
+          encrypted.nonce,
+          getDataEncryptionKey(),
+        );
+
+        setCryptoDemo(
+          `Encrypted → Decrypted OK\nTitle: ${decrypted.title}\nUser: ${decrypted.username}`,
+        );
+
+        // Clean up the temporary DEK
+        lockVault();
+      } catch (err) {
+        console.error("Crypto integration demo failed", err);
+        setCryptoDemo("Crypto demo failed (see console)");
       }
 
       setStatus("ready");
@@ -47,17 +72,28 @@ function IndexPopup() {
         <p>Loading…</p>
       ) : (
         <div>
-          <p style={{ marginBottom: 8, fontSize: 13 }}>
-            ✅ Scaffold working — importing from <code>@vaultlock/shared</code>
+          <p style={{ marginBottom: 8, fontSize: 13, color: "green" }}>
+            ✅ 12-01 + 12-03: Shared crypto integration working
           </p>
-          {demo && (
-            <p style={{ fontSize: 12, color: "#555", wordBreak: "break-all" }}>
-              Demo (toBase64): {demo}
-            </p>
+
+          {cryptoDemo && (
+            <pre
+              style={{
+                fontSize: 11,
+                background: "#f4f4f4",
+                padding: 8,
+                borderRadius: 4,
+                whiteSpace: "pre-wrap",
+              }}
+            >
+              {cryptoDemo}
+            </pre>
           )}
+
           {serverUrl && (
-            <p style={{ fontSize: 12, color: "#555", marginTop: 4 }}>Server: {serverUrl}</p>
+            <p style={{ fontSize: 12, color: "#555", marginTop: 8 }}>Server: {serverUrl}</p>
           )}
+
           <button
             type="button"
             onClick={() => alert("Coming in sub-task 12-04 (Auth + unlock)")}
@@ -70,8 +106,9 @@ function IndexPopup() {
           >
             Open Vault (placeholder)
           </button>
+
           <p style={{ marginTop: 12, fontSize: 11, color: "#888" }}>
-            Sub-task 12-01 complete. Real functionality starts in 12-02+.
+            12-03: Real AES-256-GCM + shared helpers now integrated.
           </p>
         </div>
       )}
