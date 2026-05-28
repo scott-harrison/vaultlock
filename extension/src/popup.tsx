@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import type { LoginItemPlaintext, NoteItemPlaintext } from "@vaultlock/shared/types";
+import { useCallback, useEffect, useState } from "react";
 import { getAuthSession, loginAndUnlock, logout } from "./lib/auth";
 import { getServerSettings } from "./lib/storage";
 import { isVaultUnlocked, lockVault } from "./lib/vaultSession";
@@ -9,48 +10,75 @@ function VaultListView({ onLock, onLogout }: { onLock: () => void; onLogout: () 
   const [items, setItems] = useState<import("./lib/vaultItems").DecryptedVaultItem[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState<string | null>(null);
+
+  const loadItems = useCallback(async (useSince = true) => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const { fetchAndDecryptVaultItems, sortVaultItems } = await import("./lib/vaultItems");
+      const { getVaultSyncToken, saveVaultSyncToken } = await import("./lib/storage");
+
+      const since = useSince ? await getVaultSyncToken() : undefined;
+      const result = await fetchAndDecryptVaultItems(since ?? undefined);
+
+      if (result.syncToken) {
+        await saveVaultSyncToken(result.syncToken);
+      }
+
+      setItems(sortVaultItems(result.items));
+    } catch (err) {
+      console.error("Failed to load vault items", err);
+      setError("Failed to load vault items. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    async function load() {
-      try {
-        // Basic fetch (no incremental sync yet — will improve in later sub-tasks)
-        const { fetchAndDecryptVaultItems, sortVaultItems } = await import("./lib/vaultItems");
-        const decrypted = await fetchAndDecryptVaultItems();
-        setItems(sortVaultItems(decrypted));
-      } catch (err) {
-        console.error("Failed to load vault items", err);
-      } finally {
-        setLoading(false);
-      }
-    }
-    load();
-  }, []);
+    loadItems();
+  }, [loadItems]);
 
   const filtered = items.filter((item) => {
     const term = search.toLowerCase();
     const title = (item.plaintext?.title || "").toLowerCase();
     const username = (item.plaintext?.username || "").toLowerCase();
-    return title.includes(term) || username.includes(term);
+    const content =
+      item.itemType === "note"
+        ? ((item.plaintext as NoteItemPlaintext).content || "").toLowerCase()
+        : "";
+    return title.includes(term) || username.includes(term) || content.includes(term);
   });
 
-  const copy = async (text?: string) => {
-    if (text) await navigator.clipboard.writeText(text);
+  const copyToClipboard = async (text: string, label: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(label);
+      setTimeout(() => setCopied(null), 1200);
+    } catch (err) {
+      console.error("Copy failed", err);
+    }
   };
 
   if (loading) {
-    return <div style={{ padding: 16 }}>Loading vault…</div>;
+    return <div style={{ padding: 16, fontSize: 13 }}>Loading vault…</div>;
   }
 
   return (
     <div>
-      <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+      <div style={{ display: "flex", gap: 6, marginBottom: 8, alignItems: "center" }}>
         <input
           type="text"
           placeholder="Search..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          style={{ flex: 1, padding: 4 }}
+          style={{ flex: 1, padding: "4px 6px", fontSize: 13 }}
         />
+        <button type="button" onClick={() => loadItems(false)} title="Refresh">
+          ↻
+        </button>
         <button type="button" onClick={onLock}>
           Lock
         </button>
@@ -59,35 +87,74 @@ function VaultListView({ onLock, onLogout }: { onLock: () => void; onLogout: () 
         </button>
       </div>
 
-      {filtered.length === 0 && <p style={{ fontSize: 13, color: "#666" }}>No items found.</p>}
+      {error && <p style={{ color: "red", fontSize: 12, marginBottom: 8 }}>{error}</p>}
 
-      <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-        {filtered.map((item) => (
-          <li key={item.id} style={{ padding: "6px 0", borderBottom: "1px solid #eee" }}>
-            <div style={{ fontWeight: 500 }}>{item.plaintext?.title || "Untitled"}</div>
-            {item.itemType === "login" && item.plaintext?.username && (
-              <div style={{ fontSize: 12, color: "#555" }}>
-                {item.plaintext.username}
-                <button
-                  type="button"
-                  onClick={() => copy(item.plaintext.username)}
-                  style={{ marginLeft: 6, fontSize: 10 }}
-                >
-                  Copy user
-                </button>
-                {item.plaintext.password && (
+      {filtered.length === 0 && !error && (
+        <p style={{ fontSize: 13, color: "#666", padding: "8px 0" }}>
+          {search ? "No matches found." : "No items yet."}
+        </p>
+      )}
+
+      <ul style={{ listStyle: "none", padding: 0, margin: 0, fontSize: 13 }}>
+        {filtered.map((item) => {
+          const p = item.plaintext;
+          const isLogin = item.itemType === "login";
+          const isNote = item.itemType === "note";
+
+          return (
+            <li key={item.id} style={{ padding: "8px 0", borderBottom: "1px solid #eee" }}>
+              <div style={{ fontWeight: 500, marginBottom: 2 }}>
+                {isLogin
+                  ? (p as LoginItemPlaintext).title ||
+                    (p as LoginItemPlaintext).username ||
+                    (p as LoginItemPlaintext).url ||
+                    "Untitled"
+                  : isNote
+                    ? (p as NoteItemPlaintext).title || "Note"
+                    : (p as import("@vaultlock/shared/types").CardItemPlaintext).title || "Item"}
+              </div>
+
+              {isLogin && (p as LoginItemPlaintext).username && (
+                <div style={{ color: "#555" }}>
+                  {(p as LoginItemPlaintext).username}{" "}
                   <button
                     type="button"
-                    onClick={() => copy(item.plaintext.password)}
-                    style={{ marginLeft: 4, fontSize: 10 }}
+                    onClick={() => {
+                      const u = (p as LoginItemPlaintext).username;
+                      if (u) copyToClipboard(u, "user");
+                    }}
+                    style={{ fontSize: 10, padding: "0 3px" }}
                   >
-                    Copy pass
+                    {copied === "user" ? "Copied!" : "Copy"}
                   </button>
-                )}
-              </div>
-            )}
-          </li>
-        ))}
+                  {(p as LoginItemPlaintext).password && (
+                    <>
+                      {" "}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const pw = (p as LoginItemPlaintext).password;
+                          if (pw) copyToClipboard(pw, "pass");
+                        }}
+                        style={{ fontSize: 10, padding: "0 3px" }}
+                      >
+                        {copied === "pass" ? "Copied!" : "Copy pass"}
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {isNote && (p as NoteItemPlaintext).content && (
+                <div style={{ color: "#555", whiteSpace: "pre-wrap", fontSize: 12 }}>
+                  {((p as NoteItemPlaintext).content?.length ?? 0) > 120
+                    ? `${(p as NoteItemPlaintext).content?.slice(0, 120) ?? ""}…`
+                    : (p as NoteItemPlaintext).content}
+                </div>
+              )}
+            </li>
+          );
+        })}
       </ul>
     </div>
   );

@@ -26,7 +26,10 @@ export interface DecryptedVaultItem {
   plaintext: VaultItemPlaintext;
 }
 
-export async function fetchAndDecryptVaultItems(since?: string): Promise<DecryptedVaultItem[]> {
+export async function fetchAndDecryptVaultItems(since?: string): Promise<{
+  items: DecryptedVaultItem[];
+  syncToken: string | null;
+}> {
   const session = await getAuthSession();
   if (!session) {
     throw new Error("Not authenticated");
@@ -58,7 +61,10 @@ export async function fetchAndDecryptVaultItems(since?: string): Promise<Decrypt
     }
   }
 
-  return decryptedItems;
+  return {
+    items: decryptedItems,
+    syncToken: response.sync_token,
+  };
 }
 
 export function sortVaultItems(items: DecryptedVaultItem[]): DecryptedVaultItem[] {
