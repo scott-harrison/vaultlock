@@ -5,6 +5,95 @@ import { isVaultUnlocked, lockVault } from "./lib/vaultSession";
 
 type AuthState = "loading" | "needs-server" | "login" | "unlock" | "unlocked";
 
+function VaultListView({ onLock, onLogout }: { onLock: () => void; onLogout: () => void }) {
+  // biome-ignore lint/suspicious/noExplicitAny: temporary for 12-05 starter
+  const [items, setItems] = useState<Record<string, any>[]>([]);
+  const [search, setSearch] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function load() {
+      try {
+        // Basic fetch (no incremental sync yet — will improve in later sub-tasks)
+        const { fetchAndDecryptVaultItems, sortVaultItems } = await import("./lib/vaultItems");
+        const decrypted = await fetchAndDecryptVaultItems();
+        setItems(sortVaultItems(decrypted));
+      } catch (err) {
+        console.error("Failed to load vault items", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
+  }, []);
+
+  const filtered = items.filter((item) => {
+    const term = search.toLowerCase();
+    const title = (item.plaintext?.title || "").toLowerCase();
+    const username = (item.plaintext?.username || "").toLowerCase();
+    return title.includes(term) || username.includes(term);
+  });
+
+  const copy = async (text?: string) => {
+    if (text) await navigator.clipboard.writeText(text);
+  };
+
+  if (loading) {
+    return <div style={{ padding: 16 }}>Loading vault…</div>;
+  }
+
+  return (
+    <div>
+      <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+        <input
+          type="text"
+          placeholder="Search..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          style={{ flex: 1, padding: 4 }}
+        />
+        <button type="button" onClick={onLock}>
+          Lock
+        </button>
+        <button type="button" onClick={onLogout}>
+          Sign out
+        </button>
+      </div>
+
+      {filtered.length === 0 && <p style={{ fontSize: 13, color: "#666" }}>No items found.</p>}
+
+      <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+        {filtered.map((item) => (
+          <li key={item.id} style={{ padding: "6px 0", borderBottom: "1px solid #eee" }}>
+            <div style={{ fontWeight: 500 }}>{item.plaintext?.title || "Untitled"}</div>
+            {item.itemType === "login" && item.plaintext?.username && (
+              <div style={{ fontSize: 12, color: "#555" }}>
+                {item.plaintext.username}
+                <button
+                  type="button"
+                  onClick={() => copy(item.plaintext.username)}
+                  style={{ marginLeft: 6, fontSize: 10 }}
+                >
+                  Copy user
+                </button>
+                {item.plaintext.password && (
+                  <button
+                    type="button"
+                    onClick={() => copy(item.plaintext.password)}
+                    style={{ marginLeft: 4, fontSize: 10 }}
+                  >
+                    Copy pass
+                  </button>
+                )}
+              </div>
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 export default function IndexPopup() {
   const [authState, setAuthState] = useState<AuthState>("loading");
   const [email, setEmail] = useState("");
@@ -164,20 +253,7 @@ export default function IndexPopup() {
         </form>
       )}
 
-      {authState === "unlocked" && (
-        <div>
-          <p style={{ color: "green", fontSize: 14 }}>✅ Vault unlocked</p>
-          <p style={{ fontSize: 12, color: "#666" }}>
-            (Vault list &amp; autofill coming in later sub-tasks)
-          </p>
-          <button type="button" onClick={handleLock} style={{ width: "100%", marginBottom: 6 }}>
-            Lock Vault
-          </button>
-          <button type="button" onClick={handleLogout} style={{ width: "100%" }}>
-            Sign out
-          </button>
-        </div>
-      )}
+      {authState === "unlocked" && <VaultListView onLock={handleLock} onLogout={handleLogout} />}
     </div>
   );
 }
