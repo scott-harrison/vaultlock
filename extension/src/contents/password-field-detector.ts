@@ -34,7 +34,48 @@ function findPasswordFields(): HTMLInputElement[] {
   return passwordInputs.filter(isVisibleField);
 }
 
-// --- Detect likely username / email fields ---
+// --- Try to find the most likely username/email field for a given password field ---
+function findAssociatedUsernameField(passwordField: HTMLInputElement): HTMLInputElement | null {
+  const form = passwordField.closest("form");
+
+  // 1. Look inside the same form first (most common case)
+  if (form) {
+    const usernameCandidates = Array.from(
+      form.querySelectorAll<HTMLInputElement>(
+        'input[type="text"], input[type="email"], input:not([type])',
+      ),
+    ).filter(isVisibleField);
+
+    // Prefer fields that appear before the password field in the DOM
+    const beforePassword = usernameCandidates.filter((f) => {
+      return f.compareDocumentPosition(passwordField) & Node.DOCUMENT_POSITION_FOLLOWING;
+    });
+
+    if (beforePassword.length > 0) {
+      // Return the closest one before the password (often the immediate previous text/email field)
+      return beforePassword[beforePassword.length - 1];
+    }
+
+    if (usernameCandidates.length > 0) {
+      return usernameCandidates[0];
+    }
+  }
+
+  // 2. Fall back to any visible username-like field on the page (multi-step scenario)
+  const allUsernameFields = findUsernameOrEmailFields();
+  if (allUsernameFields.length > 0) {
+    // Return the last one that appears before this password field in the document
+    const beforeThis = allUsernameFields.filter((f) => {
+      return f.compareDocumentPosition(passwordField) & Node.DOCUMENT_POSITION_FOLLOWING;
+    });
+    if (beforeThis.length > 0) return beforeThis[beforeThis.length - 1];
+    return allUsernameFields[0];
+  }
+
+  return null;
+}
+
+// --- Detect likely username / email fields (improved heuristics) ---
 function findUsernameOrEmailFields(): HTMLInputElement[] {
   const candidates = Array.from(
     document.querySelectorAll<HTMLInputElement>(
@@ -53,9 +94,14 @@ function findUsernameOrEmailFields(): HTMLInputElement[] {
     "account",
     "identity",
     "identifier",
+    "handle",
+    "uname",
   ];
 
   const usernameLikeAutocomplete = ["username", "email", "username webauthn"];
+
+  // Common fields we want to *exclude* (search, filters, etc.)
+  const excludeNames = ["search", "q", "query", "filter", "captcha", "code", "otp", "token"];
 
   return candidates.filter((input) => {
     if (!isVisibleField(input)) return false;
@@ -64,15 +110,40 @@ function findUsernameOrEmailFields(): HTMLInputElement[] {
     const id = (input.id || "").toLowerCase();
     const autocomplete = (input.autocomplete || "").toLowerCase();
     const placeholder = (input.placeholder || "").toLowerCase();
+    const ariaLabel = (input.getAttribute("aria-label") || "").toLowerCase();
 
-    // Strong signals
+    // Quick exclude for obvious non-login fields
+    if (excludeNames.some((ex) => name.includes(ex) || id.includes(ex))) {
+      return false;
+    }
+
+    // Very strong signals
     if (autocomplete && usernameLikeAutocomplete.some((a) => autocomplete.includes(a))) {
       return true;
     }
 
-    const combined = `${name} ${id} ${placeholder}`;
+    // Check associated label text
+    let labelText = "";
+    if (input.id) {
+      const label = document.querySelector(`label[for="${input.id}"]`);
+      if (label) labelText = label.textContent?.toLowerCase() || "";
+    }
+    if (!labelText && input.closest("label")) {
+      labelText = input.closest("label")?.textContent?.toLowerCase() || "";
+    }
 
-    return usernameLikeNames.some((keyword) => combined.includes(keyword));
+    const combined = `${name} ${id} ${placeholder} ${ariaLabel} ${labelText}`;
+
+    const looksLikeUsername = usernameLikeNames.some((keyword) => combined.includes(keyword));
+
+    // Additional heuristic: fields that look like they expect an email or username
+    const looksLikeEmailField =
+      placeholder.includes("@") ||
+      ariaLabel.includes("email") ||
+      labelText.includes("email") ||
+      name.includes("mail");
+
+    return looksLikeUsername || looksLikeEmailField;
   });
 }
 
@@ -140,15 +211,30 @@ function scanForLoginFields() {
   for (const field of passwordFields) injectIndicator(field, "password");
   for (const field of usernameFields) injectIndicator(field, "username");
 
-  // Basic multi-step awareness logging (for debugging / future use)
-  if (usernameFields.length > 0 && passwordFields.length === 0) {
-    console.log("[VaultLock Content] Likely first step of login (username/email only)");
+  // --- Improved multi-step + association awareness ---
+  for (const pwField of passwordFields) {
+    const associatedUsername = findAssociatedUsernameField(pwField);
+    if (associatedUsername) {
+      // Mark the relationship for later use (12-07+)
+      pwField.dataset.vaultlockAssociatedUsernameId = associatedUsername.id || "";
+      associatedUsername.dataset.vaultlockAssociatedPasswordId = pwField.id || "";
+    }
   }
-  if (passwordFields.length > 0 && usernameFields.length === 0) {
-    console.log("[VaultLock Content] Likely second step of login (password only)");
-  }
-  if (usernameFields.length > 0 && passwordFields.length > 0) {
-    console.log("[VaultLock Content] Classic single-page login form detected");
+
+  // Logging for debugging multi-step flows
+  const hasUsername = usernameFields.length > 0;
+  const hasPassword = passwordFields.length > 0;
+
+  if (hasUsername && !hasPassword) {
+    console.log(
+      "[VaultLock Content] Detected username/email step (possible first step of multi-step login)",
+    );
+  } else if (hasPassword && !hasUsername) {
+    console.log(
+      "[VaultLock Content] Detected password-only step (possible second step of multi-step login)",
+    );
+  } else if (hasUsername && hasPassword) {
+    console.log("[VaultLock Content] Detected both username and password fields on page");
   }
 }
 
@@ -164,6 +250,39 @@ observer.observe(document.body || document.documentElement, {
   childList: true,
   subtree: true,
 });
+
+// --- Basic multi-step context (remember last seen username/email on this origin) ---
+async function rememberLastLoginIdentifier(value: string) {
+  if (!value) return;
+  try {
+    const origin = window.location.origin;
+    await chrome.storage.session.set({
+      [`lastLoginId:${origin}`]: {
+        value,
+        timestamp: Date.now(),
+      },
+    });
+  } catch (err) {
+    // session storage might not be available in some contexts
+    console.debug("[VaultLock Content] Could not write to session storage", err);
+  }
+}
+
+// Try to capture username/email values when the user types (helps multi-step)
+document.addEventListener(
+  "input",
+  (e) => {
+    const target = e.target as HTMLInputElement;
+    if (!target || !["text", "email"].includes(target.type || "")) return;
+
+    const val = target.value?.trim();
+    if ((val && val.length > 2 && val.includes("@")) || val.length > 3) {
+      // Heuristic: looks like an email or reasonable username
+      rememberLastLoginIdentifier(val);
+    }
+  },
+  true,
+);
 
 // Re-scan when page becomes visible again
 document.addEventListener("visibilitychange", () => {
