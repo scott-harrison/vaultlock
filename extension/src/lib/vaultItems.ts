@@ -1,5 +1,5 @@
 /**
- * Vault items logic for the browser extension (12-05+).
+ * Vault items logic for the browser extension.
  *
  * Handles fetching encrypted items from the backend,
  * decrypting them using the current DEK, and basic sync.
