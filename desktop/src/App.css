@@ -410,41 +410,6 @@ input {
   font-weight: 700;
 }
 
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 40;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 1rem;
-  background: rgba(15, 17, 23, 0.45);
-}
-
-.modal {
-  width: min(28rem, calc(100vw - 2rem));
-  max-height: calc(100vh - 2rem);
-  overflow-y: auto;
-  padding: 1.5rem;
-  border-radius: 1rem;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow);
-}
-
-.modal::backdrop {
-  background: rgba(15, 17, 23, 0.45);
-}
-
-.modal h2 {
-  margin: 0 0 0.75rem;
-  font-size: 1.125rem;
-}
-
-.modal-close {
-  margin-top: 1rem;
-}
-
 .loading-overlay {
   position: fixed;
   inset: 0;
@@ -476,10 +441,6 @@ input {
 }
 
 @media (prefers-color-scheme: light) {
-  .modal-overlay {
-    background: rgba(245, 246, 248, 0.82);
-  }
-
   .loading-overlay {
     background: rgba(245, 246, 248, 0.82);
     color: var(--text);
