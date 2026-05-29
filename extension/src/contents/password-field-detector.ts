@@ -197,8 +197,6 @@ function injectIndicator(field: HTMLInputElement, fieldType: "username" | "passw
 
     const hostname = window.location.hostname;
 
-    console.log(`[VaultLock Content] ${fieldType} indicator clicked on ${hostname}`);
-
     // Send context to background (12-07 will use this to show matching vault items)
     chrome.runtime.sendMessage({
       type: "INDICATOR_CLICKED",

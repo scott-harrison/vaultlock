@@ -34,7 +34,6 @@ chrome.runtime.onMessage.addListener((message: IndicatorClickedMessage, sender, 
     // Try to open the popup (requires user gesture - clicking the indicator counts)
     chrome.action.openPopup().catch(() => {
       // If openPopup fails (some Chrome versions), user can open manually
-      console.log("[VaultLock Background] Could not auto-open popup, user can open manually");
     });
 
     sendResponse({ success: true });

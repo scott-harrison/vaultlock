@@ -194,7 +194,6 @@ export default function IndexPopup() {
           chrome.runtime.sendMessage({ type: "GET_PENDING_FILL_REQUEST" }).then((request) => {
             if (request) {
               setPendingFillRequest(request);
-              console.log("[VaultLock Popup] Pending fill request received:", request);
               // In a full 12-07 implementation we would filter vault items by hostname here
             }
           });
@@ -345,7 +344,7 @@ export default function IndexPopup() {
             >
               <strong>Fill request from this page:</strong> {pendingFillRequest.hostname}
               <br />
-              <small>Matching vault items will appear below (full matching in 12-07)</small>
+              <small>Fill functionality coming soon</small>
             </div>
           )}
           <VaultListView onLock={handleLock} onLogout={handleLogout} />
