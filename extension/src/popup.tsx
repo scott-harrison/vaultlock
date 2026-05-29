@@ -1,6 +1,7 @@
 import type { LoginItemPlaintext, NoteItemPlaintext } from "@vaultlock/shared/types";
 import { useCallback, useEffect, useState } from "react";
 import { getAuthSession, loginAndUnlock, logout } from "./lib/auth";
+import type { AutofillRequest } from "./lib/messaging";
 import { getServerSettings } from "./lib/storage";
 import { isVaultUnlocked, lockVault } from "./lib/vaultSession";
 
@@ -167,6 +168,7 @@ export default function IndexPopup() {
   const [serverUrl, setServerUrl] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [pendingFillRequest, setPendingFillRequest] = useState<AutofillRequest | null>(null);
 
   useEffect(() => {
     async function init() {
@@ -187,6 +189,15 @@ export default function IndexPopup() {
 
         if (isVaultUnlocked()) {
           setAuthState("unlocked");
+
+          // Check if the background sent us a fill request (from content script indicator click)
+          chrome.runtime
+            .sendMessage({ type: "GET_PENDING_FILL_REQUEST" })
+            .then((request: unknown) => {
+              if (request) {
+                setPendingFillRequest(request as AutofillRequest);
+              }
+            });
         } else {
           // User is logged in but vault is locked → show unlock screen
           setEmail(session.email);
@@ -319,7 +330,28 @@ export default function IndexPopup() {
         </form>
       )}
 
-      {authState === "unlocked" && <VaultListView onLock={handleLock} onLogout={handleLogout} />}
+      {authState === "unlocked" && (
+        <>
+          {pendingFillRequest && (
+            <div
+              style={{
+                background: "#fef3c7",
+                border: "1px solid #f59e0b",
+                padding: 8,
+                borderRadius: 4,
+                marginBottom: 8,
+                fontSize: 12,
+              }}
+            >
+              <strong>Login form detected on {pendingFillRequest.hostname}.</strong>
+              <div style={{ marginTop: 4, fontSize: 11, color: "#92400e" }}>
+                Select credentials below to fill (autofill support in progress).
+              </div>
+            </div>
+          )}
+          <VaultListView onLock={handleLock} onLogout={handleLogout} />
+        </>
+      )}
     </div>
   );
 }

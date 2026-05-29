@@ -5,7 +5,7 @@
  */
 
 import { VaultlockApiClient } from "@vaultlock/shared/api";
-import { createTimedFetch } from "./serverSettings"; // reuse from 12-02
+import { createTimedFetch } from "./serverSettings";
 import { getServerSettings } from "./storage";
 import { unlockVault } from "./vaultSession";
 

@@ -1,16 +1,14 @@
 /**
- * Content script for VaultLock (12-06+).
+ * Content script for VaultLock.
  *
- * Current responsibilities:
+ * Responsibilities:
  * - Detect password fields
  * - Detect likely username / email fields (including multi-step login forms)
  * - Associate related fields when possible
  * - Inject visual indicators next to relevant login fields
  *
- * This is the foundation for smarter autofill in later sub-tasks (12-07+).
+ * This is the foundation for the autofill ("fill on click") flow.
  */
-
-console.log("[VaultLock Content] Password field detector loaded");
 
 // --- Utility: Check if element is visible enough to be a real form field ---
 function isVisibleField(input: HTMLInputElement): boolean {
@@ -195,10 +193,18 @@ function injectIndicator(field: HTMLInputElement, fieldType: "username" | "passw
     e.preventDefault();
     e.stopImmediatePropagation();
 
-    console.log(`[VaultLock Content] ${fieldType} indicator clicked:`, field);
+    const hostname = window.location.hostname;
 
-    // Placeholder - real fill logic in 12-07
-    alert(`VaultLock: ${fieldType === "password" ? "Password" : "Username"} fill coming in 12-07`);
+    // Send context to background so popup can show relevant vault items for autofill
+    chrome.runtime.sendMessage({
+      type: "INDICATOR_CLICKED",
+      hostname,
+      fieldType,
+      associatedFieldId: field.dataset.vaultlockAssociatedUsernameId || undefined,
+    });
+
+    // The background stores the request and opens the popup.
+    // Actual field filling logic is implemented in later stages of the autofill feature.
   });
 }
 
@@ -215,26 +221,10 @@ function scanForLoginFields() {
   for (const pwField of passwordFields) {
     const associatedUsername = findAssociatedUsernameField(pwField);
     if (associatedUsername) {
-      // Mark the relationship for later use (12-07+)
+      // Mark the relationship for later use in autofill
       pwField.dataset.vaultlockAssociatedUsernameId = associatedUsername.id || "";
       associatedUsername.dataset.vaultlockAssociatedPasswordId = pwField.id || "";
     }
-  }
-
-  // Logging for debugging multi-step flows
-  const hasUsername = usernameFields.length > 0;
-  const hasPassword = passwordFields.length > 0;
-
-  if (hasUsername && !hasPassword) {
-    console.log(
-      "[VaultLock Content] Detected username/email step (possible first step of multi-step login)",
-    );
-  } else if (hasPassword && !hasUsername) {
-    console.log(
-      "[VaultLock Content] Detected password-only step (possible second step of multi-step login)",
-    );
-  } else if (hasUsername && hasPassword) {
-    console.log("[VaultLock Content] Detected both username and password fields on page");
   }
 }
 
@@ -262,9 +252,8 @@ async function rememberLastLoginIdentifier(value: string) {
         timestamp: Date.now(),
       },
     });
-  } catch (err) {
-    // session storage might not be available in some contexts
-    console.debug("[VaultLock Content] Could not write to session storage", err);
+  } catch (_err) {
+    // session storage might not be available in some contexts; ignore
   }
 }
 
@@ -290,7 +279,3 @@ document.addEventListener("visibilitychange", () => {
     scanForLoginFields();
   }
 });
-
-console.log(
-  "[VaultLock Content] Field detector initialized (username + password + multi-step signals)",
-);
