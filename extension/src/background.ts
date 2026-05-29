@@ -24,6 +24,16 @@ import { getServerSettings } from "./lib/storage";
 // Store the latest fill request so the popup can pick it up when opened
 let pendingFillRequest: AutofillRequest | null = null;
 
+/**
+ * Basic validation for messages coming from content scripts.
+ * Prevents malicious pages from easily spoofing fill requests.
+ */
+function isValidContentScriptSender(sender: chrome.runtime.MessageSender): boolean {
+  if (!sender.tab?.url) return false;
+  const url = sender.tab.url;
+  return url.startsWith("http://") || url.startsWith("https://");
+}
+
 chrome.runtime.onMessage.addListener(
   (
     message: unknown,
@@ -33,6 +43,12 @@ chrome.runtime.onMessage.addListener(
     const msg = message as { type: string } & Partial<AutofillRequest>;
 
     if (msg.type === "INDICATOR_CLICKED" && msg.hostname && msg.fieldType) {
+      if (!isValidContentScriptSender(_sender)) {
+        console.warn("[VaultLock Background] Rejected INDICATOR_CLICKED from invalid sender");
+        sendResponse({ success: false, error: "Invalid sender" });
+        return;
+      }
+
       const request: AutofillRequest = {
         hostname: msg.hostname,
         fieldType: msg.fieldType,
