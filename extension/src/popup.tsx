@@ -1,11 +1,30 @@
-import type { LoginItemPlaintext, NoteItemPlaintext } from "@vaultlock/shared/types";
 import { useCallback, useEffect, useState } from "react";
 import { getAuthSession, loginAndUnlock, logout } from "./lib/auth";
 import type { AutofillRequest } from "./lib/messaging";
 import { getServerSettings } from "./lib/storage";
+import type {
+  DecryptedVaultItem,
+  LoginItemPlaintext,
+  NoteItemPlaintext,
+  VaultItemResponse,
+} from "./lib/vaultItems";
 import { isVaultUnlocked, lockVault } from "./lib/vaultSession";
 
 type AuthState = "loading" | "needs-server" | "login" | "unlock" | "unlocked";
+
+function formatRelativeTime(timestamp: number): string {
+  const diff = Date.now() - timestamp;
+  const seconds = Math.floor(diff / 1000);
+
+  if (seconds < 30) return "just now";
+  if (seconds < 60) return `${seconds}s ago`;
+
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+
+  const hours = Math.floor(minutes / 60);
+  return `${hours}h ago`;
+}
 
 function VaultListView({ onLock, onLogout }: { onLock: () => void; onLogout: () => void }) {
   const [items, setItems] = useState<import("./lib/vaultItems").DecryptedVaultItem[]>([]);
@@ -13,12 +32,53 @@ function VaultListView({ onLock, onLogout }: { onLock: () => void; onLogout: () 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
+  const [lastSynced, setLastSynced] = useState<number | null>(null); // timestamp of last successful background sync
 
   const loadItems = useCallback(async (useSince = true) => {
     setLoading(true);
     setError(null);
 
     try {
+      // Fast path: ask background for encrypted cache (populated by background incremental sync)
+      const encryptedCache = await chrome.runtime
+        .sendMessage({ type: "GET_ENCRYPTED_VAULT_CACHE" })
+        .catch(() => null);
+
+      if (
+        encryptedCache &&
+        Array.isArray(encryptedCache.items) &&
+        encryptedCache.items.length > 0
+      ) {
+        // Decrypt locally in the popup (where we have the DEK after unlock)
+        const { sortVaultItems } = await import("./lib/vaultItems");
+        const { decryptVaultItem } = await import("./lib/vaultCrypto");
+        const decrypted = await Promise.all(
+          (encryptedCache.items as VaultItemResponse[]).map(async (item) => {
+            try {
+              const plaintext = await decryptVaultItem(item);
+              return {
+                id: item.id,
+                itemType: item.item_type,
+                createdAt: item.created_at,
+                updatedAt: item.updated_at,
+                plaintext,
+              };
+            } catch {
+              return null;
+            }
+          }),
+        ).then((arr) => arr.filter(Boolean));
+
+        setItems(sortVaultItems(decrypted as DecryptedVaultItem[]));
+        setLastSynced(Date.now());
+        setLoading(false);
+
+        // Trigger background to fetch any newer deltas (non-blocking)
+        chrome.runtime.sendMessage({ type: "TRIGGER_VAULT_SYNC" }).catch(() => {});
+        return;
+      }
+
+      // Slow path: direct fetch + decrypt
       const { fetchAndDecryptVaultItems, sortVaultItems } = await import("./lib/vaultItems");
       const { getVaultSyncToken, saveVaultSyncToken } = await import("./lib/storage");
 
@@ -30,6 +90,7 @@ function VaultListView({ onLock, onLogout }: { onLock: () => void; onLogout: () 
       }
 
       setItems(sortVaultItems(result.items));
+      setLastSynced(Date.now());
     } catch (err) {
       console.error("Failed to load vault items", err);
       setError("Failed to load vault items. Please try again.");
@@ -40,6 +101,23 @@ function VaultListView({ onLock, onLogout }: { onLock: () => void; onLogout: () 
 
   useEffect(() => {
     loadItems();
+  }, [loadItems]);
+
+  // Listen for background incremental sync updates while the popup is open (12-08)
+  useEffect(() => {
+    const handleMessage = (message: unknown) => {
+      const msg = message as { type?: string; itemCount?: number };
+      if (msg.type === "ENCRYPTED_VAULT_CACHE_UPDATED") {
+        setLastSynced(Date.now());
+        // Re-run load which will pick up the latest encrypted cache and decrypt
+        loadItems();
+      }
+    };
+
+    chrome.runtime.onMessage.addListener(handleMessage);
+    return () => {
+      chrome.runtime.onMessage.removeListener(handleMessage);
+    };
   }, [loadItems]);
 
   const filtered = items.filter((item) => {
@@ -77,7 +155,15 @@ function VaultListView({ onLock, onLogout }: { onLock: () => void; onLogout: () 
           onChange={(e) => setSearch(e.target.value)}
           style={{ flex: 1, padding: "4px 6px", fontSize: 13 }}
         />
-        <button type="button" onClick={() => loadItems(false)} title="Refresh">
+        <button
+          type="button"
+          onClick={async () => {
+            // Explicitly trigger background incremental sync, then reload UI
+            await chrome.runtime.sendMessage({ type: "TRIGGER_VAULT_SYNC" }).catch(() => {});
+            loadItems(false);
+          }}
+          title="Sync with server"
+        >
           ↻
         </button>
         <button type="button" onClick={onLock}>
@@ -87,6 +173,12 @@ function VaultListView({ onLock, onLogout }: { onLock: () => void; onLogout: () 
           Sign out
         </button>
       </div>
+
+      {lastSynced && (
+        <div style={{ fontSize: 11, color: "#888", marginBottom: 6 }}>
+          Last synced: {formatRelativeTime(lastSynced)}
+        </div>
+      )}
 
       {error && <p style={{ color: "red", fontSize: 12, marginBottom: 8 }}>{error}</p>}
 
@@ -221,6 +313,8 @@ export default function IndexPopup() {
       await loginAndUnlock({ email, masterPassword });
       setMasterPassword("");
       setAuthState("unlocked");
+      // Kick off background incremental sync now that we have the DEK
+      chrome.runtime.sendMessage({ type: "TRIGGER_VAULT_SYNC" }).catch(() => {});
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed");
     } finally {
@@ -244,6 +338,8 @@ export default function IndexPopup() {
 
       setMasterPassword("");
       setAuthState("unlocked");
+      // Kick off background incremental sync now that we have the DEK
+      chrome.runtime.sendMessage({ type: "TRIGGER_VAULT_SYNC" }).catch(() => {});
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unlock failed");
     } finally {
@@ -253,11 +349,17 @@ export default function IndexPopup() {
 
   const handleLock = async () => {
     await lockVault();
+    // Notify background + clear local decrypted state (security)
+    chrome.runtime.sendMessage({ type: "VAULT_LOCKED" }).catch(() => {});
+    setItems([]);
     setAuthState("unlock");
   };
 
   const handleLogout = async () => {
     await logout();
+    // Notify background + clear local decrypted state (security)
+    chrome.runtime.sendMessage({ type: "VAULT_LOCKED" }).catch(() => {});
+    setItems([]);
     setEmail("");
     setMasterPassword("");
     setAuthState("login");

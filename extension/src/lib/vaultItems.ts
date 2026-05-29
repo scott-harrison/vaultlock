@@ -70,6 +70,54 @@ export async function fetchAndDecryptVaultItems(since?: string): Promise<{
   };
 }
 
+/**
+ * Performs an incremental (or full) sync against the server and returns
+ * the merged result + the new sync token to persist.
+ *
+ * When `currentItems` is empty or no `since` token exists, this performs a full load.
+ * Otherwise it fetches only the delta and merges it client-side.
+ */
+export async function syncVaultItems(
+  currentItems: DecryptedVaultItem[],
+  since?: string,
+): Promise<{
+  items: DecryptedVaultItem[];
+  syncToken: string | null;
+  changed: boolean;
+}> {
+  const hasCurrent = currentItems.length > 0;
+  const tokenToUse = since ?? undefined;
+
+  // If we have no local state and no token, do a full load
+  if (!hasCurrent && !tokenToUse) {
+    const full = await fetchAndDecryptVaultItems(undefined);
+    return {
+      items: sortVaultItems(full.items),
+      syncToken: full.syncToken,
+      changed: full.items.length > 0,
+    };
+  }
+
+  const delta = await fetchAndDecryptVaultItems(tokenToUse);
+
+  if (delta.items.length === 0 && !delta.syncToken) {
+    return {
+      items: currentItems,
+      syncToken: since ?? null,
+      changed: false,
+    };
+  }
+
+  const merged = mergeVaultItems(currentItems, delta.items);
+  const nextToken = delta.syncToken ?? syncTokenFromItems(merged);
+
+  return {
+    items: merged,
+    syncToken: nextToken,
+    changed: true,
+  };
+}
+
 export function sortVaultItems(items: DecryptedVaultItem[]): DecryptedVaultItem[] {
   return [...items].sort((a, b) => {
     const titleA = getDisplayTitle(a).toLowerCase();
@@ -101,4 +149,41 @@ export function getDisplaySubtitle(item: DecryptedVaultItem): string | null {
     return login.username || login.url || null;
   }
   return null;
+}
+
+/**
+ * Merge a set of existing decrypted vault items with an incremental delta
+ * returned from the server (items changed after a `since` token).
+ *
+ * Server deltas can contain creates, updates, and (in the future) tombstones.
+ * We keep the item with the most recent updatedAt for any given id.
+ */
+export function mergeVaultItems(
+  existing: DecryptedVaultItem[],
+  changes: DecryptedVaultItem[],
+): DecryptedVaultItem[] {
+  const byId = new Map(existing.map((item) => [item.id, item]));
+
+  for (const change of changes) {
+    const previous = byId.get(change.id);
+    if (!previous || change.updatedAt >= previous.updatedAt) {
+      byId.set(change.id, change);
+    }
+  }
+
+  return sortVaultItems([...byId.values()]);
+}
+
+/**
+ * Derive a sync token from a set of items (the max updatedAt across them).
+ * Useful after a full load or after applying local mutations.
+ */
+export function syncTokenFromItems(items: DecryptedVaultItem[]): string | null {
+  if (items.length === 0) return null;
+  return (
+    items
+      .map((i) => i.updatedAt)
+      .sort()
+      .reverse()[0] ?? null
+  );
 }

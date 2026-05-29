@@ -1,8 +1,8 @@
 /**
  * Plasmo configuration for the VaultLock browser extension (Manifest V3).
  *
- * This file is the single source of truth for the extension manifest during 12-01.
- * Later sub-tasks (especially 12-06/12-07) will expand permissions and add content scripts.
+ * This file is the single source of truth for the extension manifest.
+ * Later work will expand permissions and add content scripts as needed.
  */
 import { defineConfig } from "plasmo";
 
@@ -25,7 +25,7 @@ export default defineConfig({
     action: {
       default_popup: "popup.html",
       default_title: "VaultLock",
-      // default_icon will be added when we have proper icons (post 12-01)
+      // default_icon will be added when we have proper icons.
     },
 
     options_ui: {
@@ -41,7 +41,7 @@ export default defineConfig({
       },
     },
 
-    // Content scripts will be expanded in 12-06+
+    // Content scripts for field detection and future autofill features.
     content_scripts: [
       {
         matches: ["<all_urls>"],

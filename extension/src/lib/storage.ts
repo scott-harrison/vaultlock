@@ -128,3 +128,28 @@ export async function saveWrappedDek(
 export async function clearWrappedDek(): Promise<void> {
   await storage.remove(WRAPPED_DEK_KEY);
 }
+
+/**
+ * Encrypted vault cache persisted in chrome.storage.local.
+ * This allows fast startup and incremental sync without holding decrypted data
+ * in the background service worker (important for MV3 isolation + security).
+ */
+export interface EncryptedVaultCache {
+  items: import("@vaultlock/shared/types").VaultItemResponse[];
+  syncToken: string | null;
+  updatedAt: number;
+}
+
+const ENCRYPTED_VAULT_CACHE_KEY = "encrypted_vault_cache";
+
+export async function getEncryptedVaultCache(): Promise<EncryptedVaultCache | null> {
+  return (await storage.get<EncryptedVaultCache>(ENCRYPTED_VAULT_CACHE_KEY)) ?? null;
+}
+
+export async function saveEncryptedVaultCache(cache: EncryptedVaultCache): Promise<void> {
+  await storage.set(ENCRYPTED_VAULT_CACHE_KEY, cache);
+}
+
+export async function clearEncryptedVaultCache(): Promise<void> {
+  await storage.remove(ENCRYPTED_VAULT_CACHE_KEY);
+}
