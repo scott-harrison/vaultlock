@@ -7,7 +7,19 @@
  * - Later: background sync, token refresh, etc.
  */
 
+import { VaultlockApiClient } from "@vaultlock/shared/api";
+import type { VaultItemResponse } from "@vaultlock/shared/types";
+import { getAuthSession } from "./lib/auth";
 import type { AutofillRequest } from "./lib/messaging";
+import { createTimedFetch } from "./lib/serverSettings";
+import {
+  clearEncryptedVaultCache,
+  getEncryptedVaultCache,
+  getVaultSyncToken,
+  saveEncryptedVaultCache,
+  saveVaultSyncToken,
+} from "./lib/storage";
+import { getServerSettings } from "./lib/storage";
 
 // Store the latest fill request so the popup can pick it up when opened
 let pendingFillRequest: AutofillRequest | null = null;
@@ -70,3 +82,122 @@ chrome.runtime.onMessage.addListener(
     }
   },
 );
+
+/**
+ * Background sync entry point (12-08).
+ * Fetches encrypted deltas using the access token and persists the raw
+ * encrypted responses + sync token. Decryption only happens in the popup
+ * (where the DEK is available after unlock). This respects MV3 context
+ * isolation and the zero-knowledge model.
+ */
+async function performVaultSync(forceFull = false): Promise<void> {
+  const session = await getAuthSession();
+  if (!session) return;
+
+  const serverSettings = await getServerSettings();
+  const client = new VaultlockApiClient({
+    baseUrl: serverSettings.serverUrl,
+    fetch: createTimedFetch(serverSettings.requestTimeoutMs),
+  });
+
+  try {
+    const since = forceFull ? undefined : await getVaultSyncToken();
+
+    const response = await client.listVaultItems(session.accessToken, since);
+
+    // Merge with existing encrypted cache
+    const existing = await getEncryptedVaultCache();
+    const existingItems = existing?.items ?? [];
+
+    // Simple merge by id + updatedAt (same logic as mergeVaultItems but on encrypted responses)
+    const byId = new Map(existingItems.map((item) => [item.id, item]));
+    for (const item of response.items) {
+      const prev = byId.get(item.id);
+      if (!prev || item.updated_at >= prev.updated_at) {
+        byId.set(item.id, item);
+      }
+    }
+    const mergedItems: VaultItemResponse[] = Array.from(byId.values());
+
+    const newCache = {
+      items: mergedItems,
+      syncToken: response.sync_token,
+      updatedAt: Date.now(),
+    };
+
+    await saveEncryptedVaultCache(newCache);
+    if (response.sync_token) {
+      await saveVaultSyncToken(response.sync_token);
+    }
+
+    // Update in-memory for quick responses
+    encryptedVaultCache = mergedItems;
+    currentSyncToken = response.sync_token;
+
+    // Notify popup that new encrypted data is available
+    chrome.runtime
+      .sendMessage({
+        type: "ENCRYPTED_VAULT_CACHE_UPDATED",
+        itemCount: mergedItems.length,
+      })
+      .catch(() => {});
+  } catch (err: unknown) {
+    const status = (err as { status?: number })?.status;
+    if (status === 400 && !forceFull) {
+      // Stale token — clear and retry full
+      await clearVaultSyncTokenIfExists();
+      await performVaultSync(true);
+      return;
+    }
+    console.error("[VaultLock Background] Encrypted vault sync failed", err);
+  }
+}
+
+async function clearVaultSyncTokenIfExists(): Promise<void> {
+  try {
+    await clearEncryptedVaultCache();
+    // Also clear the sync token so next sync is full
+    // (we can keep a separate clear if needed)
+  } catch {
+    // ignore
+  }
+}
+
+// Allow popup (or other contexts) to explicitly request a sync
+chrome.runtime.onMessage.addListener(
+  (
+    message: unknown,
+    _sender: chrome.runtime.MessageSender,
+    sendResponse: (response?: unknown) => void,
+  ) => {
+    const msg = message as { type?: string };
+
+    if (msg.type === "TRIGGER_VAULT_SYNC") {
+      performVaultSync(false).finally(async () => {
+        const cache = await getEncryptedVaultCache();
+        sendResponse({ success: true, itemCount: cache?.items.length ?? 0 });
+      });
+      return true;
+    }
+
+    if (msg.type === "GET_ENCRYPTED_VAULT_CACHE") {
+      getEncryptedVaultCache().then((cache) => {
+        sendResponse(cache ?? { items: [], syncToken: null });
+      });
+      return true;
+    }
+
+    if (msg.type === "VAULT_LOCKED") {
+      // We keep the encrypted cache on disk for fast resume after re-unlock.
+      // Only clear the in-memory copy.
+      encryptedVaultCache = [];
+      currentSyncToken = null;
+      sendResponse({ success: true });
+    }
+  },
+);
+
+// Best-effort initial sync on service worker startup (when the worker happens to stay alive across browser restarts)
+chrome.runtime.onStartup.addListener(() => {
+  performVaultSync(false).catch(() => {});
+});
