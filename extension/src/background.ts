@@ -1,60 +1,72 @@
 /**
  * Background service worker for the VaultLock extension.
  *
- * 12-07+ responsibilities:
+ * Responsibilities:
  * - Message passing between content scripts and popup for autofill ("fill on click")
  * - Storing pending fill requests (hostname + field context)
  * - Later: background sync, token refresh, etc.
  */
 
-console.log("[VaultLock] Background service worker initialized");
-
-type IndicatorClickedMessage = {
-  type: "INDICATOR_CLICKED";
-  hostname: string;
-  fieldType: "username" | "password";
-  associatedFieldId?: string;
-};
+import type { AutofillRequest } from "./lib/messaging";
 
 // Store the latest fill request so the popup can pick it up when opened
-let pendingFillRequest: IndicatorClickedMessage | null = null;
+let pendingFillRequest: AutofillRequest | null = null;
 
-chrome.runtime.onMessage.addListener((message: IndicatorClickedMessage, sender, sendResponse) => {
-  if (message.type === "INDICATOR_CLICKED") {
-    console.log("[VaultLock Background] Indicator clicked:", message);
+chrome.runtime.onMessage.addListener(
+  (
+    message: unknown,
+    _sender: chrome.runtime.MessageSender,
+    sendResponse: (response?: unknown) => void,
+  ) => {
+    const msg = message as { type: string } & Partial<AutofillRequest>;
 
-    pendingFillRequest = {
-      ...message,
-      hostname: message.hostname || sender.origin || "",
-    };
+    if (msg.type === "INDICATOR_CLICKED" && msg.hostname && msg.fieldType) {
+      const request: AutofillRequest = {
+        hostname: msg.hostname,
+        fieldType: msg.fieldType,
+        associatedFieldId: msg.associatedFieldId,
+      };
 
-    // Store in session storage so popup can read it even if background restarts
-    chrome.storage.session.set({ pendingFillRequest });
+      pendingFillRequest = request;
 
-    // Try to open the popup (requires user gesture - clicking the indicator counts)
-    chrome.action.openPopup().catch(() => {
-      // If openPopup fails (some Chrome versions), user can open manually
-    });
+      // Store in session storage so popup can read it even if background restarts
+      chrome.storage.session.set({ pendingFillRequest });
 
-    sendResponse({ success: true });
-  }
+      // Try to open the popup (requires user gesture - clicking the indicator counts)
+      chrome.action.openPopup().catch(() => {
+        // If openPopup fails (some Chrome versions), user can open manually
+      });
 
-  // Allow async response if needed later
-  return true;
-});
+      sendResponse({ success: true });
+    }
+
+    // Allow async response if needed later
+    return true;
+  },
+);
 
 // Allow the popup to fetch the pending request
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.type === "GET_PENDING_FILL_REQUEST") {
-    chrome.storage.session.get("pendingFillRequest").then((result) => {
-      sendResponse(result.pendingFillRequest || null);
-    });
-    return true;
-  }
+chrome.runtime.onMessage.addListener(
+  (
+    message: unknown,
+    _sender: chrome.runtime.MessageSender,
+    sendResponse: (response?: unknown) => void,
+  ) => {
+    const msg = message as { type?: string };
 
-  if (message.type === "CLEAR_PENDING_FILL_REQUEST") {
-    pendingFillRequest = null;
-    chrome.storage.session.remove("pendingFillRequest");
-    sendResponse({ success: true });
-  }
-});
+    if (msg.type === "GET_PENDING_FILL_REQUEST") {
+      chrome.storage.session
+        .get("pendingFillRequest")
+        .then((result: { pendingFillRequest?: unknown }) => {
+          sendResponse(result.pendingFillRequest || null);
+        });
+      return true;
+    }
+
+    if (msg.type === "CLEAR_PENDING_FILL_REQUEST") {
+      pendingFillRequest = null;
+      chrome.storage.session.remove("pendingFillRequest");
+      sendResponse({ success: true });
+    }
+  },
+);

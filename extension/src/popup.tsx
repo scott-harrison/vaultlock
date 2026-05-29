@@ -1,6 +1,7 @@
 import type { LoginItemPlaintext, NoteItemPlaintext } from "@vaultlock/shared/types";
 import { useCallback, useEffect, useState } from "react";
 import { getAuthSession, loginAndUnlock, logout } from "./lib/auth";
+import type { AutofillRequest } from "./lib/messaging";
 import { getServerSettings } from "./lib/storage";
 import { isVaultUnlocked, lockVault } from "./lib/vaultSession";
 
@@ -167,8 +168,7 @@ export default function IndexPopup() {
   const [serverUrl, setServerUrl] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
-  // biome-ignore lint/suspicious/noExplicitAny: will be properly typed when messaging is expanded in 12-07
-  const [pendingFillRequest, setPendingFillRequest] = useState<any>(null);
+  const [pendingFillRequest, setPendingFillRequest] = useState<AutofillRequest | null>(null);
 
   useEffect(() => {
     async function init() {
@@ -191,12 +191,13 @@ export default function IndexPopup() {
           setAuthState("unlocked");
 
           // Check if the background sent us a fill request (from content script indicator click)
-          chrome.runtime.sendMessage({ type: "GET_PENDING_FILL_REQUEST" }).then((request) => {
-            if (request) {
-              setPendingFillRequest(request);
-              // In a full 12-07 implementation we would filter vault items by hostname here
-            }
-          });
+          chrome.runtime
+            .sendMessage({ type: "GET_PENDING_FILL_REQUEST" })
+            .then((request: unknown) => {
+              if (request) {
+                setPendingFillRequest(request as AutofillRequest);
+              }
+            });
         } else {
           // User is logged in but vault is locked → show unlock screen
           setEmail(session.email);
@@ -342,9 +343,10 @@ export default function IndexPopup() {
                 fontSize: 12,
               }}
             >
-              <strong>Fill request from this page:</strong> {pendingFillRequest.hostname}
-              <br />
-              <small>Fill functionality coming soon</small>
+              <strong>Login form detected on {pendingFillRequest.hostname}.</strong>
+              <div style={{ marginTop: 4, fontSize: 11, color: "#92400e" }}>
+                Select credentials below to fill (autofill support in progress).
+              </div>
             </div>
           )}
           <VaultListView onLock={handleLock} onLogout={handleLogout} />

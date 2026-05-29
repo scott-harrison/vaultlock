@@ -3,10 +3,6 @@
  *
  * We wrap chrome.storage.local (via Plasmo's recommended approach) so the rest
  * of the extension can use clean, typed async functions.
- *
- * This will be heavily used starting in 12-02 (Server connection) and 12-04 (Auth).
- *
- * For now (end of 12-01) this is the foundation. Feel free to evolve it.
  */
 
 import { Storage } from "@plasmohq/storage";
@@ -82,7 +78,7 @@ export async function clearVaultSyncToken(): Promise<void> {
   await storage.remove(KEYS.VAULT_SYNC_TOKEN);
 }
 
-/** Last known connection test result (from 12-02) */
+/** Last known connection test result */
 export type LastConnectionStatus = {
   url: string;
   success: boolean;
@@ -98,7 +94,7 @@ export async function saveLastConnectionStatus(status: LastConnectionStatus): Pr
   await storage.set("last_connection_status", status);
 }
 
-/** Wrapped DEK storage (encrypted with master key) - from 12-03 */
+/** Wrapped DEK storage (encrypted with master key) */
 export interface WrappedDekRecord {
   email: string;
   nonce: string;
