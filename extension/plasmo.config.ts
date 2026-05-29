@@ -18,8 +18,15 @@ export default defineConfig({
       "storage", // For server URL, tokens, encrypted vault cache, etc.
     ],
 
-    // We start broad. In later sub-tasks we can scope this down per-origin
-    // once the user has configured their server URL.
+    // SECURITY NOTE (tracked in #180):
+    // Broad <all_urls> access is currently required for content script field detection
+    // and future autofill across any site the user visits.
+    //
+    // This is a known high-risk permission. The long-term plan is to move toward
+    // optional_permissions + dynamic origin requests (scoped to domains where the
+    // user has saved credentials) or activeTab + user gesture patterns.
+    //
+    // Do not expand usage of this permission without a security review.
     host_permissions: ["<all_urls>"],
 
     action: {
