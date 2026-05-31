@@ -14,7 +14,6 @@ const MIGRATION_FLAG = "_storage_migrated_from_sync_v1";
 
 let migrationPromise: Promise<void> | null = null;
 
-/** One-time migration from previous storage (likely sync via @plasmohq/storage) */
 async function migrateIfNeeded(): Promise<void> {
   if (migrationPromise) return migrationPromise;
 
@@ -33,12 +32,11 @@ async function migrateIfNeeded(): Promise<void> {
           legacyData = all as Record<string, unknown>;
         }
       } catch {
-        // @plasmohq/storage may not be installed or may have no data — that's fine
+        // Package not present or no legacy data — ignore
       }
 
       if (Object.keys(legacyData).length > 0) {
         await chrome.storage.local.set(legacyData);
-        // Best effort cleanup of old data
         try {
           const { Storage } = await import("@plasmohq/storage");
           const oldStorage = new Storage();
@@ -49,7 +47,6 @@ async function migrateIfNeeded(): Promise<void> {
       await chrome.storage.local.set({ [MIGRATION_FLAG]: true });
     } catch (err) {
       console.warn("[VaultLock Storage] Migration encountered a non-fatal error:", err);
-      // Still mark as migrated so we don't keep retrying
       await chrome.storage.local.set({ [MIGRATION_FLAG]: true }).catch(() => {});
     }
   })();
