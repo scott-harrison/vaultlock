@@ -130,10 +130,6 @@ async function performVaultSync(forceFull = false): Promise<void> {
       await saveVaultSyncToken(response.sync_token);
     }
 
-    // Update in-memory for quick responses
-    encryptedVaultCache = mergedItems;
-    currentSyncToken = response.sync_token;
-
     // Notify popup that new encrypted data is available
     chrome.runtime
       .sendMessage({
@@ -144,8 +140,8 @@ async function performVaultSync(forceFull = false): Promise<void> {
   } catch (err: unknown) {
     const status = (err as { status?: number })?.status;
     if (status === 400 && !forceFull) {
-      // Stale token — clear and retry full
-      await clearVaultSyncTokenIfExists();
+      // Stale token — clear cache + token and retry full
+      await clearEncryptedVaultCacheAndToken();
       await performVaultSync(true);
       return;
     }
@@ -153,13 +149,12 @@ async function performVaultSync(forceFull = false): Promise<void> {
   }
 }
 
-async function clearVaultSyncTokenIfExists(): Promise<void> {
+async function clearEncryptedVaultCacheAndToken(): Promise<void> {
   try {
     await clearEncryptedVaultCache();
-    // Also clear the sync token so next sync is full
-    // (we can keep a separate clear if needed)
+    await clearVaultSyncToken();
   } catch {
-    // ignore
+    // ignore – best effort
   }
 }
 
@@ -189,9 +184,7 @@ chrome.runtime.onMessage.addListener(
 
     if (msg.type === "VAULT_LOCKED") {
       // We keep the encrypted cache on disk for fast resume after re-unlock.
-      // Only clear the in-memory copy.
-      encryptedVaultCache = [];
-      currentSyncToken = null;
+      // Nothing to clear in-memory anymore (we removed the broken variables).
       sendResponse({ success: true });
     }
   },
