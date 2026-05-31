@@ -5,7 +5,9 @@
       "backend/target/**",
       "desktop/src-tauri/target/**",
       "desktop/dist/**",
-      "desktop/src-tauri/gen/**"
+      "desktop/src-tauri/gen/**",
+      "extension/build/**",
+      "extension/.plasmo/**"
     ]
   },
   "organizeImports": {
