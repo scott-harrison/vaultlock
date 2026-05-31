@@ -40,8 +40,8 @@ export function CheckEmailScreen({
         <h1 className="text-3xl font-bold tracking-tight">Check your email</h1>
         <p className="text-sm text-muted-foreground">
           We sent a verification link to{" "}
-          <span className="font-medium text-foreground">{email}</span>. Click the link in your
-          email, then return here and sign in.
+          <span className="font-medium text-foreground">{email}</span>. Open the link in your email
+          to verify, then sign in here. Only paste the token below if the link did not work.
         </p>
       </div>
 

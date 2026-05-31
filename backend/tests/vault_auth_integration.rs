@@ -676,7 +676,7 @@ async fn vault_list_supports_incremental_sync_with_since() {
     );
     let (unchanged_items, unchanged_sync_token) = parse_list_response(unchanged).await;
     assert!(unchanged_items.is_empty());
-    assert!(unchanged_sync_token.is_none());
+    assert_eq!(unchanged_sync_token.as_deref(), Some(sync_token.as_str()));
 
     let (encrypted_data_b, nonce_b) = client_encrypted_blob(b"second item");
     let second_item_response = assert_status(

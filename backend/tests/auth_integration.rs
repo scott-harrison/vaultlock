@@ -271,6 +271,78 @@ async fn login_rejects_invalid_credentials() {
     assert_eq!(login_body["message"], "Invalid credentials");
 }
 
+#[tokio::test]
+async fn login_returns_429_after_three_failed_attempts() {
+    let app = TestApp::spawn().await;
+    let email = "rate-limited@example.com";
+    let valid_credential = random_credential(24);
+    let hash = phc_hash_for_credential(&valid_credential);
+
+    assert_status(
+        app.post_json(
+            "/register",
+            &json!({
+                "email": email,
+                "master_password_hash": hash
+            })
+            .to_string(),
+        )
+        .await,
+        StatusCode::CREATED,
+    );
+
+    let verification_token: String =
+        sqlx::query_scalar("SELECT verification_token FROM users WHERE email = $1")
+            .bind(email)
+            .fetch_one(&app.pool)
+            .await
+            .expect("verification token");
+
+    assert_status(
+        app.post_json(
+            "/verify-email",
+            &json!({ "token": verification_token }).to_string(),
+        )
+        .await,
+        StatusCode::OK,
+    );
+
+    for _ in 0..3 {
+        assert_status(
+            app.post_json(
+                "/login",
+                &json!({
+                    "email": email,
+                    "master_password": "wrong-password"
+                })
+                .to_string(),
+            )
+            .await,
+            StatusCode::UNAUTHORIZED,
+        );
+    }
+
+    let throttled = assert_status(
+        app.post_json(
+            "/login",
+            &json!({
+                "email": email,
+                "master_password": valid_credential
+            })
+            .to_string(),
+        )
+        .await,
+        StatusCode::TOO_MANY_REQUESTS,
+    );
+    let throttled_body: Value =
+        serde_json::from_slice(&common::TestApp::response_body(throttled).await)
+            .expect("login json");
+    assert!(throttled_body["message"]
+        .as_str()
+        .expect("message")
+        .contains("Too many failed login attempts"));
+}
+
 async fn verify_user_email(app: &TestApp, email: &str) {
     let verification_token: String =
         sqlx::query_scalar("SELECT verification_token FROM users WHERE email = $1")
@@ -555,5 +627,18 @@ async fn verify_email_open_verifies_account() {
         )
         .await,
         StatusCode::BAD_REQUEST,
+    );
+
+    assert_status(
+        app.post_json(
+            "/verify-email",
+            &json!({
+                "token": verification_token,
+                "email": email
+            })
+            .to_string(),
+        )
+        .await,
+        StatusCode::CONFLICT,
     );
 }
