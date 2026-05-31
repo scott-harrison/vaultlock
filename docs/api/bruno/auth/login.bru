@@ -4,25 +4,6 @@ meta {
   seq: 3
 }
 
-docs {
-  Authenticates a verified user and issues JWT tokens.
-
-  **POST** `{{baseUrl}}/login`
-
-  | Field | Description |
-  |-------|-------------|
-  | `email` | Registered email address |
-  | `master_password` | Master password preimage (works on any client) |
-  | `master_password_hash` | Optional legacy: exact Argon2id PHC from registration on this device |
-
-  **Responses**
-  - `200` — login successful; returns `access_token`, `token` (alias), `refresh_token`, and `message`
-  - `401` — invalid credentials
-  - `403` — email not yet verified (run **Verify Email** first)
-
-  Requires the account to be verified via `/verify-email` before login succeeds.
-}
-
 post {
   url: {{baseUrl}}/login
   body: json
@@ -32,7 +13,7 @@ post {
 body:json {
   {
     "email": "{{email}}",
-    "master_password_hash": "{{masterPasswordHash}}"
+    "master_password": "{{masterPasswordHash}}"
   }
 }
 
@@ -53,4 +34,23 @@ script:post-response {
   if (body.refresh_token) {
     bru.setVar("refreshToken", body.refresh_token);
   }
+}
+
+docs {
+  Authenticates a verified user and issues JWT tokens.
+  
+  **POST** `{{baseUrl}}/login`
+  
+  | Field | Description |
+  |-------|-------------|
+  | `email` | Registered email address |
+  | `master_password` | Master password preimage (works on any client) |
+  | `master_password_hash` | Optional legacy: exact Argon2id PHC from registration on this device |
+  
+  **Responses**
+  - `200` — login successful; returns `access_token`, `token` (alias), `refresh_token`, and `message`
+  - `401` — invalid credentials
+  - `403` — email not yet verified (run **Verify Email** first)
+  
+  Requires the account to be verified via `/verify-email` before login succeeds.
 }

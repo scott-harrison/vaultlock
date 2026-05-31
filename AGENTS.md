@@ -145,6 +145,15 @@ pnpm check:deps               # Explicit pinned dependency audit
 - The DEK (data encryption key) never leaves the client. The server only ever sees opaque `encrypted_data` + `nonce` blobs.
 - Prefer composition over deep inheritance in both Rust and TypeScript.
 
+### Comments and Self-Documenting Code
+
+- Code should be self-explanatory through clear naming, small focused functions, and good structure. Prefer these over comments.
+- Only add a comment when the intent or the "why" would not be obvious to another engineer who knows the project.
+- Comments must explain *why* something is done (a security constraint, non-obvious business rule, historical context, or tricky invariant) — not restate *what* the code does.
+- Do not add obvious comments that describe the immediate action (e.g. `// increment counter`, `// save to storage`).
+- Never leave commented-out code in the repository.
+- When changing behavior, update or delete any comments that no longer accurately describe the code.
+
 ---
 
 ## 6. Security & Compliance (Critical for VaultLock)

@@ -46,6 +46,9 @@ pub struct LoginRequest {
 #[derive(Deserialize)]
 pub struct VerifyEmailRequest {
     pub token: String,
+    /// Helps return a clearer response when the link was already used in a browser.
+    #[serde(default)]
+    pub email: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -173,9 +176,17 @@ pub async fn verify_email(
     State(state): State<AppState>,
     Json(payload): Json<VerifyEmailRequest>,
 ) -> (StatusCode, Json<AuthResponse>) {
+    let token = payload.token.trim();
+    if token.is_empty() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(AuthResponse::error("Verification token is required".to_string())),
+        );
+    }
+
     let repo = UserRepository::new(state.db.clone());
 
-    match repo.verify_email(&payload.token).await {
+    match repo.verify_email(token).await {
         Ok(Some(user)) => {
             match issue_auth_success(&state, &user, "Email verified successfully".to_string()).await
             {
@@ -189,12 +200,32 @@ pub async fn verify_email(
                 }
             }
         }
-        Ok(None) => (
-            StatusCode::BAD_REQUEST,
-            Json(AuthResponse::error(
-                "Invalid or expired verification token".to_string(),
-            )),
-        ),
+        Ok(None) => {
+            if let Some(email) = payload
+                .email
+                .as_deref()
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+            {
+                if let Ok(Some(user)) = repo.find_by_email(email).await {
+                    if user.email_verified {
+                        return (
+                            StatusCode::CONFLICT,
+                            Json(AuthResponse::error(
+                                "Email already verified. Sign in with your master password."
+                                    .to_string(),
+                            )),
+                        );
+                    }
+                }
+            }
+            (
+                StatusCode::BAD_REQUEST,
+                Json(AuthResponse::error(
+                    "Invalid or expired verification token".to_string(),
+                )),
+            )
+        }
         Err(e) => {
             tracing::warn!(?e, "database error during email verification");
             (
@@ -243,7 +274,17 @@ pub async fn login(
     Json(payload): Json<LoginRequest>,
 ) -> (StatusCode, Json<AuthResponse>) {
     tracing::debug!(email = %payload.email, "login attempt");
-    state.login_delay.wait_before_login(&payload.email).await;
+
+    let delay = state.login_delay.remaining_delay(&payload.email).await;
+    if !delay.is_zero() {
+        let secs = delay.as_secs().max(1);
+        return (
+            StatusCode::TOO_MANY_REQUESTS,
+            Json(AuthResponse::error(format!(
+                "Too many failed login attempts. Try again in {secs} seconds."
+            ))),
+        );
+    }
 
     let repo = UserRepository::new(state.db.clone());
 
@@ -533,8 +574,9 @@ fn verification_email_url(token: &str) -> String {
     format!("{public_base}/verify-email/open?token={token}")
 }
 
-fn verification_email_html(verify_link: &str) -> String {
+fn verification_email_html(verify_link: &str, token: &str) -> String {
     let escaped_link = html_escape(verify_link);
+    let escaped_token = html_escape(token);
 
     format!(
         r#"<!DOCTYPE html>
@@ -543,6 +585,8 @@ fn verification_email_html(verify_link: &str) -> String {
   <h2>Welcome to Vaultlock!</h2>
   <p>Please verify your email address by clicking the link below:</p>
   <p><a href="{escaped_link}" style="color: #2563eb;">Verify Email</a></p>
+  <p>If the link does not work, copy this verification token into Vaultlock on the check-email screen:</p>
+  <p style="font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.95rem; background: #f4f4f5; padding: 0.75rem 1rem; border-radius: 0.5rem; word-break: break-all;">{escaped_token}</p>
   <p>After verifying, return to the Vaultlock app and sign in.</p>
   <p>If you did not create this account, you can safely ignore this email.</p>
 </body>
@@ -599,7 +643,7 @@ async fn send_verification_email(email: &str, token: &str) -> anyhow::Result<()>
         .map_err(|_| anyhow::anyhow!("RESEND_API_KEY must be set for email verification"))?;
 
     let verify_url = verification_email_url(token);
-    let html = verification_email_html(&verify_url);
+    let html = verification_email_html(&verify_url, token);
 
     let payload = serde_json::json!({
         "from": "Vaultlock <onboarding@resend.dev>",
@@ -669,9 +713,14 @@ mod tests {
 
     #[test]
     fn verification_email_html_includes_clickable_https_link() {
-        let html = verification_email_html("http://localhost:8080/verify-email/open?token=abc-123");
+        let html = verification_email_html(
+            "http://localhost:8080/verify-email/open?token=abc-123",
+            "abc-123",
+        );
         assert!(html.contains(r#"href="http://localhost:8080/verify-email/open?token=abc-123""#));
         assert!(html.contains("Verify Email"));
+        assert!(html.contains("abc-123"));
+        assert!(html.contains("copy this verification token"));
     }
 
     #[test]

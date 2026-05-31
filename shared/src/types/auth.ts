@@ -18,6 +18,8 @@ export interface LoginRequest {
 
 export interface VerifyEmailRequest {
   token: string;
+  /** When the email link was already opened, the server can confirm verification status. */
+  email?: string;
 }
 
 export interface AuthResponse {

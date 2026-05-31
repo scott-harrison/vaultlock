@@ -21,7 +21,7 @@ pub fn max_requests() -> usize {
     std::env::var("AUTH_RATE_LIMIT_MAX")
         .ok()
         .and_then(|value| value.parse().ok())
-        .unwrap_or(5)
+        .unwrap_or(15)
 }
 
 pub fn window_secs() -> u64 {
@@ -134,7 +134,7 @@ mod tests {
         let limiter = AuthRateLimiter::in_memory();
         let key = "127.0.0.1";
 
-        for _ in 0..4 {
+        for _ in 0..14 {
             assert_eq!(limiter.check(key).await, Ok(()));
         }
     }
@@ -144,7 +144,7 @@ mod tests {
         let limiter = AuthRateLimiter::in_memory();
         let key = "127.0.0.1";
 
-        for _ in 0..5 {
+        for _ in 0..15 {
             assert_eq!(limiter.check(key).await, Ok(()));
         }
 

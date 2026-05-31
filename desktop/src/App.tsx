@@ -16,7 +16,7 @@ import { TooltipProvider } from "./components/ui/tooltip";
 import { useAutoLock } from "./hooks/useAutoLock";
 import { useMountEffect } from "./hooks/useMountEffect";
 import { useVerifyDeepLink } from "./hooks/useVerifyDeepLink";
-import { createApiClient } from "./lib/apiClient";
+import { createApiClient, createAuthApiClient } from "./lib/apiClient";
 import {
   type AuthSession,
   clearAllAuthData,
@@ -80,12 +80,22 @@ function authErrorMessage(error: unknown, fallback: string): string {
     if (error.status === 401) {
       return error.message || GENERIC_SIGN_IN_ERROR;
     }
+    if (error.status === 429) {
+      return error.message || "Too many login attempts. Please wait before trying again.";
+    }
     if (error.status >= 500 && error.message.toLowerCase().includes("database")) {
       return "The server couldn't reach its database. Make sure PostgreSQL is running, then try again.";
     }
     return error.message || fallback;
   }
   if (error instanceof Error && error.message) {
+    if (
+      error.name === "AbortError" ||
+      error.name === "TimeoutError" ||
+      /aborted|timed out/i.test(error.message)
+    ) {
+      return "The server took too long to respond. Check that it is running, then try again.";
+    }
     return error.message;
   }
   return fallback;
@@ -228,10 +238,13 @@ function App() {
   };
 
   const completeVerification = async (token: string) => {
-    const client = await createApiClient();
-    const response = await client.verifyEmail({ token });
+    const client = await createAuthApiClient();
     const credentials = await loadCredentials();
     const email = credentials?.email ?? pendingVerificationEmail ?? "";
+    const response = await client.verifyEmail({
+      token: token.trim(),
+      email: email || undefined,
+    });
     const nextSession = sessionFromAuthResponse(email, response);
     await saveSession(nextSession);
     await persistCredentialsFromAuth(email, response);
@@ -245,7 +258,7 @@ function App() {
 
   const handleVerify = async (token: string) => {
     resetFeedback();
-    if (!token) {
+    if (!token.trim()) {
       setScreenError(GENERIC_VERIFY_ERROR);
       return;
     }
@@ -253,8 +266,23 @@ function App() {
     setIsSubmitting(true);
     try {
       await completeVerification(token);
-    } catch {
-      setScreenError(GENERIC_VERIFY_ERROR);
+    } catch (error) {
+      if (error instanceof VaultlockApiError && error.status === 409) {
+        await clearPendingVerificationEmail();
+        setPendingVerificationEmail(null);
+        setScreen("sign-in");
+        setScreenSuccess(
+          error.message || "Email verified. Sign in with your master password.",
+        );
+        return;
+      }
+      if (error instanceof VaultlockApiError && error.status === 400) {
+        setScreenError(
+          "This token is invalid or was already used. If you clicked the link in your email, use Sign in below.",
+        );
+        return;
+      }
+      setScreenError(authErrorMessage(error, GENERIC_VERIFY_ERROR));
     } finally {
       setIsSubmitting(false);
     }
@@ -274,7 +302,23 @@ function App() {
     resetFeedback();
     setIsSubmitting(true);
     completeVerification(action.token)
-      .catch(() => setScreenError(GENERIC_VERIFY_ERROR))
+      .catch((error) => {
+        if (error instanceof VaultlockApiError && error.status === 409) {
+          void clearPendingVerificationEmail().then(() => {
+            setPendingVerificationEmail(null);
+            setScreen("sign-in");
+            setScreenSuccess(
+              error.message || "Email verified. Sign in with your master password.",
+            );
+          });
+          return;
+        }
+        setScreenError(
+          error instanceof VaultlockApiError && error.status === 400
+            ? "This token is invalid or was already used. If you clicked the link in your email, use Sign in below."
+            : authErrorMessage(error, GENERIC_VERIFY_ERROR),
+        );
+      })
       .finally(() => setIsSubmitting(false));
   };
 
@@ -326,7 +370,7 @@ function App() {
     let authenticated = false;
 
     try {
-      const client = await createApiClient();
+      const client = await createAuthApiClient();
       const response = await client.login({
         email,
         master_password: password,
@@ -388,7 +432,7 @@ function App() {
         return;
       }
 
-      const client = await createApiClient();
+      const client = await createAuthApiClient();
       const response = await client.login({
         email: session.email,
         master_password: password,

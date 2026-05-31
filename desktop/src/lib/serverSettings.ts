@@ -6,6 +6,8 @@ export const SERVER_ADVANCED_KEY = "server_advanced";
 
 const SETTINGS_STORE = "settings.json";
 const DEFAULT_TIMEOUT_MS = 15_000;
+/** Login can include Argon2 verification; keep above interactive crypto budget. */
+export const AUTH_REQUEST_TIMEOUT_MS = 60_000;
 
 export interface ServerAdvancedOptions {
   requestTimeoutMs: number;
@@ -130,7 +132,13 @@ export async function connectServer(
 export function createTimedFetch(timeoutMs: number): typeof fetch {
   return (input, init) => {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    const timeoutId = setTimeout(() => {
+      controller.abort(
+        typeof DOMException !== "undefined"
+          ? new DOMException(`Request timed out after ${timeoutMs}ms`, "TimeoutError")
+          : undefined,
+      );
+    }, timeoutMs);
     const signals = [controller.signal];
     if (init?.signal) {
       signals.push(init.signal);
@@ -143,4 +151,8 @@ export function createTimedFetch(timeoutMs: number): typeof fetch {
       .fetch(input, { ...init, signal: combinedSignal })
       .finally(() => clearTimeout(timeoutId));
   };
+}
+
+export function createAuthTimedFetch(advanced: ServerAdvancedOptions): typeof fetch {
+  return createTimedFetch(Math.max(advanced.requestTimeoutMs, AUTH_REQUEST_TIMEOUT_MS));
 }

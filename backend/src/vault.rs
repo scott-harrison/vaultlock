@@ -110,7 +110,17 @@ pub async fn list_vault_items(
     let repo = VaultItemRepository::new(state.db.clone());
 
     match repo.find_by_user(user_id, since).await {
-        Ok(items) => Ok(Json(VaultItemListResponse::from_items(items))),
+        Ok(items) => {
+            let response = if items.is_empty() {
+                VaultItemListResponse {
+                    items: vec![],
+                    sync_token: since,
+                }
+            } else {
+                VaultItemListResponse::from_items(items)
+            };
+            Ok(Json(response))
+        }
         Err(e) => {
             tracing::error!(?e, "failed to list vault items");
             Err((

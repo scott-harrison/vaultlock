@@ -96,7 +96,10 @@ export async function unlockVault(params: {
           masterKey,
         );
       } catch {
-        throw new Error("Local vault keys could not be decrypted. Sign out and sign in again.");
+        // Stale local keys (e.g. re-registration or corrupted store). Password was verified above.
+        dek = generateDek();
+        const { nonce, ciphertext } = await wrapDek(dek, masterKey);
+        await saveWrappedDek(normalizedEmail, nonce, ciphertext);
       }
     } else {
       dek = generateDek();

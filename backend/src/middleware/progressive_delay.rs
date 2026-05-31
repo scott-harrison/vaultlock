@@ -7,8 +7,11 @@ use std::{
 };
 use tokio::sync::Mutex;
 
-/// Delays applied before processing the next login attempt, keyed by prior failure count.
-/// 0 failures → 0s, then 30s → 5m → 30m → 1h → 1d (capped).
+/// Failed login attempts allowed before progressive delay applies.
+const FREE_FAILURE_ATTEMPTS: u32 = 3;
+
+/// Delays applied once free attempts are exhausted (failure count minus free allowance).
+/// 1st throttled failure → 30s, then 5m → 30m → 1h → 1d (capped).
 const FAILURE_DELAYS: &[Duration] = &[
     Duration::ZERO,
     Duration::from_secs(30),
@@ -40,9 +43,14 @@ impl ProgressiveDelay {
         }
     }
 
-    /// Sleep before handling a login, based on how many prior failures this identifier has.
+    /// Remaining delay before another login attempt is accepted for this identifier.
+    pub async fn remaining_delay(&self, identifier: &str) -> Duration {
+        self.current_delay(identifier).await
+    }
+
+    /// Sleep before handling a login (deprecated for HTTP handlers — prefer `remaining_delay` + 429).
     pub async fn wait_before_login(&self, identifier: &str) {
-        let delay = self.current_delay(identifier).await;
+        let delay = self.remaining_delay(identifier).await;
         if !delay.is_zero() {
             tokio::time::sleep(delay).await;
         }
@@ -91,8 +99,13 @@ fn normalize_identifier(identifier: &str) -> String {
 }
 
 fn delay_for_failure_count(failure_count: u32) -> Duration {
+    if failure_count < FREE_FAILURE_ATTEMPTS {
+        return Duration::ZERO;
+    }
+
+    let throttled_failures = failure_count - FREE_FAILURE_ATTEMPTS + 1;
     let max_index = FAILURE_DELAYS.len() - 1;
-    let index = (failure_count as usize).min(max_index);
+    let index = (throttled_failures as usize).min(max_index);
     FAILURE_DELAYS[index]
 }
 
@@ -101,14 +114,16 @@ mod tests {
     use super::*;
 
     #[test]
-    fn delay_schedule_matches_spec() {
+    fn delay_schedule_allows_free_attempts_before_throttling() {
         assert_eq!(delay_for_failure_count(0), Duration::ZERO);
-        assert_eq!(delay_for_failure_count(1), Duration::from_secs(30));
-        assert_eq!(delay_for_failure_count(2), Duration::from_secs(5 * 60));
-        assert_eq!(delay_for_failure_count(3), Duration::from_secs(30 * 60));
-        assert_eq!(delay_for_failure_count(4), Duration::from_secs(60 * 60));
+        assert_eq!(delay_for_failure_count(1), Duration::ZERO);
+        assert_eq!(delay_for_failure_count(2), Duration::ZERO);
+        assert_eq!(delay_for_failure_count(3), Duration::from_secs(30));
+        assert_eq!(delay_for_failure_count(4), Duration::from_secs(5 * 60));
+        assert_eq!(delay_for_failure_count(5), Duration::from_secs(30 * 60));
+        assert_eq!(delay_for_failure_count(6), Duration::from_secs(60 * 60));
         assert_eq!(
-            delay_for_failure_count(5),
+            delay_for_failure_count(7),
             Duration::from_secs(24 * 60 * 60)
         );
         assert_eq!(
@@ -124,7 +139,10 @@ mod tests {
 
         delay.record_failure(id).await;
         delay.record_failure(id).await;
-        assert_eq!(delay.current_delay(id).await, Duration::from_secs(5 * 60));
+        assert_eq!(delay.current_delay(id).await, Duration::ZERO);
+
+        delay.record_failure(id).await;
+        assert_eq!(delay.current_delay(id).await, Duration::from_secs(30));
 
         delay.clear(id).await;
         assert_eq!(delay.current_delay(id).await, Duration::ZERO);
