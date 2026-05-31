@@ -271,9 +271,7 @@ function App() {
         await clearPendingVerificationEmail();
         setPendingVerificationEmail(null);
         setScreen("sign-in");
-        setScreenSuccess(
-          error.message || "Email verified. Sign in with your master password.",
-        );
+        setScreenSuccess(error.message || "Email verified. Sign in with your master password.");
         return;
       }
       if (error instanceof VaultlockApiError && error.status === 400) {
@@ -307,9 +305,7 @@ function App() {
           void clearPendingVerificationEmail().then(() => {
             setPendingVerificationEmail(null);
             setScreen("sign-in");
-            setScreenSuccess(
-              error.message || "Email verified. Sign in with your master password.",
-            );
+            setScreenSuccess(error.message || "Email verified. Sign in with your master password.");
           });
           return;
         }

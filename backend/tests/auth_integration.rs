@@ -337,12 +337,10 @@ async fn login_returns_429_after_three_failed_attempts() {
     let throttled_body: Value =
         serde_json::from_slice(&common::TestApp::response_body(throttled).await)
             .expect("login json");
-    assert!(
-        throttled_body["message"]
-            .as_str()
-            .expect("message")
-            .contains("Too many failed login attempts")
-    );
+    assert!(throttled_body["message"]
+        .as_str()
+        .expect("message")
+        .contains("Too many failed login attempts"));
 }
 
 async fn verify_user_email(app: &TestApp, email: &str) {

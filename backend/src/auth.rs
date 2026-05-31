@@ -180,7 +180,9 @@ pub async fn verify_email(
     if token.is_empty() {
         return (
             StatusCode::BAD_REQUEST,
-            Json(AuthResponse::error("Verification token is required".to_string())),
+            Json(AuthResponse::error(
+                "Verification token is required".to_string(),
+            )),
         );
     }
 
