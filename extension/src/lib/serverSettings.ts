@@ -14,6 +14,11 @@ import {
 
 export interface ServerAdvancedOptions {
   requestTimeoutMs: number;
+  /**
+   * DANGEROUS: Allows plaintext HTTP connections.
+   * Only intended for local development against http://localhost.
+   * Tracked as a security concern in #182.
+   */
   allowInsecureHttp: boolean;
 }
 
@@ -88,6 +93,14 @@ export async function saveServerConnection(
 
   if (!result.success) {
     throw new Error(result.error || "Could not connect to the server.");
+  }
+
+  if (advanced.allowInsecureHttp) {
+    console.warn(
+      "[VaultLock] SECURITY WARNING: allowInsecureHttp is enabled. " +
+        "Master password and tokens will be sent over plaintext HTTP. " +
+        "This setting is tracked in security sub-ticket #182.",
+    );
   }
 
   await saveServerSettings({
