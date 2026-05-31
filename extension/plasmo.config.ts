@@ -18,7 +18,7 @@ export default defineConfig({
       "storage", // For server URL, tokens, encrypted vault cache, etc.
     ],
 
-    // SECURITY NOTE (tracked in #180):
+    // SECURITY NOTE
     // Broad <all_urls> access is currently required for content script field detection
     // and future autofill across any site the user visits.
     //
