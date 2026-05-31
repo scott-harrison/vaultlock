@@ -3,11 +3,10 @@
  *
  * Uses chrome.storage.local directly (higher write quotas than sync).
  * This eliminates the MAX_WRITE_OPERATIONS_PER_MINUTE quota problems
- * that occurred when the extension previously used @plasmohq/storage
- * (which defaults to sync storage).
+ * caused by previous reliance on the low-quota sync storage area.
  *
- * A robust one-time migration from the old storage area is performed
- * on first access.
+ * A one-time best-effort migration from the old area runs on first access
+ * and then permanently stops touching it.
  */
 
 const MIGRATION_FLAG = "_storage_migrated_from_sync_v1";
@@ -22,26 +21,25 @@ async function migrateIfNeeded(): Promise<void> {
       const flag = await chrome.storage.local.get(MIGRATION_FLAG);
       if (flag[MIGRATION_FLAG]) return;
 
-      // Attempt to read from the old @plasmohq/storage instance if it still exists
-      let legacyData: Record<string, unknown> = {};
-      try {
-        const { Storage } = await import("@plasmohq/storage");
-        const oldStorage = new Storage();
-        const all = await oldStorage.get<Record<string, unknown>>(null);
-        if (all && typeof all === "object") {
-          legacyData = all as Record<string, unknown>;
-        }
-      } catch {
-        // Package not present or no legacy data — ignore
-      }
+      // Read whatever the previous implementation (which hit .sync and caused quota errors)
+      // may have persisted. We do this with native APIs only — no dependency on the old
+      // package that was never properly declared in package.json.
+      const syncData = await chrome.storage.sync.get(null);
 
-      if (Object.keys(legacyData).length > 0) {
-        await chrome.storage.local.set(legacyData);
-        try {
-          const { Storage } = await import("@plasmohq/storage");
-          const oldStorage = new Storage();
-          await oldStorage.clear?.();
-        } catch {}
+      if (syncData && typeof syncData === "object") {
+        const toMigrate: Record<string, unknown> = {};
+        for (const [key, value] of Object.entries(syncData)) {
+          if (key !== MIGRATION_FLAG) {
+            toMigrate[key] = value;
+          }
+        }
+
+        if (Object.keys(toMigrate).length > 0) {
+          await chrome.storage.local.set(toMigrate);
+
+          // Best-effort cleanup of the source so we stop burning the very low sync quota.
+          await chrome.storage.sync.remove(Object.keys(toMigrate)).catch(() => {});
+        }
       }
 
       await chrome.storage.local.set({ [MIGRATION_FLAG]: true });
