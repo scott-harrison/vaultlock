@@ -1,5 +1,6 @@
 use anyhow::Result;
 use sqlx::PgPool;
+use uuid::Uuid;
 
 use crate::models::user::{CreateUser, User};
 
@@ -18,7 +19,7 @@ impl UserRepository {
             INSERT INTO users (email, master_password_hash, verification_token, email_verified)
             VALUES ($1, $2, $3, FALSE)
             RETURNING id, email, master_password_hash, email_verified, verification_token,
-                      created_at, updated_at
+                      wrapped_dek, created_at, updated_at
             ",
         )
         .bind(&user.email)
@@ -34,7 +35,7 @@ impl UserRepository {
         let user = sqlx::query_as::<_, User>(
             r"
             SELECT id, email, master_password_hash, email_verified, verification_token,
-                   created_at, updated_at
+                   wrapped_dek, created_at, updated_at
             FROM users
             WHERE email = $1
             ",
@@ -64,7 +65,7 @@ impl UserRepository {
                 updated_at = NOW()
             WHERE verification_token = $1 AND email_verified = FALSE
             RETURNING id, email, master_password_hash, email_verified, verification_token,
-                      created_at, updated_at
+                      wrapped_dek, created_at, updated_at
             ",
         )
         .bind(token)
@@ -72,5 +73,26 @@ impl UserRepository {
         .await?;
 
         Ok(user)
+    }
+
+    pub async fn save_wrapped_dek(
+        &self,
+        user_id: Uuid,
+        wrapped_dek: serde_json::Value,
+    ) -> Result<()> {
+        sqlx::query(
+            r"
+            UPDATE users
+            SET wrapped_dek = $2,
+                updated_at = NOW()
+            WHERE id = $1
+            ",
+        )
+        .bind(user_id)
+        .bind(wrapped_dek)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
     }
 }

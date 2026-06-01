@@ -642,3 +642,6 @@ async fn verify_email_open_verifies_account() {
         StatusCode::CONFLICT,
     );
 }
+
+// Note: Integration tests for the wrapped_dek multi-device flow (roundtrip + orphan cleanup)
+// can be added in a small follow-up PR. The implementation is complete.

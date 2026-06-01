@@ -47,16 +47,12 @@ export function setDataEncryptionKey(dek: Uint8Array): void {
   dataEncryptionKey = new Uint8Array(dek);
 }
 
-/**
- * Main unlock function.
- * Verifies the master password, derives the master key, unwraps (or creates) the DEK,
- * and keeps the DEK in memory.
- */
 export async function unlockVault(params: {
   email: string;
   masterPassword: string;
   masterPasswordHash: string;
-}): Promise<void> {
+  wrappedDekFromServer?: Record<string, unknown>;
+}): Promise<{ generatedNewDek: boolean }> {
   const passwordValid = await verifyMasterPasswordAuth(
     params.masterPassword,
     params.masterPasswordHash,
@@ -70,37 +66,55 @@ export async function unlockVault(params: {
   const masterKey = await deriveMasterKey(params.masterPassword, normalizedEmail);
 
   try {
-    const existing = await loadWrappedDek(normalizedEmail);
-    let dek: Uint8Array;
+    let dek: Uint8Array | null = null;
 
-    if (existing) {
+    const local = await loadWrappedDek(normalizedEmail);
+    const fromServer = params.wrappedDekFromServer as
+      | { nonce?: string; ciphertext?: string }
+      | undefined;
+
+    const candidate =
+      local ??
+      (fromServer?.nonce && fromServer?.ciphertext
+        ? { nonce: fromServer.nonce, ciphertext: fromServer.ciphertext }
+        : null);
+
+    if (candidate) {
       try {
         dek = await unwrapDek(
-          fromBase64(existing.nonce),
-          fromBase64(existing.ciphertext),
+          fromBase64(candidate.nonce),
+          fromBase64(candidate.ciphertext),
           masterKey,
         );
+
+        // Persist the wrapped_dek locally if it came from the server
+        // (so we don't need the server response on every future unlock on this device).
+        if (!local && fromServer?.nonce && fromServer?.ciphertext) {
+          await saveWrappedDek(normalizedEmail, candidate.nonce, candidate.ciphertext);
+        }
       } catch {
-        throw new Error("Local vault keys could not be decrypted. Sign out and sign in again.");
+        dek = null;
       }
-    } else {
-      // First time unlock on this device — generate a new DEK
+    }
+
+    let generatedNewDek = false;
+
+    if (!dek) {
       dek = crypto.getRandomValues(new Uint8Array(32));
       const { nonce, ciphertext } = await wrapDek(dek, masterKey);
       await saveWrappedDek(normalizedEmail, toBase64(nonce), toBase64(ciphertext));
+      generatedNewDek = true;
     }
 
     lockVault();
     dataEncryptionKey = dek;
+
+    return { generatedNewDek };
   } finally {
-    // Always zeroize the master key from memory
     masterKey.fill(0);
   }
 }
 
-/**
- * Locks the vault by clearing the in-memory DEK.
- */
 export function lockVault(): void {
   if (dataEncryptionKey) {
     dataEncryptionKey.fill(0);
@@ -114,6 +128,14 @@ export function lockVault(): void {
 export function restoreUnlockedDek(dek: Uint8Array): void {
   lockVault();
   dataEncryptionKey = new Uint8Array(dek);
+}
+
+/**
+ * Returns the currently wrapped DEK record from local storage for the given email.
+ * Useful for uploading to the server after first unlock on a device.
+ */
+export async function getCurrentWrappedDek(email: string) {
+  return loadWrappedDek(email);
 }
 
 /**

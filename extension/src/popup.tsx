@@ -180,7 +180,11 @@ function VaultListView({ onLock, onLogout }: { onLock: () => void; onLogout: () 
         </div>
       )}
 
-      {error && <p style={{ color: "red", fontSize: 12, marginBottom: 8 }}>{error}</p>}
+      {error && (
+        <p style={{ color: "#b91c1c", fontSize: 12, marginBottom: 8, whiteSpace: "pre-line" }}>
+          {error}
+        </p>
+      )}
 
       {filtered.length === 0 && !error && (
         <p style={{ fontSize: 13, color: "#666", padding: "8px 0" }}>

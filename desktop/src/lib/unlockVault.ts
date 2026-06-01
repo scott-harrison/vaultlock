@@ -9,7 +9,8 @@ export async function unlockVaultForUser(
   email: string,
   masterPassword: string,
   masterPasswordHashFromLogin?: string,
-): Promise<void> {
+  wrappedDekFromLogin?: Record<string, unknown>,
+): Promise<{ generatedNewDek: boolean }> {
   const normalizedEmail = email.trim().toLowerCase();
   let masterPasswordHash = masterPasswordHashFromLogin?.trim();
 
@@ -24,11 +25,13 @@ export async function unlockVaultForUser(
   }
 
   try {
-    await unlockVault({
+    const result = await unlockVault({
       email: normalizedEmail,
       masterPassword,
       masterPasswordHash,
+      wrappedDekFromServer: wrappedDekFromLogin,
     });
+    return result; // propagate whether we generated a new DEK
   } catch (error) {
     if (error instanceof Error && error.message === "Invalid master password") {
       throw new Error(INVALID_CREDENTIALS);

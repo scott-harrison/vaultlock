@@ -8,7 +8,7 @@ mod vault;
 pub use middleware::rate_limit::AuthRateLimiter;
 
 use crate::auth::jwt::JwtConfig;
-use crate::auth::{login, refresh, register, verify_email, verify_email_open};
+use crate::auth::{login, refresh, register, save_wrapped_dek, verify_email, verify_email_open};
 use crate::middleware::{
     jwt_auth::jwt_auth_middleware, progressive_delay::ProgressiveDelay,
     rate_limit::auth_rate_limit_middleware,
@@ -51,7 +51,7 @@ pub fn app(db: PgPool, jwt: JwtConfig, auth_rate_limiter: AuthRateLimiter) -> Ro
             "/vault/items",
             get(list_vault_items).post(create_vault_item),
         )
-        .route_layer(jwt_auth);
+        .route_layer(jwt_auth.clone());
 
     Router::new()
         .route("/health", get(health_check))
@@ -66,6 +66,10 @@ pub fn app(db: PgPool, jwt: JwtConfig, auth_rate_limiter: AuthRateLimiter) -> Ro
         .route("/verify-email/open", get(verify_email_open))
         .route("/login", post(login).route_layer(auth_rate_limit.clone()))
         .route("/refresh", post(refresh).route_layer(auth_rate_limit))
+        .route(
+            "/users/me/wrapped-dek",
+            post(save_wrapped_dek).route_layer(jwt_auth),
+        )
         .merge(vault_routes)
         .layer(CorsLayer::permissive())
         .with_state(state)

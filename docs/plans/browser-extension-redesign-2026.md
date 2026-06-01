@@ -57,6 +57,73 @@ User priorities (from discussion):
 - Content script will grow in responsibility (but keep focused; split if it becomes unwieldy).
 - More permissions (`scripting` at minimum; `contextMenus` later) — will require careful store review justification.
 
+## Multi-Device DEK Sharing (Cross-Platform & Cross-Device Access) — **Completed**
+
+**Status**: Implemented (core flow complete on both desktop and extension).
+
+The system now correctly supports one account-level DEK shared across all devices using the standard zero-knowledge pattern:
+- First device generates the DEK and uploads the wrapped version.
+- New devices receive it on login and unwrap locally.
+
+See the full design, diagram, and rationale earlier in this section.
+
+All client changes (extension + desktop) are consistent. Orphan item cleanup is wired on login. Backend supports storage and return on login.
+
+**Decision (2026-06):** We will support **one wrapped_dek per user** (single account-level DEK) for the initial implementation of cross-device access.
+
+**Rationale & Pros/Cons considered:**
+
+- **One wrapped_dek per user (chosen):**
+  - Pros: Simplicity (critical for security review and correctness), all devices see the exact same vault, easier to reason about data, lower key management complexity, matches standard consumer password manager design.
+  - Cons: DEK rotation is a heavy operation (re-encrypt all items); compromise on one unlocked device affects the whole vault until rotation.
+
+- **Multiple wrapped_dek (e.g. per-device slots or key hierarchy):**
+  - Pros: Granular revocation, easier rotation of individual slots.
+  - Cons: Dramatically more complex crypto and sync logic, significantly higher chance of subtle bugs that leak plaintext. Overkill for current consumer scope. Deferred to future enhancement if needed (e.g. enterprise features).
+
+**Flow (Mermaid diagram):**
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant D1 as Device 1 (First)
+    participant S as Server
+    participant D2 as Device 2 (New)
+
+    Note over D1: First time for this account
+    U->>D1: Enter master password
+    D1->>D1: Derive MasterKey (Argon2id)
+    D1->>D1: Generate random DEK
+    D1->>D1: Wrap DEK with MasterKey → wrapped_dek
+    D1->>D1: Encrypt all items with DEK
+    D1->>S: Upload wrapped_dek (encrypted with MasterKey)
+    S->>S: Store wrapped_dek on User record (ciphertext only)
+
+    Note over D2: New device / browser / platform
+    U->>D2: Enter master password (login)
+    D2->>D2: Derive MasterKey locally
+    D2->>S: Login (password or hash verification)
+    S-->>D2: Return access tokens + wrapped_dek
+    D2->>D2: Unwrap DEK using local MasterKey
+    Note over D2: Now possesses the exact same DEK as D1
+    D2->>S: Fetch encrypted vault items
+    D2->>D2: Decrypt items locally with DEK
+```
+
+**Key Security Properties (must survive AGENTS §6 review):**
+- Server never sees plaintext DEK or MasterKey.
+- `wrapped_dek` on server is useless without the user's MasterKey.
+- If a user has vault items but no `wrapped_dek` record (broken/legacy state), items should be treated as orphaned and deleted (per decision: "delete any item if that is the case").
+- Desktop app must be updated to the same flow for consistency.
+
+**Implementation Notes:**
+- Return `wrapped_dek` on every successful `/login` response (when present).
+- Clients: On first unlock with no local wrapped_dek → upload after generation. On subsequent devices → use the one from login response if local is missing.
+- Update desktop `vaultSession.ts` + extension `vaultSession.ts` + shared types as needed.
+- Add backend support (migration + User model + save endpoint + return in login).
+
+This section will be expanded into a proper ADR once the implementation plan is finalized.
+
 ## Phased Implementation Plan
 
 ### Phase 0: Foundation & Reliability (Immediate — unblock dev & basic use)

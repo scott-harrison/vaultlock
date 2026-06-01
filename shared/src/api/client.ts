@@ -90,6 +90,13 @@ export class VaultlockApiClient {
     });
   }
 
+  async saveWrappedDek(accessToken: string, wrappedDek: Record<string, unknown>): Promise<void> {
+    await this.requestJson("POST", "/users/me/wrapped-dek", {
+      accessToken,
+      body: JSON.stringify({ wrapped_dek: wrappedDek }),
+    });
+  }
+
   async updateVaultItem(
     accessToken: string,
     itemId: string,
