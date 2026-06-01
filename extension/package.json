@@ -5,8 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "plasmo dev",
-    "dev:brave": "plasmo dev -- --target=brave-mv3",
+    "dev:brave": "node scripts/plasmo-dev.mjs brave-mv3",
     "build": "plasmo build",
+    "build:brave": "plasmo build -- --target=brave-mv3",
     "lint": "biome lint .",
     "format": "biome format --write ."
   },
@@ -21,5 +22,20 @@
     "@types/react": "18.3.18",
     "@types/react-dom": "18.3.5",
     "typescript": "5.9.3"
+  },
+  "manifest": {
+    "name": "VaultLock",
+    "description": "Secure. Simple. Yours. — Self-hosted password manager",
+    "permissions": ["storage"],
+    "host_permissions": ["<all_urls>"],
+    "browser_specific_settings": {
+      "gecko": {
+        "id": "vaultlock@scott-harrison.dev",
+        "strict_min_version": "109.0"
+      }
+    },
+    "content_security_policy": {
+      "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self';"
+    }
   }
 }

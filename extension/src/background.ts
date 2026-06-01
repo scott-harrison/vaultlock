@@ -10,6 +10,7 @@
 import { VaultlockApiClient } from "@vaultlock/shared/api";
 import type { VaultItemResponse } from "@vaultlock/shared/types";
 import { getAuthSession } from "./lib/auth";
+import { getStorageSession } from "./lib/browser";
 import type { AutofillRequest } from "./lib/messaging";
 import { createTimedFetch } from "./lib/serverSettings";
 import {
@@ -24,6 +25,8 @@ import { getServerSettings } from "./lib/storage";
 
 // Store the latest fill request so the popup can pick it up when opened
 let pendingFillRequest: AutofillRequest | null = null;
+
+let vaultSyncInFlight: Promise<void> | null = null;
 
 /**
  * Basic validation for messages coming from content scripts.
@@ -59,7 +62,7 @@ chrome.runtime.onMessage.addListener(
       pendingFillRequest = request;
 
       // Store in session storage so popup can read it even if background restarts
-      chrome.storage.session.set({ pendingFillRequest });
+      getStorageSession()?.set({ pendingFillRequest });
 
       // Try to open the popup (requires user gesture - clicking the indicator counts)
       chrome.action.openPopup().catch(() => {
@@ -84,17 +87,20 @@ chrome.runtime.onMessage.addListener(
     const msg = message as { type?: string };
 
     if (msg.type === "GET_PENDING_FILL_REQUEST") {
-      chrome.storage.session
-        .get("pendingFillRequest")
-        .then((result: { pendingFillRequest?: unknown }) => {
-          sendResponse(result.pendingFillRequest || null);
-        });
+      const session = getStorageSession();
+      if (!session) {
+        sendResponse(pendingFillRequest);
+        return true;
+      }
+      session.get("pendingFillRequest").then((result: { pendingFillRequest?: unknown }) => {
+        sendResponse(result.pendingFillRequest || null);
+      });
       return true;
     }
 
     if (msg.type === "CLEAR_PENDING_FILL_REQUEST") {
       pendingFillRequest = null;
-      chrome.storage.session.remove("pendingFillRequest");
+      getStorageSession()?.remove("pendingFillRequest");
       sendResponse({ success: true });
     }
   },
@@ -108,6 +114,18 @@ chrome.runtime.onMessage.addListener(
  * isolation and the zero-knowledge model.
  */
 async function performVaultSync(forceFull = false): Promise<void> {
+  if (vaultSyncInFlight) {
+    return vaultSyncInFlight;
+  }
+
+  vaultSyncInFlight = performVaultSyncInner(forceFull).finally(() => {
+    vaultSyncInFlight = null;
+  });
+
+  return vaultSyncInFlight;
+}
+
+async function performVaultSyncInner(forceFull = false): Promise<void> {
   const session = await getAuthSession();
   if (!session) return;
 
@@ -118,15 +136,12 @@ async function performVaultSync(forceFull = false): Promise<void> {
   });
 
   try {
+    const existing = await getEncryptedVaultCache();
+    const existingItems = existing?.items ?? [];
     const since = forceFull ? undefined : ((await getVaultSyncToken()) ?? undefined);
 
     const response = await client.listVaultItems(session.accessToken, since);
 
-    // Merge with existing encrypted cache
-    const existing = await getEncryptedVaultCache();
-    const existingItems = existing?.items ?? [];
-
-    // Simple merge by id + updatedAt (same logic as mergeVaultItems but on encrypted responses)
     const byId = new Map(existingItems.map((item) => [item.id, item]));
     for (const item of response.items) {
       const prev = byId.get(item.id);
@@ -136,33 +151,41 @@ async function performVaultSync(forceFull = false): Promise<void> {
     }
     const mergedItems: VaultItemResponse[] = Array.from(byId.values());
 
+    const syncToken = response.sync_token ?? since ?? existing?.syncToken ?? null;
+    const hadChanges =
+      forceFull ||
+      response.items.length > 0 ||
+      mergedItems.length !== existingItems.length ||
+      syncToken !== (existing?.syncToken ?? null);
+
     const newCache = {
       items: mergedItems,
-      syncToken: response.sync_token,
+      syncToken,
       updatedAt: Date.now(),
     };
 
     await saveEncryptedVaultCache(newCache);
-    if (response.sync_token) {
-      await saveVaultSyncToken(response.sync_token);
+    if (syncToken) {
+      await saveVaultSyncToken(syncToken);
     }
 
-    // Notify popup that new encrypted data is available
-    chrome.runtime
-      .sendMessage({
-        type: "ENCRYPTED_VAULT_CACHE_UPDATED",
-        itemCount: mergedItems.length,
-      })
-      .catch(() => {});
+    if (hadChanges) {
+      chrome.runtime
+        .sendMessage({
+          type: "ENCRYPTED_VAULT_CACHE_UPDATED",
+          itemCount: mergedItems.length,
+        })
+        .catch(() => {});
+    }
   } catch (err: unknown) {
     const status = (err as { status?: number })?.status;
     if (status === 400 && !forceFull) {
-      // Stale token — clear cache + token and retry full
       await clearEncryptedVaultCacheAndToken();
-      await performVaultSync(true);
+      await performVaultSyncInner(true);
       return;
     }
     console.error("[VaultLock Background] Encrypted vault sync failed", err);
+    throw err;
   }
 }
 
@@ -185,10 +208,16 @@ chrome.runtime.onMessage.addListener(
     const msg = message as { type?: string };
 
     if (msg.type === "TRIGGER_VAULT_SYNC") {
-      performVaultSync(false).finally(async () => {
-        const cache = await getEncryptedVaultCache();
-        sendResponse({ success: true, itemCount: cache?.items.length ?? 0 });
-      });
+      const forceFull = (msg as { forceFull?: boolean }).forceFull === true;
+      performVaultSync(forceFull)
+        .then(async () => {
+          const cache = await getEncryptedVaultCache();
+          sendResponse({ success: true, itemCount: cache?.items.length ?? 0 });
+        })
+        .catch((err: unknown) => {
+          const message = err instanceof Error ? err.message : "Vault sync failed";
+          sendResponse({ success: false, error: message });
+        });
       return true;
     }
 
@@ -206,8 +235,3 @@ chrome.runtime.onMessage.addListener(
     }
   },
 );
-
-// Best-effort initial sync on service worker startup (when the worker happens to stay alive across browser restarts)
-chrome.runtime.onStartup.addListener(() => {
-  performVaultSync(false).catch(() => {});
-});

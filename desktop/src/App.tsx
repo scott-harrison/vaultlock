@@ -48,8 +48,9 @@ import {
   testServerConnection,
 } from "./lib/serverSettings";
 import { VAULT_LOCAL_KEYS_ERROR, VAULT_UNLOCK_ERROR, unlockVaultForUser } from "./lib/unlockVault";
-import { clearWrappedDekStorage, getCurrentWrappedDek, lockVault } from "./lib/vaultSession";
+import { clearWrappedDekStorage, lockVault } from "./lib/vaultSession";
 import { clearAllVaultSyncTokens } from "./lib/vaultSync";
+import { syncLocalWrappedDekToServer } from "./lib/wrappedDekSync";
 import "./App.css";
 
 type WizardScreen = "connect" | "sign-in" | "register" | "check-email" | "unlock" | "vault";
@@ -379,27 +380,17 @@ function App() {
       await clearPendingVerificationEmail();
       setPendingVerificationEmail(null);
       setSession(nextSession);
-      const unlockResult = await unlockVaultForUser(
+      await unlockVaultForUser(
         email,
         password,
         response.master_password_hash,
         response.wrapped_dek as Record<string, unknown> | undefined,
       );
 
-      // Only upload if we generated a fresh DEK on this device.
-      if (unlockResult.generatedNewDek) {
-        try {
-          const client = await createAuthApiClient();
-          const wrapped = await getCurrentWrappedDek(email);
-          if (wrapped) {
-            await client.saveWrappedDek(nextSession.accessToken, {
-              nonce: wrapped.nonce,
-              ciphertext: wrapped.ciphertext,
-            });
-          }
-        } catch (e) {
-          console.warn("Failed to upload wrapped_dek after sign-in (non-fatal)", e);
-        }
+      try {
+        await syncLocalWrappedDekToServer(email, nextSession.accessToken);
+      } catch (e) {
+        console.warn("Failed to sync wrapped_dek to server after sign-in (non-fatal)", e);
       }
 
       await recordMasterPasswordUnlock(email);
@@ -460,27 +451,17 @@ function App() {
       await saveSession(nextSession);
       await persistCredentialsFromAuth(session.email, response);
       setSession(nextSession);
-      const unlockResult = await unlockVaultForUser(
+      await unlockVaultForUser(
         session.email,
         password,
         response.master_password_hash,
         response.wrapped_dek as Record<string, unknown> | undefined,
       );
 
-      // Only upload if we generated a fresh DEK on this device.
-      if (unlockResult.generatedNewDek) {
-        try {
-          const client = await createAuthApiClient();
-          const wrapped = await getCurrentWrappedDek(session.email);
-          if (wrapped) {
-            await client.saveWrappedDek(nextSession.accessToken, {
-              nonce: wrapped.nonce,
-              ciphertext: wrapped.ciphertext,
-            });
-          }
-        } catch (e) {
-          console.warn("Failed to upload wrapped_dek after unlock (non-fatal)", e);
-        }
+      try {
+        await syncLocalWrappedDekToServer(session.email, nextSession.accessToken);
+      } catch (e) {
+        console.warn("Failed to sync wrapped_dek to server after unlock (non-fatal)", e);
       }
 
       await recordMasterPasswordUnlock(session.email);
