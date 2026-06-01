@@ -11,10 +11,14 @@
   },
   "dependencies": {
     "@vaultlock/shared": "workspace:*",
-    "plasmo": "0.89.5"
+    "plasmo": "0.89.5",
+    "react": "18.2.0",
+    "react-dom": "18.2.0"
   },
   "devDependencies": {
     "@types/chrome": "0.0.287",
+    "@types/react": "18.3.18",
+    "@types/react-dom": "18.3.5",
     "typescript": "5.9.3"
   }
 }
