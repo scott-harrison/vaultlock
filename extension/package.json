@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "plasmo dev",
+    "dev:brave": "plasmo dev -- --target=brave-mv3",
     "build": "plasmo build",
     "lint": "biome lint .",
     "format": "biome format --write ."

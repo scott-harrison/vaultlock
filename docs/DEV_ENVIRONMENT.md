@@ -24,7 +24,7 @@ Install these once on your machine.
 | Tool | Version | Install |
 |------|---------|---------|
 | **Git** | latest | [git-scm.com](https://git-scm.com/) |
-| **Node.js** | 22 LTS | [nodejs.org](https://nodejs.org/) or `nvm install 22` |
+| **Node.js** | 24 LTS (Active) | [nodejs.org](https://nodejs.org/) or `nvm install` (uses `.nvmrc`) |
 | **pnpm** | 11.x | `npm install -g pnpm@11` |
 | **Rust** | stable | `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \| sh` |
 | **Docker** | latest | [docker.com](https://www.docker.com/products/docker-desktop/) |
@@ -32,7 +32,7 @@ Install these once on your machine.
 Verify:
 
 ```bash
-node --version    # v22.x
+node --version    # v24.x
 pnpm --version    # 11.x
 rustc --version
 cargo --version
