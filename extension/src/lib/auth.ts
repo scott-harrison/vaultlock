@@ -6,8 +6,8 @@
 
 import { VaultlockApiClient } from "@vaultlock/shared/api";
 import { createTimedFetch } from "./serverSettings";
-import { getServerSettings } from "./storage";
-import { unlockVault } from "./vaultSession";
+import { clearAuthSession, clearWrappedDek, getServerSettings, saveAuthSession } from "./storage";
+import { lockVault, unlockVault } from "./vaultSession";
 
 export interface LoginCredentials {
   email: string;
