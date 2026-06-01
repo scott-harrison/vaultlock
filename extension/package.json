@@ -12,5 +12,9 @@
   "dependencies": {
     "@vaultlock/shared": "workspace:*",
     "plasmo": "0.89.5"
+  },
+  "devDependencies": {
+    "@types/chrome": "0.0.287",
+    "typescript": "5.9.3"
   }
 }

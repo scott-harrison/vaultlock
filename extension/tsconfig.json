@@ -13,6 +13,7 @@
     "resolveJsonModule": true,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
+    "types": ["chrome"],
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"],
