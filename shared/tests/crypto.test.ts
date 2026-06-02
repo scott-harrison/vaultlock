@@ -108,9 +108,10 @@ describe("argon2", () => {
 
 describe("parseWrappedDekJson", () => {
   it("parses flat nonce/ciphertext", () => {
-    expect(
-      parseWrappedDekJson({ nonce: "abc", ciphertext: "def" }),
-    ).toEqual({ nonce: "abc", ciphertext: "def" });
+    expect(parseWrappedDekJson({ nonce: "abc", ciphertext: "def" })).toEqual({
+      nonce: "abc",
+      ciphertext: "def",
+    });
   });
 
   it("parses nested wrapped_dek", () => {

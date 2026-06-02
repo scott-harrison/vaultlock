@@ -237,3 +237,9 @@ export async function saveEncryptedVaultCache(cache: EncryptedVaultCache): Promi
 export async function clearEncryptedVaultCache(): Promise<void> {
   await remove(ENCRYPTED_VAULT_CACHE_KEY);
 }
+
+/** Clears persisted vault ciphertext and incremental sync state (sign-out / account switch). */
+export async function clearVaultOfflineData(): Promise<void> {
+  await clearEncryptedVaultCache();
+  await clearVaultSyncToken();
+}
