@@ -9,6 +9,7 @@ import {
   encryptJsonPayloadBase64,
   fromBase64,
   hashMasterPasswordAuth,
+  parseWrappedDekJson,
   toBase64,
   unwrapDek,
   verifyMasterPasswordAuth,
@@ -102,5 +103,28 @@ describe("argon2", () => {
   it("normalizes email salt to 16 bytes", () => {
     expect(emailSalt("a@b.co")).toHaveLength(16);
     expect(emailSalt("user@example.com")).toHaveLength(16);
+  });
+});
+
+describe("parseWrappedDekJson", () => {
+  it("parses flat nonce/ciphertext", () => {
+    expect(parseWrappedDekJson({ nonce: "abc", ciphertext: "def" })).toEqual({
+      nonce: "abc",
+      ciphertext: "def",
+    });
+  });
+
+  it("parses nested wrapped_dek", () => {
+    expect(
+      parseWrappedDekJson({
+        wrapped_dek: { nonce: "n", ciphertext: "c" },
+      }),
+    ).toEqual({ nonce: "n", ciphertext: "c" });
+  });
+
+  it("returns null for invalid shapes", () => {
+    expect(parseWrappedDekJson(null)).toBeNull();
+    expect(parseWrappedDekJson({})).toBeNull();
+    expect(parseWrappedDekJson({ nonce: 1, ciphertext: 2 })).toBeNull();
   });
 });

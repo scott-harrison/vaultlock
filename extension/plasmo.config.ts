@@ -48,6 +48,11 @@ export default defineConfig({
       },
     },
 
+    // Argon2 (hash-wasm) requires WASM compilation in popup/options (extension_pages only).
+    content_security_policy: {
+      extension_pages: "script-src 'self' 'wasm-unsafe-eval'; object-src 'self';",
+    },
+
     // Content scripts for field detection and future autofill features.
     content_scripts: [
       {

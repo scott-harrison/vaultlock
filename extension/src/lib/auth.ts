@@ -6,7 +6,13 @@
 
 import { VaultlockApiClient } from "@vaultlock/shared/api";
 import { createTimedFetch } from "./serverSettings";
-import { clearAuthSession, clearWrappedDek, getServerSettings, saveAuthSession } from "./storage";
+import {
+  clearAuthSession,
+  clearVaultOfflineData,
+  clearWrappedDek,
+  getServerSettings,
+  saveAuthSession,
+} from "./storage";
 import { lockVault, unlockVault } from "./vaultSession";
 
 export interface LoginCredentials {
@@ -63,9 +69,10 @@ export async function loginAndUnlock(credentials: LoginCredentials): Promise<voi
 }
 
 export async function logout(): Promise<void> {
+  lockVault();
   await clearAuthSession();
   await clearWrappedDek();
-  lockVault();
+  await clearVaultOfflineData();
 }
 
 // Re-exports for convenience

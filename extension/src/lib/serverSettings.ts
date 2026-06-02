@@ -7,6 +7,7 @@ import { VaultlockApiClient } from "@vaultlock/shared/api";
 import {
   type LastConnectionStatus,
   type ServerSettings,
+  getLastConnectionStatus,
   getServerSettings,
   saveLastConnectionStatus,
   saveServerSettings,
@@ -107,6 +108,7 @@ export async function saveServerConnection(
     serverUrl: normalized,
     requestTimeoutMs: advanced.requestTimeoutMs,
     allowInsecureHttp: advanced.allowInsecureHttp,
+    configured: true,
   });
 
   return normalized;
@@ -118,7 +120,7 @@ export async function loadServerSettingsWithAdvanced(): Promise<{
   lastStatus?: LastConnectionStatus;
 }> {
   const settings = await getServerSettings();
-  const lastStatus = await import("./storage").then((m) => m.getLastConnectionStatus());
+  const lastStatus = await getLastConnectionStatus();
 
   return {
     url: settings.serverUrl,

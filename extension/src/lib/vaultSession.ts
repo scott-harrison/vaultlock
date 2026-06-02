@@ -9,8 +9,10 @@
  */
 
 import {
+  type WrappedDekBlob,
   deriveMasterKey,
   fromBase64,
+  parseWrappedDekJson,
   toBase64,
   unwrapDek,
   verifyMasterPasswordAuth,
@@ -47,6 +49,17 @@ export function setDataEncryptionKey(dek: Uint8Array): void {
   dataEncryptionKey = new Uint8Array(dek);
 }
 
+async function tryUnwrapWrappedDek(
+  blob: WrappedDekBlob,
+  masterKey: Uint8Array,
+): Promise<Uint8Array | null> {
+  try {
+    return await unwrapDek(fromBase64(blob.nonce), fromBase64(blob.ciphertext), masterKey);
+  } catch {
+    return null;
+  }
+}
+
 export async function unlockVault(params: {
   email: string;
   masterPassword: string;
@@ -66,50 +79,50 @@ export async function unlockVault(params: {
   const masterKey = await deriveMasterKey(params.masterPassword, normalizedEmail);
 
   try {
-    let dek: Uint8Array | null = null;
+    const serverBlob = parseWrappedDekJson(params.wrappedDekFromServer);
+    const localRecord = await loadWrappedDek(normalizedEmail);
+    const localBlob = localRecord
+      ? { nonce: localRecord.nonce, ciphertext: localRecord.ciphertext }
+      : null;
 
-    const local = await loadWrappedDek(normalizedEmail);
-    const fromServer = params.wrappedDekFromServer as
-      | { nonce?: string; ciphertext?: string }
-      | undefined;
+    const candidates: { source: "server" | "local"; blob: WrappedDekBlob }[] = [];
+    if (serverBlob) {
+      candidates.push({ source: "server", blob: serverBlob });
+    }
+    if (
+      localBlob &&
+      (!serverBlob ||
+        localBlob.nonce !== serverBlob.nonce ||
+        localBlob.ciphertext !== serverBlob.ciphertext)
+    ) {
+      candidates.push({ source: "local", blob: localBlob });
+    }
 
-    const candidate =
-      local ??
-      (fromServer?.nonce && fromServer?.ciphertext
-        ? { nonce: fromServer.nonce, ciphertext: fromServer.ciphertext }
-        : null);
-
-    if (candidate) {
-      try {
-        dek = await unwrapDek(
-          fromBase64(candidate.nonce),
-          fromBase64(candidate.ciphertext),
-          masterKey,
-        );
-
-        // Persist the wrapped_dek locally if it came from the server
-        // (so we don't need the server response on every future unlock on this device).
-        if (!local && fromServer?.nonce && fromServer?.ciphertext) {
-          await saveWrappedDek(normalizedEmail, candidate.nonce, candidate.ciphertext);
-        }
-      } catch {
-        dek = null;
+    for (const { source, blob } of candidates) {
+      const dek = await tryUnwrapWrappedDek(blob, masterKey);
+      if (dek) {
+        await saveWrappedDek(normalizedEmail, blob.nonce, blob.ciphertext);
+        lockVault();
+        dataEncryptionKey = dek;
+        return { generatedNewDek: false };
       }
     }
 
-    let generatedNewDek = false;
-
-    if (!dek) {
-      dek = crypto.getRandomValues(new Uint8Array(32));
-      const { nonce, ciphertext } = await wrapDek(dek, masterKey);
-      await saveWrappedDek(normalizedEmail, toBase64(nonce), toBase64(ciphertext));
-      generatedNewDek = true;
+    if (serverBlob) {
+      throw new Error(
+        "Could not unlock your vault encryption key from the server. " +
+          "Open VaultLock on the desktop app, unlock once, then sign out and sign in again here.",
+      );
     }
+
+    const dek = crypto.getRandomValues(new Uint8Array(32));
+    const { nonce, ciphertext } = await wrapDek(dek, masterKey);
+    await saveWrappedDek(normalizedEmail, toBase64(nonce), toBase64(ciphertext));
 
     lockVault();
     dataEncryptionKey = dek;
 
-    return { generatedNewDek };
+    return { generatedNewDek: true };
   } finally {
     masterKey.fill(0);
   }

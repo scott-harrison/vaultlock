@@ -1,3 +1,5 @@
+import { getStorageLocal, getStorageSync } from "./browser";
+
 /**
  * Typed storage helpers for the VaultLock extension.
  *
@@ -18,13 +20,14 @@ async function migrateIfNeeded(): Promise<void> {
 
   migrationPromise = (async () => {
     try {
-      const flag = await chrome.storage.local.get(MIGRATION_FLAG);
+      const flag = await getStorageLocal().get(MIGRATION_FLAG);
       if (flag[MIGRATION_FLAG]) return;
 
       // Read whatever the previous implementation (which hit .sync and caused quota errors)
       // may have persisted. We do this with native APIs only — no dependency on the old
       // package that was never properly declared in package.json.
-      const syncData = await chrome.storage.sync.get(null);
+      const sync = getStorageSync();
+      const syncData = sync ? await sync.get(null) : null;
 
       if (syncData && typeof syncData === "object") {
         const toMigrate: Record<string, unknown> = {};
@@ -35,17 +38,21 @@ async function migrateIfNeeded(): Promise<void> {
         }
 
         if (Object.keys(toMigrate).length > 0) {
-          await chrome.storage.local.set(toMigrate);
+          await getStorageLocal().set(toMigrate);
 
           // Best-effort cleanup of the source so we stop burning the very low sync quota.
-          await chrome.storage.sync.remove(Object.keys(toMigrate)).catch(() => {});
+          if (sync) {
+            await sync.remove(Object.keys(toMigrate)).catch(() => {});
+          }
         }
       }
 
-      await chrome.storage.local.set({ [MIGRATION_FLAG]: true });
+      await getStorageLocal().set({ [MIGRATION_FLAG]: true });
     } catch (err) {
       console.warn("[VaultLock Storage] Migration encountered a non-fatal error:", err);
-      await chrome.storage.local.set({ [MIGRATION_FLAG]: true }).catch(() => {});
+      await getStorageLocal()
+        .set({ [MIGRATION_FLAG]: true })
+        .catch(() => {});
     }
   })();
 
@@ -58,18 +65,18 @@ async function ensureReady(): Promise<void> {
 
 async function get<T>(key: string): Promise<T | undefined> {
   await ensureReady();
-  const result = await chrome.storage.local.get(key);
+  const result = await getStorageLocal().get(key);
   return result[key] as T | undefined;
 }
 
 async function set(values: Record<string, unknown>): Promise<void> {
   await ensureReady();
-  await chrome.storage.local.set(values);
+  await getStorageLocal().set(values);
 }
 
 async function remove(keys: string | string[]): Promise<void> {
   await ensureReady();
-  await chrome.storage.local.remove(keys);
+  await getStorageLocal().remove(keys);
 }
 
 /**
@@ -79,12 +86,15 @@ export interface ServerSettings {
   serverUrl: string;
   requestTimeoutMs: number;
   allowInsecureHttp: boolean;
+  /** Set when the user saves a successful connection test in extension settings. */
+  configured: boolean;
 }
 
 const DEFAULT_SERVER_SETTINGS: ServerSettings = {
   serverUrl: "http://localhost:8080",
   requestTimeoutMs: 15000,
   allowInsecureHttp: false,
+  configured: false,
 };
 
 /**
@@ -107,7 +117,16 @@ const KEYS = {
 /** Server Settings */
 export async function getServerSettings(): Promise<ServerSettings> {
   const data = await get<ServerSettings>(KEYS.SERVER_SETTINGS);
-  return { ...DEFAULT_SERVER_SETTINGS, ...data };
+  const merged = { ...DEFAULT_SERVER_SETTINGS, ...data };
+  // Settings persisted before `configured` existed were saved via options.
+  if (data !== undefined && data.configured === undefined) {
+    merged.configured = Boolean(data.serverUrl?.trim());
+  }
+  return merged;
+}
+
+export function isServerConfigured(settings: ServerSettings): boolean {
+  return settings.configured && settings.serverUrl.trim().length > 0;
 }
 
 export async function saveServerSettings(settings: Partial<ServerSettings>): Promise<void> {
@@ -217,4 +236,10 @@ export async function saveEncryptedVaultCache(cache: EncryptedVaultCache): Promi
 
 export async function clearEncryptedVaultCache(): Promise<void> {
   await remove(ENCRYPTED_VAULT_CACHE_KEY);
+}
+
+/** Clears persisted vault ciphertext and incremental sync state (sign-out / account switch). */
+export async function clearVaultOfflineData(): Promise<void> {
+  await clearEncryptedVaultCache();
+  await clearVaultSyncToken();
 }
