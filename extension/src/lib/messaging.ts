@@ -8,10 +8,21 @@ export interface AutofillRequest {
   hostname: string;
   fieldType: "username" | "password";
   associatedFieldId?: string;
+  tabId?: number;
+}
+
+export interface ExecuteFillPayload {
+  type: "EXECUTE_FILL";
+  hostname: string;
+  username: string;
+  password: string;
+  fieldType: "username" | "password";
+  associatedFieldId?: string;
 }
 
 // Chrome runtime message shapes for autofill
 export type AutofillMessage =
   | { type: "INDICATOR_CLICKED"; payload: AutofillRequest }
   | { type: "GET_PENDING_FILL_REQUEST" }
-  | { type: "CLEAR_PENDING_FILL_REQUEST" };
+  | { type: "CLEAR_PENDING_FILL_REQUEST" }
+  | ExecuteFillPayload;

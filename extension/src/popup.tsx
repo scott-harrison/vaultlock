@@ -5,6 +5,7 @@ import type {
 } from "@vaultlock/shared/types";
 import { useCallback, useEffect, useState } from "react";
 import { getAuthSession, loginAndUnlock, logout } from "./lib/auth";
+import { loginMatchesPageHost } from "./lib/loginHostMatch";
 import type { AutofillRequest } from "./lib/messaging";
 import { getServerSettings, isServerConfigured } from "./lib/storage";
 import type { DecryptedVaultItem } from "./lib/vaultItems";
@@ -29,15 +30,21 @@ function formatRelativeTime(timestamp: number): string {
 function VaultListView({
   onLock,
   onLogout,
+  pendingFillRequest,
+  onFillComplete,
 }: {
   onLock: () => void | Promise<void>;
   onLogout: () => void | Promise<void>;
+  pendingFillRequest: AutofillRequest | null;
+  onFillComplete: () => void;
 }) {
   const [items, setItems] = useState<import("./lib/vaultItems").DecryptedVaultItem[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
+  const [fillError, setFillError] = useState<string | null>(null);
+  const [fillingId, setFillingId] = useState<string | null>(null);
   const [lastSynced, setLastSynced] = useState<number | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
 
@@ -177,8 +184,51 @@ function VaultListView({
       item.itemType === "note"
         ? ((item.plaintext as NoteItemPlaintext).content || "").toLowerCase()
         : "";
-    return title.includes(term) || username.includes(term) || content.includes(term);
+    const matchesSearch = title.includes(term) || username.includes(term) || content.includes(term);
+    if (!matchesSearch) return false;
+
+    if (pendingFillRequest && item.itemType === "login") {
+      const login = item.plaintext as LoginItemPlaintext;
+      return loginMatchesPageHost(login.url, pendingFillRequest.hostname);
+    }
+
+    return true;
   });
+
+  const handleFill = async (login: LoginItemPlaintext, itemId: string) => {
+    if (!pendingFillRequest) return;
+    setFillError(null);
+    setFillingId(itemId);
+
+    try {
+      const result = await chrome.runtime.sendMessage({
+        type: "EXECUTE_FILL",
+        hostname: pendingFillRequest.hostname,
+        fieldType: pendingFillRequest.fieldType,
+        associatedFieldId: pendingFillRequest.associatedFieldId,
+        username: login.username ?? "",
+        password: login.password ?? "",
+      });
+
+      if (!result || typeof result !== "object" || !("success" in result) || !result.success) {
+        const err =
+          result &&
+          typeof result === "object" &&
+          "error" in result &&
+          typeof result.error === "string"
+            ? result.error
+            : "Could not fill fields on the page";
+        throw new Error(err);
+      }
+
+      onFillComplete();
+      window.close();
+    } catch (err) {
+      setFillError(err instanceof Error ? err.message : "Fill failed");
+    } finally {
+      setFillingId(null);
+    }
+  };
 
   const copyToClipboard = async (text: string, label: string) => {
     try {
@@ -244,6 +294,8 @@ function VaultListView({
         </p>
       )}
 
+      {fillError && <p style={{ color: "#b91c1c", fontSize: 12, marginBottom: 8 }}>{fillError}</p>}
+
       {filtered.length === 0 && !error && (
         <p style={{ fontSize: 13, color: "#666", padding: "8px 0" }}>
           {search ? "No matches found." : "No items yet."}
@@ -269,19 +321,23 @@ function VaultListView({
                     : (p as import("@vaultlock/shared/types").CardItemPlaintext).title || "Item"}
               </div>
 
-              {isLogin && (p as LoginItemPlaintext).username && (
-                <div style={{ color: "#555" }}>
-                  {(p as LoginItemPlaintext).username}{" "}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const u = (p as LoginItemPlaintext).username;
-                      if (u) copyToClipboard(u, "user");
-                    }}
-                    style={{ fontSize: 10, padding: "0 3px" }}
-                  >
-                    {copied === "user" ? "Copied!" : "Copy"}
-                  </button>
+              {isLogin && (
+                <div style={{ color: "#555", marginTop: 4 }}>
+                  {(p as LoginItemPlaintext).username && (
+                    <>
+                      {(p as LoginItemPlaintext).username}{" "}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const u = (p as LoginItemPlaintext).username;
+                          if (u) copyToClipboard(u, "user");
+                        }}
+                        style={{ fontSize: 10, padding: "0 3px" }}
+                      >
+                        {copied === "user" ? "Copied!" : "Copy"}
+                      </button>
+                    </>
+                  )}
                   {(p as LoginItemPlaintext).password && (
                     <>
                       {" "}
@@ -294,6 +350,28 @@ function VaultListView({
                         style={{ fontSize: 10, padding: "0 3px" }}
                       >
                         {copied === "pass" ? "Copied!" : "Copy pass"}
+                      </button>
+                    </>
+                  )}
+                  {pendingFillRequest && (p as LoginItemPlaintext).password && (
+                    <>
+                      {" "}
+                      <button
+                        type="button"
+                        disabled={fillingId === item.id}
+                        onClick={() => handleFill(p as LoginItemPlaintext, item.id)}
+                        style={{
+                          fontSize: 10,
+                          padding: "2px 6px",
+                          fontWeight: 600,
+                          background: "#2563eb",
+                          color: "#fff",
+                          border: "none",
+                          borderRadius: 3,
+                          cursor: fillingId === item.id ? "wait" : "pointer",
+                        }}
+                      >
+                        {fillingId === item.id ? "Filling…" : "Fill"}
                       </button>
                     </>
                   )}
@@ -390,6 +468,10 @@ export default function IndexPopup() {
       await chrome.runtime
         .sendMessage({ type: "TRIGGER_VAULT_SYNC", forceFull: true })
         .catch(() => {});
+      const request = await chrome.runtime
+        .sendMessage({ type: "GET_PENDING_FILL_REQUEST" })
+        .catch(() => null);
+      if (request) setPendingFillRequest(request as AutofillRequest);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed");
     } finally {
@@ -416,6 +498,10 @@ export default function IndexPopup() {
       await chrome.runtime
         .sendMessage({ type: "TRIGGER_VAULT_SYNC", forceFull: true })
         .catch(() => {});
+      const request = await chrome.runtime
+        .sendMessage({ type: "GET_PENDING_FILL_REQUEST" })
+        .catch(() => null);
+      if (request) setPendingFillRequest(request as AutofillRequest);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unlock failed");
     } finally {
@@ -520,11 +606,16 @@ export default function IndexPopup() {
             >
               <strong>Login form detected on {pendingFillRequest.hostname}.</strong>
               <div style={{ marginTop: 4, fontSize: 11, color: "#92400e" }}>
-                Select credentials below to fill (autofill support in progress).
+                Choose a matching login and click <strong>Fill</strong>.
               </div>
             </div>
           )}
-          <VaultListView onLock={handleLock} onLogout={handleLogout} />
+          <VaultListView
+            onLock={handleLock}
+            onLogout={handleLogout}
+            pendingFillRequest={pendingFillRequest}
+            onFillComplete={() => setPendingFillRequest(null)}
+          />
         </>
       )}
     </div>

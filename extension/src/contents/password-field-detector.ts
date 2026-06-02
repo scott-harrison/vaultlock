@@ -1,3 +1,6 @@
+import { fillLoginFields } from "../lib/formFillDom";
+import type { ExecuteFillPayload } from "../lib/messaging";
+
 /**
  * Content script for VaultLock.
  *
@@ -204,9 +207,59 @@ function injectIndicator(field: HTMLInputElement, fieldType: "username" | "passw
     });
 
     // The background stores the request and opens the popup.
-    // Actual field filling logic is implemented in later stages of the autofill feature.
   });
 }
+
+function isExtensionSender(sender: chrome.runtime.MessageSender): boolean {
+  return sender.id === chrome.runtime.id;
+}
+
+chrome.runtime.onMessage.addListener(
+  (
+    message: unknown,
+    sender: chrome.runtime.MessageSender,
+    sendResponse: (response?: unknown) => void,
+  ) => {
+    if (!isExtensionSender(sender)) {
+      sendResponse({ success: false, error: "Invalid sender" });
+      return;
+    }
+
+    const msg = message as Partial<ExecuteFillPayload>;
+    if (msg.type !== "EXECUTE_FILL") return;
+
+    if (msg.hostname !== window.location.hostname) {
+      sendResponse({ success: false, error: "Hostname mismatch" });
+      return true;
+    }
+
+    if (!msg.password && !msg.username) {
+      sendResponse({ success: false, error: "Nothing to fill" });
+      return true;
+    }
+
+    try {
+      const result = fillLoginFields({
+        username: msg.username ?? "",
+        password: msg.password ?? "",
+        triggerFieldType: msg.fieldType ?? "password",
+        associatedFieldId: msg.associatedFieldId,
+      });
+
+      if (!result.filledUsername && !result.filledPassword) {
+        sendResponse({ success: false, error: "No matching fields found on this page" });
+        return true;
+      }
+
+      sendResponse({ success: true, ...result });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Fill failed";
+      sendResponse({ success: false, error: message });
+    }
+
+    return true;
+  },
+);
 
 // Scan for both username/email and password fields
 function scanForLoginFields() {
