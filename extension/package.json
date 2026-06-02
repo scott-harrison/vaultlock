@@ -26,7 +26,7 @@
   "manifest": {
     "name": "VaultLock",
     "description": "Secure. Simple. Yours. — Self-hosted password manager",
-    "permissions": ["storage"],
+    "permissions": ["storage", "tabs"],
     "host_permissions": ["<all_urls>"],
     "browser_specific_settings": {
       "gecko": {

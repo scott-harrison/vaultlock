@@ -5,6 +5,7 @@ import type {
 } from "@vaultlock/shared/types";
 import { useCallback, useEffect, useState } from "react";
 import { getAuthSession, loginAndUnlock, logout } from "./lib/auth";
+import { onStorageChanged } from "./lib/browser";
 import { loginMatchesPageHost } from "./lib/loginHostMatch";
 import type { AutofillRequest } from "./lib/messaging";
 import { getServerSettings, isServerConfigured } from "./lib/storage";
@@ -442,18 +443,12 @@ export default function IndexPopup() {
   }, [resolveAuthState]);
 
   useEffect(() => {
-    const onStorageChanged = (
-      changes: Record<string, chrome.storage.StorageChange>,
-      areaName: string,
-    ) => {
+    return onStorageChanged((changes, areaName) => {
       if (areaName !== "local" || !changes.server_settings) {
         return;
       }
       resolveAuthState();
-    };
-
-    chrome.storage.onChanged.addListener(onStorageChanged);
-    return () => chrome.storage.onChanged.removeListener(onStorageChanged);
+    });
   }, [resolveAuthState]);
 
   const handleLogin = async (e: React.FormEvent) => {

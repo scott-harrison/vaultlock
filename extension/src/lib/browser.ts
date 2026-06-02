@@ -29,3 +29,17 @@ export function getStorageSync(): StorageArea | undefined {
 export function getStorageSession(): StorageArea | undefined {
   return extensionApi().storage?.session;
 }
+
+export function onStorageChanged(
+  listener: (
+    changes: Record<string, chrome.storage.StorageChange>,
+    areaName: "sync" | "local" | "managed" | "session",
+  ) => void,
+): () => void {
+  const onChanged = extensionApi().storage?.onChanged;
+  if (!onChanged) {
+    return () => {};
+  }
+  onChanged.addListener(listener);
+  return () => onChanged.removeListener(listener);
+}
