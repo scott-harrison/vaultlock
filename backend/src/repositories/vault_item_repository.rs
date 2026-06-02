@@ -126,4 +126,13 @@ impl VaultItemRepository {
 
         Ok(result.rows_affected() > 0)
     }
+
+    pub async fn delete_all_for_user(&self, user_id: Uuid) -> Result<u64, sqlx::Error> {
+        let result = sqlx::query("DELETE FROM vault_items WHERE user_id = $1")
+            .bind(user_id)
+            .execute(&self.pool)
+            .await?;
+
+        Ok(result.rows_affected())
+    }
 }

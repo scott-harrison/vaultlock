@@ -14,6 +14,7 @@ import type { AutofillRequest } from "./lib/messaging";
 import { createTimedFetch } from "./lib/serverSettings";
 import {
   clearEncryptedVaultCache,
+  clearVaultSyncToken,
   getEncryptedVaultCache,
   getVaultSyncToken,
   saveEncryptedVaultCache,
@@ -117,7 +118,7 @@ async function performVaultSync(forceFull = false): Promise<void> {
   });
 
   try {
-    const since = forceFull ? undefined : await getVaultSyncToken();
+    const since = forceFull ? undefined : ((await getVaultSyncToken()) ?? undefined);
 
     const response = await client.listVaultItems(session.accessToken, since);
 

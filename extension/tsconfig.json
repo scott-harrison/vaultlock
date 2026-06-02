@@ -8,11 +8,13 @@
     "skipLibCheck": true,
     "noEmit": true,
     "isolatedModules": true,
+    "jsx": "react-jsx",
     "verbatimModuleSyntax": true,
     "allowJs": true,
     "resolveJsonModule": true,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
+    "typeRoots": ["./node_modules/@types"],
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"],
@@ -20,6 +22,6 @@
       "@vaultlock/shared/*": ["../shared/src/*"]
     }
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "plasmo.config.ts"],
+  "include": [".plasmo/index.d.ts", "src/**/*.ts", "src/**/*.tsx"],
   "exclude": ["node_modules"]
 }

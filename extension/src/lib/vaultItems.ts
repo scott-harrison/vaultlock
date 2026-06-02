@@ -60,7 +60,10 @@ export async function fetchAndDecryptVaultItems(since?: string): Promise<{
         plaintext,
       });
     } catch (err) {
-      console.warn(`Failed to decrypt item ${item.id}`, err);
+      console.warn(
+        `Failed to decrypt item ${item.id}. This device does not have the encryption key used to create it on another device.`,
+        err,
+      );
     }
   }
 

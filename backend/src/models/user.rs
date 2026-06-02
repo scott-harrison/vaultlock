@@ -10,6 +10,7 @@ pub struct User {
     pub master_password_hash: String,
     pub email_verified: bool,
     pub verification_token: Option<String>,
+    pub wrapped_dek: Option<serde_json::Value>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

@@ -10,6 +10,10 @@ blockExoticSubdeps: true
 minimumReleaseAge: 1440
 trustPolicy: no-downgrade
 
+# Recommended dev pin (.nvmrc); engines allow any 24.x LTS patch.
+nodeVersion: 24.15.0
+engineStrict: true
+
 allowBuilds:
   '@biomejs/biome': true
   '@parcel/watcher': true
@@ -21,7 +25,8 @@ allowBuilds:
 overrides:
   # Exact targets match pnpm-lock.yaml resolutions (security floors from prior ^ overrides).
   semver@<7: 7.8.0
-  '@parcel/reporter-dev-server@>=1.6.1 <=2.16.3': 2.16.4
+  # Security floor for 2.16.x only; do not bump Plasmo's Parcel 2.9.3 stack (2.9.3 < 2.16.0).
+  '@parcel/reporter-dev-server@>=2.16.0 <2.16.4': 2.16.4
   '@xmldom/xmldom@<0.8.12': 0.8.13
   '@xmldom/xmldom@<0.8.13': 0.8.13
   content-security-policy-parser@<0.6.0: 0.6.0
@@ -42,6 +47,7 @@ overrides:
   tar@<=7.5.9: 7.5.15
   tmp@<0.2.6: 0.2.6
   uuid@<11.1.1: 11.1.1
+  vitest@<4.1.0: 4.1.0
   tsup@<=8.3.4: 8.5.1
   vite@<=6.4.1: 6.4.2
   ws@>=8.0.0 <8.20.1: 8.20.1

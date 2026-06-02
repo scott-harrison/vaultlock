@@ -27,8 +27,8 @@ export interface AuthResponse {
   token: string;
   refresh_token: string;
   message: string;
-  /** Stored Argon2 PHC for offline unlock verification on this device. */
   master_password_hash?: string;
+  wrapped_dek?: Record<string, unknown>;
 }
 
 export interface RefreshRequest {

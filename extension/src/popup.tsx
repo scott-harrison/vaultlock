@@ -1,13 +1,13 @@
+import type {
+  LoginItemPlaintext,
+  NoteItemPlaintext,
+  VaultItemResponse,
+} from "@vaultlock/shared/types";
 import { useCallback, useEffect, useState } from "react";
 import { getAuthSession, loginAndUnlock, logout } from "./lib/auth";
 import type { AutofillRequest } from "./lib/messaging";
 import { getServerSettings } from "./lib/storage";
-import type {
-  DecryptedVaultItem,
-  LoginItemPlaintext,
-  NoteItemPlaintext,
-  VaultItemResponse,
-} from "./lib/vaultItems";
+import type { DecryptedVaultItem } from "./lib/vaultItems";
 import { isVaultUnlocked, lockVault } from "./lib/vaultSession";
 
 type AuthState = "loading" | "needs-server" | "login" | "unlock" | "unlocked";
@@ -26,7 +26,13 @@ function formatRelativeTime(timestamp: number): string {
   return `${hours}h ago`;
 }
 
-function VaultListView({ onLock, onLogout }: { onLock: () => void; onLogout: () => void }) {
+function VaultListView({
+  onLock,
+  onLogout,
+}: {
+  onLock: () => void | Promise<void>;
+  onLogout: () => void | Promise<void>;
+}) {
   const [items, setItems] = useState<import("./lib/vaultItems").DecryptedVaultItem[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
@@ -123,7 +129,10 @@ function VaultListView({ onLock, onLogout }: { onLock: () => void; onLogout: () 
   const filtered = items.filter((item) => {
     const term = search.toLowerCase();
     const title = (item.plaintext?.title || "").toLowerCase();
-    const username = (item.plaintext?.username || "").toLowerCase();
+    const username =
+      item.itemType === "login"
+        ? ((item.plaintext as LoginItemPlaintext).username || "").toLowerCase()
+        : "";
     const content =
       item.itemType === "note"
         ? ((item.plaintext as NoteItemPlaintext).content || "").toLowerCase()
@@ -166,10 +175,22 @@ function VaultListView({ onLock, onLogout }: { onLock: () => void; onLogout: () 
         >
           ↻
         </button>
-        <button type="button" onClick={onLock}>
+        <button
+          type="button"
+          onClick={async () => {
+            setItems([]);
+            await onLock();
+          }}
+        >
           Lock
         </button>
-        <button type="button" onClick={onLogout}>
+        <button
+          type="button"
+          onClick={async () => {
+            setItems([]);
+            await onLogout();
+          }}
+        >
           Sign out
         </button>
       </div>
@@ -180,7 +201,11 @@ function VaultListView({ onLock, onLogout }: { onLock: () => void; onLogout: () 
         </div>
       )}
 
-      {error && <p style={{ color: "red", fontSize: 12, marginBottom: 8 }}>{error}</p>}
+      {error && (
+        <p style={{ color: "#b91c1c", fontSize: 12, marginBottom: 8, whiteSpace: "pre-line" }}>
+          {error}
+        </p>
+      )}
 
       {filtered.length === 0 && !error && (
         <p style={{ fontSize: 13, color: "#666", padding: "8px 0" }}>
@@ -349,17 +374,14 @@ export default function IndexPopup() {
 
   const handleLock = async () => {
     await lockVault();
-    // Notify background + clear local decrypted state (security)
+    // Notify background (security: background clears encrypted cache on lock)
     chrome.runtime.sendMessage({ type: "VAULT_LOCKED" }).catch(() => {});
-    setItems([]);
     setAuthState("unlock");
   };
 
   const handleLogout = async () => {
     await logout();
-    // Notify background + clear local decrypted state (security)
     chrome.runtime.sendMessage({ type: "VAULT_LOCKED" }).catch(() => {});
-    setItems([]);
     setEmail("");
     setMasterPassword("");
     setAuthState("login");
