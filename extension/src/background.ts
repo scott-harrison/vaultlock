@@ -11,7 +11,7 @@ import { VaultlockApiClient } from "@vaultlock/shared/api";
 import type { VaultItemResponse } from "@vaultlock/shared/types";
 import { getAuthSession } from "./lib/auth";
 import { getStorageSession } from "./lib/browser";
-import type { AutofillRequest } from "./lib/messaging";
+import type { AutofillRequest, ExecuteFillPayload } from "./lib/messaging";
 import { createTimedFetch } from "./lib/serverSettings";
 import {
   clearEncryptedVaultCache,
@@ -38,6 +38,11 @@ function isValidContentScriptSender(sender: chrome.runtime.MessageSender): boole
   return url.startsWith("http://") || url.startsWith("https://");
 }
 
+/** Popup / options / background — not a web page content script. */
+function isExtensionPrivilegedSender(sender: chrome.runtime.MessageSender): boolean {
+  return sender.id === chrome.runtime.id && sender.tab === undefined;
+}
+
 chrome.runtime.onMessage.addListener(
   (
     message: unknown,
@@ -53,10 +58,17 @@ chrome.runtime.onMessage.addListener(
         return;
       }
 
+      const tabId = _sender.tab?.id;
+      if (tabId === undefined) {
+        sendResponse({ success: false, error: "Missing tab context" });
+        return;
+      }
+
       const request: AutofillRequest = {
         hostname: msg.hostname,
         fieldType: msg.fieldType,
         associatedFieldId: msg.associatedFieldId,
+        tabId,
       };
 
       pendingFillRequest = request;
@@ -102,9 +114,70 @@ chrome.runtime.onMessage.addListener(
       pendingFillRequest = null;
       getStorageSession()?.remove("pendingFillRequest");
       sendResponse({ success: true });
+      return true;
+    }
+
+    if (msg.type === "EXECUTE_FILL") {
+      if (!isExtensionPrivilegedSender(_sender)) {
+        sendResponse({ success: false, error: "Invalid sender" });
+        return true;
+      }
+
+      void handleExecuteFill(message as ExecuteFillPayload, sendResponse);
+      return true;
     }
   },
 );
+
+async function handleExecuteFill(
+  payload: ExecuteFillPayload,
+  sendResponse: (response?: unknown) => void,
+): Promise<void> {
+  let stored: AutofillRequest | null | undefined = pendingFillRequest ?? undefined;
+  if (!stored) {
+    const session = getStorageSession();
+    if (session) {
+      const result = await session.get("pendingFillRequest");
+      stored = result.pendingFillRequest as AutofillRequest | undefined;
+    }
+  }
+  const pending = stored;
+
+  if (!pending?.tabId) {
+    sendResponse({ success: false, error: "No active fill request" });
+    return;
+  }
+
+  if (pending.hostname !== payload.hostname) {
+    sendResponse({ success: false, error: "Hostname mismatch" });
+    return;
+  }
+
+  try {
+    const tab = await chrome.tabs.get(pending.tabId);
+    const tabUrl = tab.url ?? "";
+    if (!tabUrl.startsWith("http://") && !tabUrl.startsWith("https://")) {
+      sendResponse({ success: false, error: "Invalid tab URL" });
+      return;
+    }
+
+    const tabHost = new URL(tabUrl).hostname;
+    if (tabHost !== payload.hostname) {
+      sendResponse({ success: false, error: "Tab hostname mismatch" });
+      return;
+    }
+
+    const result = await chrome.tabs.sendMessage(pending.tabId, payload);
+    if (result && typeof result === "object" && "success" in result && result.success) {
+      pendingFillRequest = null;
+      getStorageSession()?.remove("pendingFillRequest");
+    }
+    sendResponse(result);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Failed to fill fields";
+    sendResponse({ success: false, error: message });
+  }
+}
 
 /**
  * Background sync entry point (12-08).

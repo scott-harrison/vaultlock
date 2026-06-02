@@ -16,6 +16,7 @@ export default defineConfig({
     // Core permissions needed from the start
     permissions: [
       "storage", // For server URL, tokens, encrypted vault cache, etc.
+      "tabs", // Relay fill commands to the tab where the user clicked the indicator
     ],
 
     // SECURITY NOTE
