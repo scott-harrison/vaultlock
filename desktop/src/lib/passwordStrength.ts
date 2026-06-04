@@ -1,6 +1,6 @@
+import { MIN_GENERATED_LENGTH } from "@vaultlock/shared";
 import { zxcvbn, zxcvbnOptions } from "@zxcvbn-ts/core";
 import { adjacencyGraphs, dictionary } from "@zxcvbn-ts/language-common";
-import { MIN_GENERATED_LENGTH } from "./passwordGenerator";
 
 let initialized = false;
 

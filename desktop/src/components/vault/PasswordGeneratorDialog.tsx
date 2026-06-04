@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { PasswordGeneratorPanel } from "@/components/vault/PasswordGeneratorPanel";
-import { DEFAULT_PASSWORD_GENERATOR_OPTIONS, generatePassword } from "@/lib/passwordGenerator";
+import { DEFAULT_PASSWORD_GENERATOR_OPTIONS, generatePassword } from "@vaultlock/shared";
 import { useState } from "react";
 
 interface PasswordGeneratorDialogProps {

@@ -4,13 +4,20 @@
  * Responsibilities:
  * - Message passing between content scripts and popup for autofill ("fill on click")
  * - Storing pending fill requests (hostname + field context)
- * - Later: background sync, token refresh, etc.
+ * - Background vault sync (encrypted cache only; decryption in popup)
  */
 
 import { VaultlockApiClient } from "@vaultlock/shared/api";
 import type { VaultItemResponse } from "@vaultlock/shared/types";
 import { getAuthSession } from "./lib/auth";
 import { getStorageSession } from "./lib/browser";
+import {
+  hostnamesMatch,
+  isExtensionPrivilegedSender,
+  isTrustedContentScriptSender,
+  rejectUntrustedSender,
+  tabHostnameFromSender,
+} from "./lib/messageSenderValidation";
 import type { AutofillRequest, ExecuteFillPayload } from "./lib/messaging";
 import { createTimedFetch } from "./lib/serverSettings";
 import {
@@ -23,80 +30,86 @@ import {
 } from "./lib/storage";
 import { getServerSettings } from "./lib/storage";
 
-// Store the latest fill request so the popup can pick it up when opened
 let pendingFillRequest: AutofillRequest | null = null;
-
 let vaultSyncInFlight: Promise<void> | null = null;
-
-/**
- * Basic validation for messages coming from content scripts.
- * Prevents malicious pages from easily spoofing fill requests.
- */
-function isValidContentScriptSender(sender: chrome.runtime.MessageSender): boolean {
-  if (!sender.tab?.url) return false;
-  const url = sender.tab.url;
-  return url.startsWith("http://") || url.startsWith("https://");
-}
-
-/** Popup / options / background — not a web page content script. */
-function isExtensionPrivilegedSender(sender: chrome.runtime.MessageSender): boolean {
-  return sender.id === chrome.runtime.id && sender.tab === undefined;
-}
 
 chrome.runtime.onMessage.addListener(
   (
     message: unknown,
-    _sender: chrome.runtime.MessageSender,
+    sender: chrome.runtime.MessageSender,
     sendResponse: (response?: unknown) => void,
   ) => {
     const msg = message as { type: string } & Partial<AutofillRequest>;
 
-    if (msg.type === "INDICATOR_CLICKED" && msg.hostname && msg.fieldType) {
-      if (!isValidContentScriptSender(_sender)) {
-        console.warn("[VaultLock Background] Rejected INDICATOR_CLICKED from invalid sender");
-        sendResponse({ success: false, error: "Invalid sender" });
-        return;
-      }
-
-      const tabId = _sender.tab?.id;
-      if (tabId === undefined) {
-        sendResponse({ success: false, error: "Missing tab context" });
-        return;
-      }
-
-      const request: AutofillRequest = {
-        hostname: msg.hostname,
-        fieldType: msg.fieldType,
-        associatedFieldId: msg.associatedFieldId,
-        tabId,
-      };
-
-      pendingFillRequest = request;
-
-      // Store in session storage so popup can read it even if background restarts
-      getStorageSession()?.set({ pendingFillRequest });
-
-      // Try to open the popup (requires user gesture - clicking the indicator counts)
-      chrome.action.openPopup().catch(() => {
-        // If openPopup fails (some Chrome versions), user can open manually
-      });
-
-      sendResponse({ success: true });
+    if (msg.type !== "INDICATOR_CLICKED") {
+      return;
     }
 
-    // Allow async response if needed later
+    if (!isTrustedContentScriptSender(sender)) {
+      return rejectUntrustedSender(
+        sender,
+        sendResponse,
+        "INDICATOR_CLICKED from non-content-script",
+      );
+    }
+
+    if (!msg.hostname || !msg.fieldType) {
+      sendResponse({ success: false, error: "Invalid request" });
+      return true;
+    }
+
+    const tabHost = tabHostnameFromSender(sender);
+    if (!tabHost || !hostnamesMatch(msg.hostname, tabHost)) {
+      return rejectUntrustedSender(sender, sendResponse, "INDICATOR_CLICKED hostname mismatch");
+    }
+
+    const tabId = sender.tab?.id;
+    if (tabId === undefined) {
+      sendResponse({ success: false, error: "Missing tab context" });
+      return true;
+    }
+
+    const request: AutofillRequest = {
+      hostname: msg.hostname,
+      fieldType: msg.fieldType,
+      associatedFieldId: msg.associatedFieldId,
+      tabId,
+    };
+
+    pendingFillRequest = request;
+    getStorageSession()?.set({ pendingFillRequest });
+
+    chrome.action.openPopup().catch(() => {});
+
+    sendResponse({ success: true });
     return true;
   },
 );
 
-// Allow the popup to fetch the pending request
+const EXTENSION_ONLY_MESSAGE_TYPES = new Set([
+  "GET_PENDING_FILL_REQUEST",
+  "CLEAR_PENDING_FILL_REQUEST",
+  "EXECUTE_FILL",
+  "TRIGGER_VAULT_SYNC",
+  "GET_ENCRYPTED_VAULT_CACHE",
+  "VAULT_LOCKED",
+]);
+
 chrome.runtime.onMessage.addListener(
   (
     message: unknown,
-    _sender: chrome.runtime.MessageSender,
+    sender: chrome.runtime.MessageSender,
     sendResponse: (response?: unknown) => void,
   ) => {
     const msg = message as { type?: string };
+
+    if (!msg.type || !EXTENSION_ONLY_MESSAGE_TYPES.has(msg.type)) {
+      return;
+    }
+
+    if (!isExtensionPrivilegedSender(sender)) {
+      return rejectUntrustedSender(sender, sendResponse, `${msg.type} from non-extension`);
+    }
 
     if (msg.type === "GET_PENDING_FILL_REQUEST") {
       const session = getStorageSession();
@@ -118,12 +131,33 @@ chrome.runtime.onMessage.addListener(
     }
 
     if (msg.type === "EXECUTE_FILL") {
-      if (!isExtensionPrivilegedSender(_sender)) {
-        sendResponse({ success: false, error: "Invalid sender" });
-        return true;
-      }
-
       void handleExecuteFill(message as ExecuteFillPayload, sendResponse);
+      return true;
+    }
+
+    if (msg.type === "TRIGGER_VAULT_SYNC") {
+      const forceFull = (msg as { forceFull?: boolean }).forceFull === true;
+      performVaultSync(forceFull)
+        .then(async () => {
+          const cache = await getEncryptedVaultCache();
+          sendResponse({ success: true, itemCount: cache?.items.length ?? 0 });
+        })
+        .catch((err: unknown) => {
+          const message = err instanceof Error ? err.message : "Vault sync failed";
+          sendResponse({ success: false, error: message });
+        });
+      return true;
+    }
+
+    if (msg.type === "GET_ENCRYPTED_VAULT_CACHE") {
+      getEncryptedVaultCache().then((cache) => {
+        sendResponse(cache ?? { items: [], syncToken: null });
+      });
+      return true;
+    }
+
+    if (msg.type === "VAULT_LOCKED") {
+      sendResponse({ success: true });
       return true;
     }
   },
@@ -179,13 +213,6 @@ async function handleExecuteFill(
   }
 }
 
-/**
- * Background sync entry point (12-08).
- * Fetches encrypted deltas using the access token and persists the raw
- * encrypted responses + sync token. Decryption only happens in the popup
- * (where the DEK is available after unlock). This respects MV3 context
- * isolation and the zero-knowledge model.
- */
 async function performVaultSync(forceFull = false): Promise<void> {
   if (vaultSyncInFlight) {
     return vaultSyncInFlight;
@@ -270,41 +297,3 @@ async function clearEncryptedVaultCacheAndToken(): Promise<void> {
     // ignore – best effort
   }
 }
-
-// Allow popup (or other contexts) to explicitly request a sync
-chrome.runtime.onMessage.addListener(
-  (
-    message: unknown,
-    _sender: chrome.runtime.MessageSender,
-    sendResponse: (response?: unknown) => void,
-  ) => {
-    const msg = message as { type?: string };
-
-    if (msg.type === "TRIGGER_VAULT_SYNC") {
-      const forceFull = (msg as { forceFull?: boolean }).forceFull === true;
-      performVaultSync(forceFull)
-        .then(async () => {
-          const cache = await getEncryptedVaultCache();
-          sendResponse({ success: true, itemCount: cache?.items.length ?? 0 });
-        })
-        .catch((err: unknown) => {
-          const message = err instanceof Error ? err.message : "Vault sync failed";
-          sendResponse({ success: false, error: message });
-        });
-      return true;
-    }
-
-    if (msg.type === "GET_ENCRYPTED_VAULT_CACHE") {
-      getEncryptedVaultCache().then((cache) => {
-        sendResponse(cache ?? { items: [], syncToken: null });
-      });
-      return true;
-    }
-
-    if (msg.type === "VAULT_LOCKED") {
-      // We keep the encrypted cache on disk for fast resume after re-unlock.
-      // Nothing to clear in-memory anymore (we removed the broken variables).
-      sendResponse({ success: true });
-    }
-  },
-);
