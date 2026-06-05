@@ -9,6 +9,10 @@
     @apply border-border;
   }
 
+  html {
+    color-scheme: dark;
+  }
+
   html,
   body,
   #__plasmo {
@@ -16,5 +20,13 @@
     margin: 0;
     min-width: 320px;
     width: 320px;
+  }
+
+  input,
+  textarea,
+  select,
+  [contenteditable="true"] {
+    -webkit-user-select: text;
+    user-select: text;
   }
 }
