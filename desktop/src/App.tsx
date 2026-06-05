@@ -1,5 +1,7 @@
 import { VaultlockApiError } from "@vaultlock/shared/api";
 import { hashMasterPasswordAuth } from "@vaultlock/shared/crypto";
+import { Toaster } from "@vaultlock/ui/components/ui/sonner";
+import { TooltipProvider } from "@vaultlock/ui/components/ui/tooltip";
 import { useCallback, useState } from "react";
 import { LoadingOverlay } from "./components/LoadingOverlay";
 import { type ConnectionStatus, ServerStatusIndicator } from "./components/ServerStatusIndicator";
@@ -11,8 +13,6 @@ import { RegisterScreen } from "./components/screens/RegisterScreen";
 import { SignInScreen } from "./components/screens/SignInScreen";
 import { UnlockScreen } from "./components/screens/UnlockScreen";
 import { VaultScreen } from "./components/screens/VaultScreen";
-import { Toaster } from "@vaultlock/ui/components/ui/sonner";
-import { TooltipProvider } from "@vaultlock/ui/components/ui/tooltip";
 import { useAutoLock } from "./hooks/useAutoLock";
 import { useMountEffect } from "./hooks/useMountEffect";
 import { useVerifyDeepLink } from "./hooks/useVerifyDeepLink";

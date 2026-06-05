@@ -1,3 +1,5 @@
+import { vaultItemDisplayTitle } from "@/lib/vaultItems";
+import type { DecryptedVaultItem } from "@/lib/vaultItems";
 import { Button } from "@vaultlock/ui/components/ui/button";
 import {
   Dialog,
@@ -7,8 +9,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@vaultlock/ui/components/ui/dialog";
-import { vaultItemDisplayTitle } from "@/lib/vaultItems";
-import type { DecryptedVaultItem } from "@/lib/vaultItems";
 
 interface VaultDeleteDialogProps {
   item: DecryptedVaultItem | null;

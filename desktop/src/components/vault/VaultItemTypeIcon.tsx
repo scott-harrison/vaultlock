@@ -1,5 +1,5 @@
-import { cn } from "@vaultlock/ui/lib/utils";
 import type { VaultItemType } from "@vaultlock/shared/types";
+import { cn } from "@vaultlock/ui/lib/utils";
 import { CreditCard, KeyRound, NotebookPen } from "lucide-react";
 
 const ICONS: Record<VaultItemType, typeof KeyRound> = {

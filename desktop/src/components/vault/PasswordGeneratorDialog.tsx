@@ -1,3 +1,5 @@
+import { PasswordGeneratorPanel } from "@/components/vault/PasswordGeneratorPanel";
+import { DEFAULT_PASSWORD_GENERATOR_OPTIONS, generatePassword } from "@vaultlock/shared";
 import { Button } from "@vaultlock/ui/components/ui/button";
 import {
   Dialog,
@@ -8,8 +10,6 @@ import {
   DialogTitle,
 } from "@vaultlock/ui/components/ui/dialog";
 import { Input } from "@vaultlock/ui/components/ui/input";
-import { PasswordGeneratorPanel } from "@/components/vault/PasswordGeneratorPanel";
-import { DEFAULT_PASSWORD_GENERATOR_OPTIONS, generatePassword } from "@vaultlock/shared";
 import { useState } from "react";
 
 interface PasswordGeneratorDialogProps {
