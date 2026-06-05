@@ -18,7 +18,7 @@ import {
   saveAutoLockMinutes,
   saveMasterPasswordReauthDays,
 } from "@/lib/securitySettings";
-import { cn } from "@/lib/utils";
+import { cn } from "@vaultlock/ui/lib/utils";
 import { useState } from "react";
 import { toast } from "sonner";
 

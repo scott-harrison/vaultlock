@@ -1,7 +1,5 @@
 import { PasswordStrengthMeter } from "@/components/PasswordStrengthMeter";
-import { Button } from "@/components/ui/button";
 import { evaluateVaultPasswordStrength } from "@/lib/passwordStrength";
-import { cn } from "@/lib/utils";
 import {
   DEFAULT_PASSWORD_GENERATOR_OPTIONS,
   MAX_GENERATED_LENGTH,
@@ -9,6 +7,8 @@ import {
   type PasswordGeneratorOptions,
   generatePassword,
 } from "@vaultlock/shared";
+import { Button } from "@vaultlock/ui/components/ui/button";
+import { cn } from "@vaultlock/ui/lib/utils";
 import { Copy, RefreshCw } from "lucide-react";
 import { useId, useMemo, useState } from "react";
 import { toast } from "sonner";

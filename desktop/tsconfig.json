@@ -22,7 +22,10 @@
 
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@vaultlock/ui": ["../ui/src/index.ts"],
+      "@vaultlock/ui/lib/*": ["../ui/src/lib/*"],
+      "@vaultlock/ui/components/ui/*": ["../ui/src/components/ui/*"]
     }
   },
   "include": ["src"],

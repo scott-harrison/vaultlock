@@ -1,15 +1,15 @@
-import { Button } from "@/components/ui/button";
+import { LoginPasswordField } from "@/components/vault/LoginPasswordField";
+import type { LoginItemPlaintext, NoteItemPlaintext, VaultItemType } from "@vaultlock/shared/types";
+import { Button } from "@vaultlock/ui/components/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { LoginPasswordField } from "@/components/vault/LoginPasswordField";
-import { cn } from "@/lib/utils";
-import type { LoginItemPlaintext, NoteItemPlaintext, VaultItemType } from "@vaultlock/shared/types";
+} from "@vaultlock/ui/components/ui/dialog";
+import { Input } from "@vaultlock/ui/components/ui/input";
+import { cn } from "@vaultlock/ui/lib/utils";
 import { useId } from "react";
 
 export interface VaultCreateDraft {
