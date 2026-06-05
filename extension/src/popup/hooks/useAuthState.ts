@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { getServerSettings, isServerConfigured } from "../../lib/storage";
 import type { AutofillRequest } from "../../lib/messaging";
+import { getServerSettings, isServerConfigured } from "../../lib/storage";
 
 export type AuthState = "loading" | "needs-server" | "login" | "unlock" | "unlocked";
 

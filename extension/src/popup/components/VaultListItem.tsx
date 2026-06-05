@@ -1,7 +1,7 @@
 import type { LoginItemPlaintext, NoteItemPlaintext } from "@vaultlock/shared/types";
 import { Button } from "@vaultlock/ui/components/ui/button";
 import { cn } from "@vaultlock/ui/lib/utils";
-import { getDisplaySubtitle, getDisplayTitle, type DecryptedVaultItem } from "../../lib/vaultItems";
+import { type DecryptedVaultItem, getDisplaySubtitle, getDisplayTitle } from "../../lib/vaultItems";
 import { VaultItemTypeIcon } from "./VaultItemTypeIcon";
 
 interface VaultListItemProps {
