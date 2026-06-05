@@ -34,17 +34,17 @@ export function UnlockForm({
   return (
     <PopupShell>
       <PopupHeader serverUrl={serverUrl} />
-      <div className="space-y-4">
+      <div className="space-y-6">
         <AuthUserChip email={email} />
 
-        <div className="space-y-1">
-          <h2 className="text-lg font-semibold tracking-tight">Unlock vault</h2>
-          <p className="text-xs text-muted-foreground">
-            Enter your master password to decrypt items on this device.
+        <div className="space-y-2">
+          <h2 className="text-2xl font-bold tracking-tight">Unlock your vault</h2>
+          <p className="text-sm text-muted-foreground">
+            Enter your master password to decrypt your items on this device.
           </p>
         </div>
 
-        <form className="space-y-3" onSubmit={onSubmit}>
+        <form className="space-y-4" onSubmit={onSubmit}>
           <AuthField label="Master password" htmlFor={`${formId}-password`}>
             <Input
               id={`${formId}-password`}
@@ -68,7 +68,7 @@ export function UnlockForm({
           <Button
             type="button"
             variant="outline"
-            className="h-10 w-full rounded-full border-border/80 bg-transparent text-sm"
+            className="h-11 w-full rounded-full border-border/80 bg-transparent"
             disabled={isSubmitting}
             onClick={onSignOut}
           >

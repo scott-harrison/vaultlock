@@ -33,15 +33,15 @@ export function LoginForm({
   return (
     <PopupShell>
       <PopupHeader serverUrl={serverUrl} />
-      <div className="space-y-4">
-        <div className="space-y-1">
-          <h2 className="text-lg font-semibold tracking-tight">Sign in</h2>
-          <p className="text-xs text-muted-foreground">
-            Enter your email and master password to unlock your vault.
+      <div className="space-y-6">
+        <div className="space-y-2">
+          <h2 className="text-2xl font-bold tracking-tight">Sign in</h2>
+          <p className="text-sm text-muted-foreground">
+            Enter your email and master password to access your vault.
           </p>
         </div>
 
-        <form className="space-y-3" onSubmit={onSubmit}>
+        <form className="space-y-4" onSubmit={onSubmit}>
           <AuthField label="Email" htmlFor={`${formId}-email`}>
             <Input
               id={`${formId}-email`}

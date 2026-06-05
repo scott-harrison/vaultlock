@@ -6,8 +6,8 @@ interface AuthFieldProps {
 
 export function AuthField({ label, htmlFor, children }: AuthFieldProps) {
   return (
-    <div className="space-y-1.5">
-      <label htmlFor={htmlFor} className="text-xs font-medium text-muted-foreground">
+    <div className="space-y-2">
+      <label htmlFor={htmlFor} className="text-sm font-medium text-muted-foreground">
         {label}
       </label>
       {children}

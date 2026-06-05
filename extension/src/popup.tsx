@@ -1,4 +1,6 @@
+import { useEffect } from "react";
 import "./extension-ui.css";
+import { applyExtensionTheme } from "./lib/extensionTheme";
 import { FillRequestBanner } from "./popup/components/FillRequestBanner";
 import { LoadingState } from "./popup/components/LoadingState";
 import { LoginForm } from "./popup/components/LoginForm";
@@ -10,6 +12,10 @@ import { VaultListView } from "./popup/components/VaultListView";
 import { useAuthState } from "./popup/hooks/useAuthState";
 
 export default function IndexPopup() {
+  useEffect(() => {
+    applyExtensionTheme();
+  }, []);
+
   const {
     authState,
     email,

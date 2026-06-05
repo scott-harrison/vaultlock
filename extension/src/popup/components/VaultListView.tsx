@@ -56,88 +56,92 @@ export function VaultListView({
   const isSearchActive = search.trim().length > 0;
 
   return (
-    <section className="space-y-3">
-      <div className="flex items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold">Vault</h2>
-        <div className="flex items-center gap-0.5">
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-7 gap-1 px-2 text-xs"
-            disabled={loading || isSyncing}
-            onClick={() => refreshFromServer(false)}
-          >
-            <RefreshCw className={cn("size-3.5", isSyncing && "animate-spin")} aria-hidden />
-            {isSyncing ? "Syncing" : "Sync"}
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-7 px-2 text-xs"
-            onClick={() => onLock(clearItems)}
-          >
-            Lock
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="size-7 text-muted-foreground"
-            aria-label="Sign out"
-            onClick={() => onLogout(clearItems)}
-          >
-            <LogOut className="size-3.5" aria-hidden />
-          </Button>
+    <section className="overflow-hidden rounded-lg border border-border bg-card/40">
+      <div className="space-y-3 border-b border-border p-3">
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold">Vault</h2>
+          <div className="flex items-center gap-0.5">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 gap-1.5 px-2 text-xs"
+              disabled={loading || isSyncing}
+              onClick={() => refreshFromServer(false)}
+            >
+              <RefreshCw className={cn("size-3.5", isSyncing && "animate-spin")} aria-hidden />
+              {isSyncing ? "Syncing…" : "Sync"}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-xs"
+              onClick={() => onLock(clearItems)}
+            >
+              Lock
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="size-7 text-muted-foreground hover:text-foreground"
+              aria-label="Sign out"
+              onClick={() => onLogout(clearItems)}
+            >
+              <LogOut className="size-3.5" aria-hidden />
+            </Button>
+          </div>
         </div>
+
+        <div className="relative">
+          <Search
+            className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+            aria-hidden
+          />
+          <Input
+            className="pl-9"
+            placeholder="Search…"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
+        </div>
+
+        {lastSynced ? (
+          <p className="text-xs text-muted-foreground">
+            Last synced {formatRelativeTime(lastSynced)}
+          </p>
+        ) : null}
+
+        {error ? (
+          <AuthFeedback variant="error" className="whitespace-pre-line">
+            {error}
+          </AuthFeedback>
+        ) : null}
+        {fillError ? <AuthFeedback variant="error">{fillError}</AuthFeedback> : null}
       </div>
 
-      <div className="relative">
-        <Search
-          className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground"
-          aria-hidden
-        />
-        <Input
-          className="h-9 pl-8 text-sm"
-          placeholder="Search…"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-        />
-      </div>
-
-      {lastSynced ? (
-        <p className="text-xs text-muted-foreground">
-          Last synced {formatRelativeTime(lastSynced)}
-        </p>
-      ) : null}
-
-      {error ? (
-        <AuthFeedback variant="error" className="whitespace-pre-line">
-          {error}
-        </AuthFeedback>
-      ) : null}
-      {fillError ? <AuthFeedback variant="error">{fillError}</AuthFeedback> : null}
-
-      <ScrollArea className="h-[280px] pr-1">
+      <ScrollArea className="h-[280px]">
         {loading ? (
           <VaultListSkeleton />
         ) : items.length === 0 && !error ? (
           isSearchActive ? (
             <VaultEmptyState
+              className="py-12"
               icon={Search}
               title="No matches"
-              description="Try a different search term."
+              description="Try a different search term or clear the filter."
             />
           ) : (
             <VaultEmptyState
+              className="py-12"
               icon={KeyRound}
               title="No items yet"
-              description="Saved logins and notes will appear here after sync."
+              description="Items you add will appear here."
             />
           )
         ) : (
-          <ul className="space-y-2 pb-1">
+          <ul className="space-y-1 p-2">
             {items.map((item) => (
               <VaultListItem
                 key={item.id}

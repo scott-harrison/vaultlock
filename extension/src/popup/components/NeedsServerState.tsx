@@ -1,4 +1,5 @@
 import { Button } from "@vaultlock/ui/components/ui/button";
+import { authPrimaryButtonClassName } from "../constants";
 import { PopupHeader } from "./PopupHeader";
 import { PopupShell } from "./PopupShell";
 
@@ -10,7 +11,11 @@ export function NeedsServerState() {
         <p className="text-sm text-muted-foreground">
           Configure your VaultLock server URL before signing in.
         </p>
-        <Button type="button" className="w-full" onClick={() => chrome.runtime.openOptionsPage()}>
+        <Button
+          type="button"
+          className={authPrimaryButtonClassName}
+          onClick={() => chrome.runtime.openOptionsPage()}
+        >
           Open settings
         </Button>
       </div>

@@ -9,9 +9,9 @@ interface AuthFeedbackProps {
 const variantClassName: Record<AuthFeedbackProps["variant"], string> = {
   error: "text-destructive",
   success: "text-primary",
-  warning: "text-amber-600 dark:text-amber-400",
+  warning: "text-amber-500 dark:text-amber-400",
 };
 
 export function AuthFeedback({ variant, children, className }: AuthFeedbackProps) {
-  return <p className={cn("text-xs", variantClassName[variant], className)}>{children}</p>;
+  return <p className={cn("text-sm", variantClassName[variant], className)}>{children}</p>;
 }
