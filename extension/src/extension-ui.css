@@ -18,8 +18,6 @@
   #__plasmo {
     @apply bg-background font-sans text-foreground antialiased;
     margin: 0;
-    min-width: 320px;
-    width: 320px;
   }
 
   input,
