@@ -3,16 +3,23 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "alias": {
+    "react": "./node_modules/react/index.js",
+    "react-dom": "./node_modules/react-dom/index.js",
+    "react/jsx-runtime": "./node_modules/react/jsx-runtime.js",
+    "react/jsx-dev-runtime": "./node_modules/react/jsx-dev-runtime.js"
+  },
   "scripts": {
-    "dev": "plasmo dev",
+    "dev": "node scripts/plasmo-dev.mjs chrome-mv3",
     "dev:brave": "node scripts/plasmo-dev.mjs brave-mv3",
-    "build": "plasmo build",
-    "build:brave": "plasmo build -- --target=brave-mv3",
+    "build": "node scripts/patch-plasmo-mount.mjs && plasmo build && node scripts/patch-plasmo-mount.mjs",
+    "build:brave": "node scripts/patch-plasmo-mount.mjs && plasmo build -- --target=brave-mv3 && node scripts/patch-plasmo-mount.mjs",
     "lint": "biome lint .",
     "format": "biome format --write ."
   },
   "dependencies": {
     "@vaultlock/shared": "workspace:*",
+    "@vaultlock/ui": "workspace:*",
     "plasmo": "0.89.5",
     "react": "18.2.0",
     "react-dom": "18.2.0"
@@ -21,12 +28,15 @@
     "@types/chrome": "0.0.287",
     "@types/react": "18.3.18",
     "@types/react-dom": "18.3.5",
+    "autoprefixer": "10.4.21",
+    "postcss": "8.5.14",
+    "tailwindcss": "3.4.17",
     "typescript": "5.9.3"
   },
   "manifest": {
     "name": "VaultLock",
     "description": "Secure. Simple. Yours. — Self-hosted password manager",
-    "permissions": ["storage"],
+    "permissions": ["storage", "tabs"],
     "host_permissions": ["<all_urls>"],
     "browser_specific_settings": {
       "gecko": {
