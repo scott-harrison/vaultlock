@@ -1,5 +1,5 @@
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Button } from "@vaultlock/ui/components/ui/button";
+import { Input } from "@vaultlock/ui/components/ui/input";
 import { PasswordGeneratorPanel } from "@/components/vault/PasswordGeneratorPanel";
 import { Eye, EyeOff } from "lucide-react";
 import { useState } from "react";

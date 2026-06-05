@@ -1,8 +1,8 @@
 import { PasswordStrengthMeter } from "@/components/PasswordStrengthMeter";
 import { AuthFeedback } from "@/components/auth/AuthFeedback";
 import { AuthField } from "@/components/auth/AuthField";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Button } from "@vaultlock/ui/components/ui/button";
+import { Input } from "@vaultlock/ui/components/ui/input";
 import { evaluatePasswordStrength } from "@/lib/passwordStrength";
 import { useId, useMemo, useState } from "react";
 

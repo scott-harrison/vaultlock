@@ -1,9 +1,9 @@
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
+import { Badge } from "@vaultlock/ui/components/ui/badge";
+import { Button } from "@vaultlock/ui/components/ui/button";
+import { Separator } from "@vaultlock/ui/components/ui/separator";
 import { VaultEmptyState } from "@/components/vault/VaultEmptyState";
 import { VaultItemTypeIcon } from "@/components/vault/VaultItemTypeIcon";
-import { cn } from "@/lib/utils";
+import { cn } from "@vaultlock/ui/lib/utils";
 import type { DecryptedVaultItem } from "@/lib/vaultItems";
 import { vaultItemDisplayTitle } from "@/lib/vaultItems";
 import type { LoginItemPlaintext, NoteItemPlaintext } from "@vaultlock/shared/types";

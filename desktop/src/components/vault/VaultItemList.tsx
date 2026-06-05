@@ -1,10 +1,10 @@
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { Button } from "@vaultlock/ui/components/ui/button";
+import { Input } from "@vaultlock/ui/components/ui/input";
+import { ScrollArea } from "@vaultlock/ui/components/ui/scroll-area";
 import { VaultEmptyState } from "@/components/vault/VaultEmptyState";
 import { VaultItemTypeIcon } from "@/components/vault/VaultItemTypeIcon";
 import { VaultListSkeleton } from "@/components/vault/VaultListSkeleton";
-import { cn } from "@/lib/utils";
+import { cn } from "@vaultlock/ui/lib/utils";
 import {
   type DecryptedVaultItem,
   vaultItemDisplaySubtitle,

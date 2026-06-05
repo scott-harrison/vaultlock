@@ -43,18 +43,26 @@ async function loadWrappedDek(email: string): Promise<WrappedDekRecord | null> {
   return record;
 }
 
+async function saveWrappedDekRecord(
+  email: string,
+  nonce: string,
+  ciphertext: string,
+): Promise<void> {
+  const store = await getKeysStore();
+  await store.set(WRAPPED_DEK_KEY, {
+    email: email.trim().toLowerCase(),
+    nonce,
+    ciphertext,
+  });
+  await store.save();
+}
+
 async function saveWrappedDek(
   email: string,
   nonce: Uint8Array,
   ciphertext: Uint8Array,
 ): Promise<void> {
-  const store = await getKeysStore();
-  await store.set(WRAPPED_DEK_KEY, {
-    email: email.trim().toLowerCase(),
-    nonce: toBase64(nonce),
-    ciphertext: toBase64(ciphertext),
-  });
-  await store.save();
+  await saveWrappedDekRecord(email, toBase64(nonce), toBase64(ciphertext));
 }
 
 export function isVaultUnlocked(): boolean {
@@ -126,7 +134,7 @@ export async function unlockVault(params: {
             typeof fromServer.ciphertext === "string"
               ? fromServer.ciphertext
               : toBase64(fromServer.ciphertext as Uint8Array);
-          await saveWrappedDek(normalizedEmail, nonceToSave, ciphertextToSave);
+          await saveWrappedDekRecord(normalizedEmail, nonceToSave, ciphertextToSave);
         }
       } catch {
         dek = null;
@@ -167,8 +175,13 @@ export function restoreUnlockedDek(dek: Uint8Array): void {
  * Useful for uploading to the server after first unlock on a device.
  */
 export async function getCurrentWrappedDek(email: string) {
+  const normalizedEmail = email.trim().toLowerCase();
   const store = await getKeysStore();
-  return store.get<WrappedDekRecord>(WRAPPED_DEK_KEY);
+  const record = await store.get<WrappedDekRecord>(WRAPPED_DEK_KEY);
+  if (!record || record.email !== normalizedEmail) {
+    return null;
+  }
+  return record;
 }
 
 export async function clearWrappedDekStorage(): Promise<void> {

@@ -1,5 +1,5 @@
 import { SecuritySettingsSection } from "@/components/settings/SecuritySettingsSection";
-import { Button } from "@/components/ui/button";
+import { Button } from "@vaultlock/ui/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 
 interface VaultSettingsScreenProps {

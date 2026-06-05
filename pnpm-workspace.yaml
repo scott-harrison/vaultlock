@@ -4,6 +4,7 @@ packages:
   - 'extension'
   - 'shared'
   - 'desktop'
+  - 'ui'
 
 # Supply chain: https://pnpm.io/supply-chain-security
 blockExoticSubdeps: true

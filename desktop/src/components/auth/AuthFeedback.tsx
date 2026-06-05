@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils";
+import { cn } from "@vaultlock/ui/lib/utils";
 
 interface AuthFeedbackProps {
   variant: "error" | "success" | "warning";

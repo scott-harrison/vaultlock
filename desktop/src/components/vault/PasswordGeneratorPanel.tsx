@@ -1,7 +1,7 @@
 import { PasswordStrengthMeter } from "@/components/PasswordStrengthMeter";
-import { Button } from "@/components/ui/button";
+import { Button } from "@vaultlock/ui/components/ui/button";
 import { evaluateVaultPasswordStrength } from "@/lib/passwordStrength";
-import { cn } from "@/lib/utils";
+import { cn } from "@vaultlock/ui/lib/utils";
 import {
   DEFAULT_PASSWORD_GENERATOR_OPTIONS,
   MAX_GENERATED_LENGTH,

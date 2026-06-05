@@ -1,11 +1,11 @@
 import { AuthFeedback } from "@/components/auth/AuthFeedback";
 import { AuthField } from "@/components/auth/AuthField";
 import { AuthUserChip } from "@/components/auth/AuthUserChip";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Button } from "@vaultlock/ui/components/ui/button";
+import { Input } from "@vaultlock/ui/components/ui/input";
 import { useMountEffect } from "@/hooks/useMountEffect";
 import { getBiometricQuickUnlockAvailability } from "@/lib/securitySettings";
-import { cn } from "@/lib/utils";
+import { cn } from "@vaultlock/ui/lib/utils";
 import { Fingerprint } from "lucide-react";
 import { useId, useRef, useState } from "react";
 

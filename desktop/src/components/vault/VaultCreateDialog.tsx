@@ -1,14 +1,14 @@
-import { Button } from "@/components/ui/button";
+import { Button } from "@vaultlock/ui/components/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
+} from "@vaultlock/ui/components/ui/dialog";
+import { Input } from "@vaultlock/ui/components/ui/input";
 import { LoginPasswordField } from "@/components/vault/LoginPasswordField";
-import { cn } from "@/lib/utils";
+import { cn } from "@vaultlock/ui/lib/utils";
 import type { LoginItemPlaintext, NoteItemPlaintext, VaultItemType } from "@vaultlock/shared/types";
 import { useId } from "react";
 

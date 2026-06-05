@@ -1,5 +1,5 @@
-import { Button } from "@/components/ui/button";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Button } from "@vaultlock/ui/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@vaultlock/ui/components/ui/tooltip";
 import { ArrowLeftRight } from "lucide-react";
 
 interface AuthUserChipProps {

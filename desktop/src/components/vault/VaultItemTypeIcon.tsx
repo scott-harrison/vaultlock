@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils";
+import { cn } from "@vaultlock/ui/lib/utils";
 import type { VaultItemType } from "@vaultlock/shared/types";
 import { CreditCard, KeyRound, NotebookPen } from "lucide-react";
 
