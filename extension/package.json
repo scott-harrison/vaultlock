@@ -3,11 +3,17 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "alias": {
+    "react": "./node_modules/react/index.js",
+    "react-dom": "./node_modules/react-dom/index.js",
+    "react/jsx-runtime": "./node_modules/react/jsx-runtime.js",
+    "react/jsx-dev-runtime": "./node_modules/react/jsx-dev-runtime.js"
+  },
   "scripts": {
-    "dev": "plasmo dev",
+    "dev": "node scripts/plasmo-dev.mjs chrome-mv3",
     "dev:brave": "node scripts/plasmo-dev.mjs brave-mv3",
-    "build": "plasmo build",
-    "build:brave": "plasmo build -- --target=brave-mv3",
+    "build": "node scripts/patch-plasmo-mount.mjs && plasmo build && node scripts/patch-plasmo-mount.mjs",
+    "build:brave": "node scripts/patch-plasmo-mount.mjs && plasmo build -- --target=brave-mv3 && node scripts/patch-plasmo-mount.mjs",
     "lint": "biome lint .",
     "format": "biome format --write ."
   },
@@ -30,7 +36,7 @@
   "manifest": {
     "name": "VaultLock",
     "description": "Secure. Simple. Yours. — Self-hosted password manager",
-    "permissions": ["storage"],
+    "permissions": ["storage", "tabs"],
     "host_permissions": ["<all_urls>"],
     "browser_specific_settings": {
       "gecko": {

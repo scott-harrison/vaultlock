@@ -8,6 +8,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { patchManifestFile } from "./patch-extension-csp.mjs";
+import { patchStaticEntries } from "./patch-plasmo-mount.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const target = process.argv[2] ?? "brave-mv3";
@@ -37,6 +38,7 @@ const child = spawn(
 );
 
 const interval = setInterval(() => {
+  patchStaticEntries();
   patchManifestFile(manifestPath);
 }, 1500);
 

@@ -6,14 +6,20 @@ import type {
 import { Button } from "@vaultlock/ui/components/ui/button";
 import { useCallback, useEffect, useState } from "react";
 import "./extension-ui.css";
-import { getAuthSession, loginAndUnlock, logout } from "./lib/auth";
 import { loginMatchesPageHost } from "./lib/loginHostMatch";
 import type { AutofillRequest } from "./lib/messaging";
 import { getServerSettings, isServerConfigured } from "./lib/storage";
 import type { DecryptedVaultItem } from "./lib/vaultItems";
-import { isVaultUnlocked, lockVault } from "./lib/vaultSession";
 
 type AuthState = "loading" | "needs-server" | "login" | "unlock" | "unlocked";
+
+const POPUP_FRAME_STYLE: React.CSSProperties = {
+  width: 320,
+  minHeight: 200,
+  padding: 16,
+  fontFamily: "system-ui, sans-serif",
+  boxSizing: "border-box",
+};
 
 function formatRelativeTime(timestamp: number): string {
   const diff = Date.now() - timestamp;
@@ -92,6 +98,7 @@ function VaultListView({
     );
 
     if (encryptedItems.length > 0 && decrypted.length === 0) {
+      const { isVaultUnlocked } = await import("./lib/vaultSession");
       if (!isVaultUnlocked()) {
         setError("Vault is locked. Enter your master password to view items.");
       } else if (decryptFailures > 0) {
@@ -414,6 +421,11 @@ export default function IndexPopup() {
         return;
       }
 
+      const [{ getAuthSession }, { isVaultUnlocked }] = await Promise.all([
+        import("./lib/auth"),
+        import("./lib/vaultSession"),
+      ]);
+
       const session = await getAuthSession();
       if (!session) {
         setAuthState("login");
@@ -440,6 +452,7 @@ export default function IndexPopup() {
   }, []);
 
   useEffect(() => {
+    document.getElementById("__plasmo-fallback")?.remove();
     resolveAuthState();
   }, [resolveAuthState]);
 
@@ -464,6 +477,7 @@ export default function IndexPopup() {
     setError("");
 
     try {
+      const { loginAndUnlock } = await import("./lib/auth");
       await loginAndUnlock({ email, masterPassword });
       setMasterPassword("");
       setAuthState("unlocked");
@@ -487,6 +501,7 @@ export default function IndexPopup() {
     setError("");
 
     try {
+      const { getAuthSession, loginAndUnlock } = await import("./lib/auth");
       const session = await getAuthSession();
       if (!session) throw new Error("No session found");
 
@@ -512,6 +527,7 @@ export default function IndexPopup() {
   };
 
   const handleLock = async () => {
+    const { lockVault } = await import("./lib/vaultSession");
     await lockVault();
     // Notify background (security: background clears encrypted cache on lock)
     chrome.runtime.sendMessage({ type: "VAULT_LOCKED" }).catch(() => {});
@@ -519,6 +535,7 @@ export default function IndexPopup() {
   };
 
   const handleLogout = async () => {
+    const { logout } = await import("./lib/auth");
     await logout();
     chrome.runtime.sendMessage({ type: "VAULT_LOCKED" }).catch(() => {});
     setEmail("");
@@ -528,7 +545,7 @@ export default function IndexPopup() {
 
   if (authState === "loading") {
     return (
-      <div className="w-[320px] bg-background p-4 text-foreground">
+      <div className="bg-background text-foreground" style={POPUP_FRAME_STYLE}>
         <Button type="button" disabled variant="secondary" className="w-full">
           Loading…
         </Button>
@@ -538,7 +555,7 @@ export default function IndexPopup() {
 
   if (authState === "needs-server") {
     return (
-      <div style={{ padding: 16, fontFamily: "system-ui" }}>
+      <div style={POPUP_FRAME_STYLE}>
         <h3>VaultLock</h3>
         <p>Please configure your server URL first.</p>
         <button type="button" onClick={() => chrome.runtime.openOptionsPage()}>
@@ -549,7 +566,7 @@ export default function IndexPopup() {
   }
 
   return (
-    <div style={{ width: 320, padding: 16, fontFamily: "system-ui, sans-serif" }}>
+    <div style={POPUP_FRAME_STYLE}>
       <h2 style={{ margin: 0, fontSize: 18 }}>VaultLock</h2>
       <p style={{ margin: "4px 0 12px", color: "#666", fontSize: 13 }}>{serverUrl}</p>
 
