@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import "./extension-ui.css";
 import {
   DEFAULT_SERVER_ADVANCED,
   type ServerAdvancedOptions,
@@ -116,7 +117,7 @@ export default function OptionsPage() {
   const statusDisplay = getStatusDisplay();
 
   return (
-    <div style={{ padding: 32, fontFamily: "system-ui, sans-serif", maxWidth: 540 }}>
+    <div className="min-h-screen max-w-xl bg-background p-8 font-sans text-foreground">
       <h1>VaultLock Extension Settings</h1>
 
       <section style={{ marginTop: 24 }}>

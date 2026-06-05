@@ -19,7 +19,10 @@
     "paths": {
       "@/*": ["./src/*"],
       "@vaultlock/shared": ["../shared/src/index.ts"],
-      "@vaultlock/shared/*": ["../shared/src/*"]
+      "@vaultlock/shared/*": ["../shared/src/*"],
+      "@vaultlock/ui": ["../ui/src/index.ts"],
+      "@vaultlock/ui/lib/*": ["../ui/src/lib/*"],
+      "@vaultlock/ui/components/ui/*": ["../ui/src/components/ui/*"]
     }
   },
   "include": [".plasmo/index.d.ts", "src/**/*.ts", "src/**/*.tsx"],

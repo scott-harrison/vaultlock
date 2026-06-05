@@ -3,7 +3,9 @@ import type {
   NoteItemPlaintext,
   VaultItemResponse,
 } from "@vaultlock/shared/types";
+import { Button } from "@vaultlock/ui/components/ui/button";
 import { useCallback, useEffect, useState } from "react";
+import "./extension-ui.css";
 import { getAuthSession, loginAndUnlock, logout } from "./lib/auth";
 import { loginMatchesPageHost } from "./lib/loginHostMatch";
 import type { AutofillRequest } from "./lib/messaging";
@@ -525,7 +527,13 @@ export default function IndexPopup() {
   };
 
   if (authState === "loading") {
-    return <div style={{ padding: 16 }}>Loading…</div>;
+    return (
+      <div className="w-[320px] bg-background p-4 text-foreground">
+        <Button type="button" disabled variant="secondary" className="w-full">
+          Loading…
+        </Button>
+      </div>
+    );
   }
 
   if (authState === "needs-server") {
