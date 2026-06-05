@@ -127,6 +127,9 @@ importers:
       '@vaultlock/ui':
         specifier: workspace:*
         version: link:../ui
+      lucide-react:
+        specifier: 1.16.0
+        version: 1.16.0(react@18.2.0)
       plasmo:
         specifier: 0.89.5
         version: 0.89.5(@swc/core@1.15.33(@swc/helpers@0.5.21))(@swc/helpers@0.5.21)(jiti@2.7.0)(lodash@4.18.1)(postcss@8.5.14)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(terser@5.47.1)(yaml@2.8.4)
@@ -14033,6 +14036,10 @@ snapshots:
   lru-cache@6.0.0:
     dependencies:
       yallist: 4.0.0
+
+  lucide-react@1.16.0(react@18.2.0):
+    dependencies:
+      react: 18.2.0
 
   lucide-react@1.16.0(react@19.1.0):
     dependencies:
