@@ -10,10 +10,10 @@
     "react/jsx-dev-runtime": "./node_modules/react/jsx-dev-runtime.js"
   },
   "scripts": {
-    "dev": "node scripts/plasmo-dev.mjs chrome-mv3",
-    "dev:brave": "node scripts/plasmo-dev.mjs brave-mv3",
-    "build": "node scripts/patch-plasmo-mount.mjs && plasmo build && node scripts/patch-plasmo-mount.mjs",
-    "build:brave": "node scripts/patch-plasmo-mount.mjs && plasmo build -- --target=brave-mv3 && node scripts/patch-plasmo-mount.mjs",
+    "dev": "node scripts/embed-autofill-tokens.mjs && node scripts/plasmo-dev.mjs chrome-mv3",
+    "dev:brave": "node scripts/embed-autofill-tokens.mjs && node scripts/plasmo-dev.mjs brave-mv3",
+    "build": "node scripts/embed-autofill-tokens.mjs && node scripts/patch-plasmo-mount.mjs && plasmo build && node scripts/patch-plasmo-mount.mjs",
+    "build:brave": "node scripts/embed-autofill-tokens.mjs && node scripts/patch-plasmo-mount.mjs && plasmo build -- --target=brave-mv3 && node scripts/patch-plasmo-mount.mjs",
     "lint": "biome lint .",
     "format": "biome format --write ."
   },
