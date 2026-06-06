@@ -1,4 +1,4 @@
-import { AUTOFILL_TOKENS_CSS } from "./autofillTokensCss";
+import AUTOFILL_TOKENS_CSS from "data-text:@vaultlock/ui/styles/autofill-tokens.css";
 
 export const SHADOW_COMPONENT_STYLES = `
   :host {

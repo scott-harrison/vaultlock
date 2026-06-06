@@ -7,8 +7,7 @@
       "desktop/dist/**",
       "desktop/src-tauri/gen/**",
       "extension/build/**",
-      "extension/.plasmo/**",
-      "extension/src/contents/lib/autofillTokensCss.ts"
+      "extension/.plasmo/**"
     ]
   },
   "organizeImports": {
