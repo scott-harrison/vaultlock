@@ -60,6 +60,8 @@ overrides:
   tar@<=7.5.9: 7.5.15
   tmp@<0.2.6: 0.2.6
   uuid@<11.1.1: 11.1.1
+  # fbjs (expo mobile) requests 1.0.41; pnpm trust policy rejects it (no provenance vs 1.0.39).
+  ua-parser-js@1.0.41: 1.0.39
   vitest@<4.1.0: 4.1.0
   tsup@<=8.3.4: 8.5.1
   vite@<=6.4.1: 6.4.2
