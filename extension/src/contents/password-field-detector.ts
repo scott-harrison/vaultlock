@@ -6,6 +6,7 @@ import {
 import { fillLoginFields } from "../lib/formFillDom";
 import type { ExecuteFillPayload } from "../lib/messaging";
 import { injectFieldActionControl } from "./lib/fieldActionControl";
+import { repositionAllFieldTriggers } from "./lib/fieldMenuPortal";
 
 /**
  * Content script for VaultLock.
@@ -212,6 +213,8 @@ function scanForLoginFields() {
       associatedUsername.dataset.vaultlockAssociatedPasswordId = pwField.id || "";
     }
   }
+
+  repositionAllFieldTriggers();
 }
 
 if (extensionContextActive) {

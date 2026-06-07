@@ -41,22 +41,26 @@ export function registerFieldOverlay(triggerHost: HTMLElement, field: HTMLInputE
   positionFieldTrigger(triggerHost, field);
 }
 
+export function repositionAllFieldTriggers(): void {
+  for (const anchor of fieldAnchors) {
+    positionFieldTrigger(anchor.triggerHost, anchor.field);
+  }
+}
+
 export function positionFieldTrigger(triggerHost: HTMLElement, field: HTMLInputElement): void {
   const rect = resolveFieldAnchorRect(field);
-  const visible =
-    rect.width > 20 &&
-    rect.height > 10 &&
+  const { x, y, visible: anchorVisible } = getFieldControlAnchor(field);
+  const inViewport =
     rect.bottom > 0 &&
     rect.top < window.innerHeight &&
     rect.right > 0 &&
     rect.left < window.innerWidth;
+  const visible = anchorVisible && inViewport;
 
   triggerHost.style.visibility = visible ? "visible" : "hidden";
   if (!visible) {
     return;
   }
-
-  const { x, y } = getFieldControlAnchor(field);
 
   triggerHost.style.position = "fixed";
   triggerHost.style.width = `${TRIGGER_SIZE_PX}px`;
