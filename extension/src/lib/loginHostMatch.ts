@@ -1,16 +1,14 @@
-/**
- * Basic hostname matching for login items vs. the page the user is filling on.
- */
+export {
+  compareLoginMatchScores,
+  extractLoginHostname,
+  loginMatchesPageHost,
+  normalizeHostname,
+  scoreLoginForPageHost,
+  sortLoginUrlsForPageHost,
+} from "@vaultlock/shared/domain-matching";
 
-export function loginMatchesPageHost(loginUrl: string | undefined, pageHostname: string): boolean {
-  const host = pageHostname.toLowerCase();
-  if (!loginUrl?.trim()) return true;
-
-  try {
-    const parsed = new URL(loginUrl.includes("://") ? loginUrl : `https://${loginUrl}`);
-    const itemHost = parsed.hostname.toLowerCase();
-    return itemHost === host || itemHost.endsWith(`.${host}`) || host.endsWith(`.${itemHost}`);
-  } catch {
-    return loginUrl.toLowerCase().includes(host);
-  }
-}
+export type {
+  LoginHostMatchResult,
+  LoginMatchKind,
+  LoginMatchOptions,
+} from "@vaultlock/shared/domain-matching";

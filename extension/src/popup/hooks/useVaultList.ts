@@ -1,8 +1,32 @@
+import {
+  compareLoginMatchScores,
+  loginMatchesPageHost,
+  scoreLoginForPageHost,
+} from "@vaultlock/shared/domain-matching";
 import type { LoginItemPlaintext, VaultItemResponse } from "@vaultlock/shared/types";
-import { useCallback, useEffect, useState } from "react";
-import { loginMatchesPageHost } from "../../lib/loginHostMatch";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { AutofillRequest } from "../../lib/messaging";
 import type { DecryptedVaultItem } from "../../lib/vaultItems";
+
+function itemMatchesSearch(item: DecryptedVaultItem, term: string): boolean {
+  if (!term) {
+    return true;
+  }
+
+  const title = (item.plaintext?.title || "").toLowerCase();
+  const username =
+    item.itemType === "login"
+      ? ((item.plaintext as LoginItemPlaintext).username || "").toLowerCase()
+      : "";
+  const content =
+    item.itemType === "note"
+      ? (
+          (item.plaintext as import("@vaultlock/shared/types").NoteItemPlaintext).content || ""
+        ).toLowerCase()
+      : "";
+
+  return title.includes(term) || username.includes(term) || content.includes(term);
+}
 
 export function useVaultList(pendingFillRequest: AutofillRequest | null) {
   const [items, setItems] = useState<DecryptedVaultItem[]>([]);
@@ -140,29 +164,44 @@ export function useVaultList(pendingFillRequest: AutofillRequest | null) {
     };
   }, [loadFromCache]);
 
-  const filteredItems = items.filter((item) => {
-    const term = search.toLowerCase();
-    const title = (item.plaintext?.title || "").toLowerCase();
-    const username =
-      item.itemType === "login"
-        ? ((item.plaintext as LoginItemPlaintext).username || "").toLowerCase()
-        : "";
-    const content =
-      item.itemType === "note"
-        ? (
-            (item.plaintext as import("@vaultlock/shared/types").NoteItemPlaintext).content || ""
-          ).toLowerCase()
-        : "";
-    const matchesSearch = title.includes(term) || username.includes(term) || content.includes(term);
-    if (!matchesSearch) return false;
+  const searchTerm = search.trim().toLowerCase();
+  const fillHostname = pendingFillRequest?.hostname ?? null;
 
-    if (pendingFillRequest && item.itemType === "login") {
-      const login = item.plaintext as LoginItemPlaintext;
-      return loginMatchesPageHost(login.url, pendingFillRequest.hostname);
+  const loginItems = useMemo(() => items.filter((item) => item.itemType === "login"), [items]);
+
+  const hostnameMatchedLogins = useMemo(() => {
+    if (!fillHostname) {
+      return loginItems;
     }
 
-    return true;
-  });
+    return loginItems
+      .map((item) => {
+        const login = item.plaintext as LoginItemPlaintext;
+        return {
+          item,
+          match: scoreLoginForPageHost(login.url, fillHostname),
+        };
+      })
+      .filter(({ match }) => match.matches)
+      .sort((a, b) => compareLoginMatchScores(a.match, b.match))
+      .map(({ item }) => item);
+  }, [fillHostname, loginItems]);
+
+  const filteredItems = useMemo(() => {
+    const sourceItems = fillHostname ? hostnameMatchedLogins : items;
+    return sourceItems.filter((item) => itemMatchesSearch(item, searchTerm));
+  }, [fillHostname, hostnameMatchedLogins, items, searchTerm]);
+
+  const fillContext = useMemo(
+    () => ({
+      isActive: Boolean(fillHostname),
+      hostname: fillHostname,
+      totalLoginCount: loginItems.length,
+      hostnameMatchCount: fillHostname ? hostnameMatchedLogins.length : 0,
+      visibleMatchCount: fillHostname ? filteredItems.length : 0,
+    }),
+    [fillHostname, filteredItems.length, hostnameMatchedLogins.length, loginItems.length],
+  );
 
   const handleFill = useCallback(
     async (login: LoginItemPlaintext, itemId: string, onFillComplete: () => void) => {
@@ -171,6 +210,10 @@ export function useVaultList(pendingFillRequest: AutofillRequest | null) {
       setFillingId(itemId);
 
       try {
+        if (!loginMatchesPageHost(login.url, pendingFillRequest.hostname)) {
+          throw new Error("This login does not match the current page hostname");
+        }
+
         const result = await chrome.runtime.sendMessage({
           type: "EXECUTE_FILL",
           hostname: pendingFillRequest.hostname,
@@ -216,6 +259,7 @@ export function useVaultList(pendingFillRequest: AutofillRequest | null) {
     fillingId,
     lastSynced,
     isSyncing,
+    fillContext,
     refreshFromServer,
     handleFill,
     clearItems,
