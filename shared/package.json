@@ -8,6 +8,7 @@
     "./crypto": "./src/crypto/index.ts",
     "./types": "./src/types/index.ts",
     "./api": "./src/api/index.ts",
+    "./domain-matching": "./src/domainMatching.ts",
     "./password-generator": "./src/passwordGenerator.ts"
   },
   "scripts": {

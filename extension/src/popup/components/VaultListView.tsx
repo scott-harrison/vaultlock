@@ -3,12 +3,13 @@ import { Button } from "@vaultlock/ui/components/ui/button";
 import { Input } from "@vaultlock/ui/components/ui/input";
 import { ScrollArea } from "@vaultlock/ui/components/ui/scroll-area";
 import { cn } from "@vaultlock/ui/lib/utils";
-import { KeyRound, LogOut, RefreshCw, Search } from "lucide-react";
+import { Globe, KeyRound, LogOut, RefreshCw, Search } from "lucide-react";
 import { useState } from "react";
 import type { AutofillRequest } from "../../lib/messaging";
 import { useVaultList } from "../hooks/useVaultList";
 import { formatRelativeTime } from "../utils/formatRelativeTime";
 import { AuthFeedback } from "./AuthFeedback";
+import { FillRequestBanner } from "./FillRequestBanner";
 import { VaultEmptyState } from "./VaultEmptyState";
 import { VaultListItem } from "./VaultListItem";
 import { VaultListSkeleton } from "./VaultListSkeleton";
@@ -36,6 +37,7 @@ export function VaultListView({
     fillingId,
     lastSynced,
     isSyncing,
+    fillContext,
     refreshFromServer,
     handleFill,
     clearItems,
@@ -54,9 +56,72 @@ export function VaultListView({
   };
 
   const isSearchActive = search.trim().length > 0;
+  const showFillBanner = fillContext.isActive && fillContext.hostname;
+
+  const emptyState = (() => {
+    if (error) {
+      return null;
+    }
+
+    if (fillContext.isActive && fillContext.hostnameMatchCount === 0) {
+      return (
+        <VaultEmptyState
+          className="py-12"
+          icon={Globe}
+          title={`No logins for ${fillContext.hostname}`}
+          description={
+            fillContext.totalLoginCount > 0
+              ? "None of your saved logins match this hostname. Add one for this site or clear the search filter."
+              : "Add a login to your vault, then click the field lock icon again."
+          }
+        />
+      );
+    }
+
+    if (fillContext.isActive && isSearchActive && items.length === 0) {
+      return (
+        <VaultEmptyState
+          className="py-12"
+          icon={Search}
+          title="No matching logins"
+          description={`Try a different search term for ${fillContext.hostname}.`}
+        />
+      );
+    }
+
+    if (isSearchActive) {
+      return (
+        <VaultEmptyState
+          className="py-12"
+          icon={Search}
+          title="No matches"
+          description="Try a different search term or clear the filter."
+        />
+      );
+    }
+
+    return (
+      <VaultEmptyState
+        className="py-12"
+        icon={KeyRound}
+        title="No items yet"
+        description="Items you add will appear here."
+      />
+    );
+  })();
 
   return (
     <section className="overflow-hidden rounded-lg border border-border bg-card/40">
+      {showFillBanner ? (
+        <div className="border-b border-border p-3">
+          <FillRequestBanner
+            hostname={fillContext.hostname ?? ""}
+            matchCount={fillContext.hostnameMatchCount}
+            totalLoginCount={fillContext.totalLoginCount}
+          />
+        </div>
+      ) : null}
+
       <div className="space-y-3 border-b border-border p-3">
         <div className="flex items-center justify-between gap-2">
           <h2 className="text-sm font-semibold">Vault</h2>
@@ -101,7 +166,7 @@ export function VaultListView({
           />
           <Input
             className="pl-9"
-            placeholder="Search…"
+            placeholder={fillContext.isActive ? "Search matching logins…" : "Search…"}
             value={search}
             onChange={(event) => setSearch(event.target.value)}
           />
@@ -124,22 +189,8 @@ export function VaultListView({
       <ScrollArea className="h-[280px]">
         {loading ? (
           <VaultListSkeleton />
-        ) : items.length === 0 && !error ? (
-          isSearchActive ? (
-            <VaultEmptyState
-              className="py-12"
-              icon={Search}
-              title="No matches"
-              description="Try a different search term or clear the filter."
-            />
-          ) : (
-            <VaultEmptyState
-              className="py-12"
-              icon={KeyRound}
-              title="No items yet"
-              description="Items you add will appear here."
-            />
-          )
+        ) : items.length === 0 ? (
+          emptyState
         ) : (
           <ul className="space-y-1 p-2">
             {items.map((item) => (
