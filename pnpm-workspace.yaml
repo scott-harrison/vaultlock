@@ -8,9 +8,21 @@ packages:
 
 # Supply chain: https://pnpm.io/supply-chain-security
 blockExoticSubdeps: true
-minimumReleaseAge: 1440
-trustPolicy: no-downgrade
+minimumReleaseAge: 10080
+minimumReleaseAgeExclude:
+  - "plasmo@0.90.5"
+  - "@plasmohq/parcel-config@0.42.0"
+  - "graphql@15.10.2"
 
+trustPolicy: no-downgrade
+trustPolicyExclude:
+  - graphql
+  - chokidar
+peerDependencyRules:
+  allowedVersions:
+    vite: "7"
+    esbuild: "0.27"
+    svgo: "2"
 # Recommended dev pin (.nvmrc); engines allow any 24.x LTS patch.
 nodeVersion: 24.15.0
 engineStrict: true

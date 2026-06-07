@@ -33,7 +33,6 @@ export default defineConfig({
     action: {
       default_popup: "popup.html",
       default_title: "VaultLock",
-      // default_icon will be added when we have proper icons.
     },
 
     options_ui: {
