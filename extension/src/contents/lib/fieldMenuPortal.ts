@@ -1,3 +1,4 @@
+import { getFieldControlAnchor, resolveFieldAnchorRect } from "./fieldAnchorRect";
 import { createThemedShadowHost } from "./themedShadowHost";
 
 const PORTAL_ATTR = "data-vaultlock-menu-portal";
@@ -5,7 +6,6 @@ const MENU_WIDTH_PX = 232;
 const MENU_GAP_PX = 6;
 const VIEWPORT_MARGIN_PX = 8;
 const TRIGGER_SIZE_PX = 22;
-const TRIGGER_INSET_PX = 6;
 
 let portalRoot: HTMLElement | null = null;
 let globalRepositionBound = false;
@@ -30,15 +30,19 @@ export function getMenuPortalRoot(): HTMLElement {
   return portalRoot;
 }
 
-export function registerFieldOverlay(triggerHost: HTMLElement, field: HTMLInputElement): void {
+export function mountFieldTrigger(triggerHost: HTMLElement): void {
   triggerHost.style.pointerEvents = "auto";
+  document.body.appendChild(triggerHost);
+}
+
+export function registerFieldOverlay(triggerHost: HTMLElement, field: HTMLInputElement): void {
   fieldAnchors.add({ triggerHost, field });
   ensureGlobalReposition();
   positionFieldTrigger(triggerHost, field);
 }
 
 export function positionFieldTrigger(triggerHost: HTMLElement, field: HTMLInputElement): void {
-  const rect = field.getBoundingClientRect();
+  const rect = resolveFieldAnchorRect(field);
   const visible =
     rect.width > 20 &&
     rect.height > 10 &&
@@ -52,15 +56,19 @@ export function positionFieldTrigger(triggerHost: HTMLElement, field: HTMLInputE
     return;
   }
 
+  const { x, y } = getFieldControlAnchor(field);
+
   triggerHost.style.position = "fixed";
   triggerHost.style.width = `${TRIGGER_SIZE_PX}px`;
   triggerHost.style.height = `${TRIGGER_SIZE_PX}px`;
-  triggerHost.style.top = `${rect.top + (rect.height - TRIGGER_SIZE_PX) / 2}px`;
-  triggerHost.style.left = `${rect.left + rect.width - TRIGGER_SIZE_PX - TRIGGER_INSET_PX}px`;
+  triggerHost.style.top = `${y}px`;
+  triggerHost.style.left = `${x}px`;
+  triggerHost.style.transform = "translate(-50%, -50%)";
+  triggerHost.style.margin = "0";
 }
 
-export function positionFloatingMenu(menu: HTMLElement, field: HTMLElement): void {
-  const anchorRect = field.getBoundingClientRect();
+export function positionFloatingMenu(menu: HTMLElement, field: HTMLInputElement): void {
+  const anchorRect = resolveFieldAnchorRect(field);
   const menuHeight = menu.offsetHeight || 160;
   const spaceBelow = window.innerHeight - anchorRect.bottom;
   const openAbove =

@@ -3,6 +3,7 @@ import { getFieldContext } from "./fieldContext";
 import {
   bindMenuReposition,
   getMenuPortalRoot,
+  mountFieldTrigger,
   positionFloatingMenu,
   registerFieldOverlay,
 } from "./fieldMenuPortal";
@@ -121,7 +122,7 @@ export function injectFieldActionControl(
   const portalRoot = getMenuPortalRoot();
   portalRoot.append(menu);
   root.append(trigger);
-  portalRoot.append(host);
+  mountFieldTrigger(host);
   registerFieldOverlay(host, field);
 
   let unbindReposition: (() => void) | null = null;

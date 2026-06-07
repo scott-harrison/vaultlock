@@ -4,27 +4,31 @@ export const SHADOW_COMPONENT_STYLES = `
   :host {
     all: initial;
     font-family: var(--font-sans);
-    position: relative;
+    display: block;
+    box-sizing: border-box;
     z-index: 2147483647;
   }
 
   .vl-root {
+    width: 100%;
+    height: 100%;
     color: var(--foreground);
     font-family: var(--font-sans);
     font-size: 11px;
     line-height: 1.3;
-  }
-
-  .vl-host-relative {
-    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .vl-trigger {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 22px;
-    height: 22px;
+    width: 100%;
+    height: 100%;
+    max-width: 22px;
+    max-height: 22px;
     padding: 0;
     border: none;
     border-radius: 999px;
