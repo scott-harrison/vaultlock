@@ -6,7 +6,6 @@ import {
 import { fillLoginFields } from "../lib/formFillDom";
 import type { ExecuteFillPayload } from "../lib/messaging";
 import { injectFieldActionControl } from "./lib/fieldActionControl";
-import { ensureActionsHost, ensureFieldWrapper, syncFieldPadding } from "./lib/fieldWrapper";
 
 /**
  * Content script for VaultLock.
@@ -137,11 +136,7 @@ function findUsernameOrEmailFields(): HTMLInputElement[] {
 }
 
 function decorateField(field: HTMLInputElement, fieldType: "username" | "password"): void {
-  const wrapper = ensureFieldWrapper(field);
-  const actionsHost = ensureActionsHost(wrapper);
-
-  injectFieldActionControl(field, fieldType, actionsHost);
-  syncFieldPadding(wrapper);
+  injectFieldActionControl(field, fieldType);
 }
 
 function isExtensionSender(sender: chrome.runtime.MessageSender): boolean {

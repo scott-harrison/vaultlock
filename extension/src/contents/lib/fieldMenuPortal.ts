@@ -4,8 +4,18 @@ const PORTAL_ATTR = "data-vaultlock-menu-portal";
 const MENU_WIDTH_PX = 232;
 const MENU_GAP_PX = 6;
 const VIEWPORT_MARGIN_PX = 8;
+const TRIGGER_SIZE_PX = 22;
+const TRIGGER_INSET_PX = 6;
 
 let portalRoot: HTMLElement | null = null;
+let globalRepositionBound = false;
+
+interface FieldOverlayAnchor {
+  triggerHost: HTMLElement;
+  field: HTMLInputElement;
+}
+
+const fieldAnchors = new Set<FieldOverlayAnchor>();
 
 export function getMenuPortalRoot(): HTMLElement {
   if (!portalRoot) {
@@ -20,8 +30,37 @@ export function getMenuPortalRoot(): HTMLElement {
   return portalRoot;
 }
 
-export function positionFloatingMenu(menu: HTMLElement, anchor: HTMLElement): void {
-  const anchorRect = anchor.getBoundingClientRect();
+export function registerFieldOverlay(triggerHost: HTMLElement, field: HTMLInputElement): void {
+  triggerHost.style.pointerEvents = "auto";
+  fieldAnchors.add({ triggerHost, field });
+  ensureGlobalReposition();
+  positionFieldTrigger(triggerHost, field);
+}
+
+export function positionFieldTrigger(triggerHost: HTMLElement, field: HTMLInputElement): void {
+  const rect = field.getBoundingClientRect();
+  const visible =
+    rect.width > 20 &&
+    rect.height > 10 &&
+    rect.bottom > 0 &&
+    rect.top < window.innerHeight &&
+    rect.right > 0 &&
+    rect.left < window.innerWidth;
+
+  triggerHost.style.visibility = visible ? "visible" : "hidden";
+  if (!visible) {
+    return;
+  }
+
+  triggerHost.style.position = "fixed";
+  triggerHost.style.width = `${TRIGGER_SIZE_PX}px`;
+  triggerHost.style.height = `${TRIGGER_SIZE_PX}px`;
+  triggerHost.style.top = `${rect.top + (rect.height - TRIGGER_SIZE_PX) / 2}px`;
+  triggerHost.style.left = `${rect.left + rect.width - TRIGGER_SIZE_PX - TRIGGER_INSET_PX}px`;
+}
+
+export function positionFloatingMenu(menu: HTMLElement, field: HTMLElement): void {
+  const anchorRect = field.getBoundingClientRect();
   const menuHeight = menu.offsetHeight || 160;
   const spaceBelow = window.innerHeight - anchorRect.bottom;
   const openAbove =
@@ -42,12 +81,12 @@ export function positionFloatingMenu(menu: HTMLElement, anchor: HTMLElement): vo
 
 export function bindMenuReposition(
   menu: HTMLElement,
-  anchor: HTMLElement,
+  field: HTMLInputElement,
   isOpen: () => boolean,
 ): () => void {
   const reposition = () => {
     if (isOpen()) {
-      positionFloatingMenu(menu, anchor);
+      positionFloatingMenu(menu, field);
     }
   };
 
@@ -58,4 +97,20 @@ export function bindMenuReposition(
     window.removeEventListener("scroll", reposition, true);
     window.removeEventListener("resize", reposition);
   };
+}
+
+function ensureGlobalReposition(): void {
+  if (globalRepositionBound) {
+    return;
+  }
+
+  const repositionAll = () => {
+    for (const anchor of fieldAnchors) {
+      positionFieldTrigger(anchor.triggerHost, anchor.field);
+    }
+  };
+
+  window.addEventListener("scroll", repositionAll, true);
+  window.addEventListener("resize", repositionAll);
+  globalRepositionBound = true;
 }

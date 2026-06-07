@@ -1,7 +1,11 @@
 import { safeSendMessage } from "../../lib/extensionContext";
 import { getFieldContext } from "./fieldContext";
-import { bindMenuReposition, getMenuPortalRoot, positionFloatingMenu } from "./fieldMenuPortal";
-import { markControl } from "./fieldWrapper";
+import {
+  bindMenuReposition,
+  getMenuPortalRoot,
+  positionFloatingMenu,
+  registerFieldOverlay,
+} from "./fieldMenuPortal";
 import { createGeneratorPanel, generateDefaultPassword } from "./generatorPanel";
 import { fillGeneratedPassword } from "./passwordGeneratorFill";
 import { createThemedShadowHost } from "./themedShadowHost";
@@ -13,7 +17,6 @@ const LOCK_ICON = `<svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="
 export function injectFieldActionControl(
   field: HTMLInputElement,
   fieldType: "username" | "password",
-  actionsHost: HTMLElement,
 ): void {
   if (field.dataset.vaultlockActionControl) {
     return;
@@ -22,9 +25,6 @@ export function injectFieldActionControl(
 
   const context = getFieldContext(field, fieldType);
   const { host, root } = createThemedShadowHost();
-  markControl(host);
-  host.style.position = "relative";
-  host.style.zIndex = "2147483647";
 
   const trigger = document.createElement("button");
   trigger.type = "button";
@@ -75,7 +75,7 @@ export function injectFieldActionControl(
         if (expanding) {
           generatorPanel.refresh();
         }
-        positionFloatingMenu(menu, trigger);
+        positionFloatingMenu(menu, field);
       },
     );
     customizeAction.setAttribute("aria-expanded", "false");
@@ -121,6 +121,8 @@ export function injectFieldActionControl(
   const portalRoot = getMenuPortalRoot();
   portalRoot.append(menu);
   root.append(trigger);
+  portalRoot.append(host);
+  registerFieldOverlay(host, field);
 
   let unbindReposition: (() => void) | null = null;
 
@@ -138,9 +140,9 @@ export function injectFieldActionControl(
   const openMenu = () => {
     menu.hidden = false;
     trigger.setAttribute("aria-expanded", "true");
-    positionFloatingMenu(menu, trigger);
+    positionFloatingMenu(menu, field);
     unbindReposition?.();
-    unbindReposition = bindMenuReposition(menu, trigger, () => !menu.hidden);
+    unbindReposition = bindMenuReposition(menu, field, () => !menu.hidden);
   };
 
   trigger.addEventListener("click", (event) => {
@@ -173,8 +175,6 @@ export function injectFieldActionControl(
       closeMenu();
     }
   });
-
-  actionsHost.append(host);
 }
 
 function createMenuAction(
