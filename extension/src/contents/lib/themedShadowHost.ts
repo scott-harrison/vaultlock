@@ -10,98 +10,130 @@ export const SHADOW_COMPONENT_STYLES = `
     color: var(--foreground);
     font-family: var(--font-sans);
     font-size: 11px;
-    line-height: 1.2;
+    line-height: 1.3;
   }
 
-  .vl-btn {
+  .vl-host-relative {
+    position: relative;
+  }
+
+  .vl-trigger {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 4px;
-    border: 1px solid color-mix(in oklch, var(--border) 80%, transparent);
-    border-radius: calc(var(--radius) - 2px);
-    background: var(--card);
-    color: var(--foreground);
-    padding: 2px 6px;
-    min-height: 20px;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border: none;
+    border-radius: 999px;
+    background: color-mix(in oklch, var(--primary) 14%, transparent);
+    color: color-mix(in oklch, var(--primary) 72%, var(--foreground));
     cursor: pointer;
-    user-select: none;
-    white-space: nowrap;
-    box-shadow: 0 1px 2px color-mix(in oklch, var(--foreground) 12%, transparent);
+    opacity: 0.55;
+    transition: opacity 120ms ease, background 120ms ease, color 120ms ease, box-shadow 120ms ease;
   }
 
-  .vl-btn:hover {
-    background: var(--accent);
-    color: var(--accent-foreground);
+  .vl-trigger:hover,
+  .vl-trigger:focus-visible,
+  .vl-trigger[aria-expanded="true"] {
+    opacity: 1;
+    background: color-mix(in oklch, var(--primary) 22%, transparent);
+    color: var(--primary);
+    box-shadow: 0 0 0 1px color-mix(in oklch, var(--primary) 28%, transparent);
   }
 
-  .vl-btn:focus-visible {
+  .vl-trigger:focus-visible {
     outline: 2px solid var(--ring);
     outline-offset: 1px;
   }
 
-  .vl-btn-primary {
-    background: var(--primary);
-    border-color: var(--primary);
-    color: var(--primary-foreground);
-  }
-
-  .vl-btn-primary:hover {
-    background: color-mix(in oklch, var(--primary) 88%, white);
-    color: var(--primary-foreground);
-  }
-
-  .vl-btn-icon {
-    padding: 2px 4px;
-    min-width: 20px;
-  }
-
-  .vl-indicator {
-    background: var(--primary);
-    color: var(--primary-foreground);
-    font-size: 9px;
-    font-weight: 600;
-    padding: 1px 4px;
-    border-radius: calc(var(--radius) - 4px);
-    border: none;
-    cursor: pointer;
-    line-height: 1.2;
-    box-shadow: 0 1px 2px color-mix(in oklch, var(--foreground) 20%, transparent);
-  }
-
-  .vl-indicator-username {
-    background: color-mix(in oklch, var(--primary) 35%, var(--muted));
-    color: var(--primary-foreground);
-  }
-
-  .vl-popover {
+  .vl-menu {
     position: absolute;
     right: 0;
     top: calc(100% + 6px);
     z-index: 2147483647;
-    width: 220px;
-    border: 1px solid var(--border);
+    width: 232px;
+    border: 1px solid color-mix(in oklch, var(--border) 85%, transparent);
     border-radius: var(--radius);
     background: var(--popover);
     color: var(--popover-foreground);
-    padding: 10px;
-    box-shadow: 0 12px 32px color-mix(in oklch, var(--foreground) 18%, transparent);
+    padding: 8px;
+    box-shadow:
+      0 4px 16px color-mix(in oklch, var(--foreground) 10%, transparent),
+      0 12px 32px color-mix(in oklch, var(--foreground) 14%, transparent);
   }
 
-  .vl-popover[hidden] {
+  .vl-menu[hidden] {
     display: none;
   }
 
-  .vl-popover-title {
-    font-size: 11px;
+  .vl-menu-title {
+    font-size: 10px;
     font-weight: 600;
-    margin: 0 0 8px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--muted-foreground);
+    margin: 0 4px 6px;
+  }
+
+  .vl-menu-actions {
+    display: grid;
+    gap: 2px;
+  }
+
+  .vl-menu-item {
+    display: grid;
+    gap: 2px;
+    width: 100%;
+    text-align: left;
+    border: none;
+    border-radius: calc(var(--radius) - 2px);
+    background: transparent;
+    color: inherit;
+    padding: 8px;
+    cursor: pointer;
+  }
+
+  .vl-menu-item:hover,
+  .vl-menu-item:focus-visible {
+    background: var(--accent);
+    color: var(--accent-foreground);
+    outline: none;
+  }
+
+  .vl-menu-item-label {
+    font-size: 12px;
+    font-weight: 500;
+  }
+
+  .vl-menu-item-hint {
+    font-size: 10px;
+    color: var(--muted-foreground);
+  }
+
+  .vl-menu-item:hover .vl-menu-item-hint,
+  .vl-menu-item:focus-visible .vl-menu-item-hint {
+    color: color-mix(in oklch, var(--accent-foreground) 72%, transparent);
+  }
+
+  .vl-menu-section {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border);
+  }
+
+  .vl-menu-section[hidden] {
+    display: none;
+  }
+
+  .vl-generator {
+    display: grid;
+    gap: 8px;
   }
 
   .vl-field {
     display: grid;
     gap: 6px;
-    margin-bottom: 8px;
   }
 
   .vl-label {
@@ -137,18 +169,63 @@ export const SHADOW_COMPONENT_STYLES = `
     accent-color: var(--primary);
   }
 
+  .vl-generator-preview {
+    margin: 0;
+    padding: 6px 8px;
+    border-radius: calc(var(--radius) - 2px);
+    background: var(--muted);
+    color: var(--foreground);
+    font-family: var(--font-mono, ui-monospace, monospace);
+    font-size: 10px;
+    word-break: break-all;
+  }
+
   .vl-actions {
     display: flex;
     gap: 6px;
-    margin-top: 8px;
   }
 
-  .vl-actions .vl-btn {
+  .vl-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    border: 1px solid color-mix(in oklch, var(--border) 80%, transparent);
+    border-radius: calc(var(--radius) - 2px);
+    background: var(--card);
+    color: var(--foreground);
+    padding: 4px 8px;
+    min-height: 24px;
+    font-size: 11px;
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+  }
+
+  .vl-btn:hover {
+    background: var(--accent);
+    color: var(--accent-foreground);
+  }
+
+  .vl-btn:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 1px;
+  }
+
+  .vl-btn-primary {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: var(--primary-foreground);
     flex: 1;
   }
 
-  .vl-host-relative {
-    position: relative;
+  .vl-btn-primary:hover {
+    background: color-mix(in oklch, var(--primary) 88%, white);
+    color: var(--primary-foreground);
+  }
+
+  .vl-actions .vl-btn:not(.vl-btn-primary) {
+    flex: 0 0 auto;
   }
 `;
 

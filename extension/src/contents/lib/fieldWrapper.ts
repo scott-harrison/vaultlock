@@ -45,9 +45,8 @@ export function syncFieldPadding(wrapper: HTMLElement): void {
     return;
   }
 
-  const actionCount = wrapper.querySelectorAll("[data-vaultlock-control]").length;
-  const paddingRight = actionCount >= 2 ? "5.75rem" : actionCount === 1 ? "3.25rem" : "0.5rem";
-  input.style.paddingRight = paddingRight;
+  const hasControl = wrapper.querySelector("[data-vaultlock-control]") !== null;
+  input.style.paddingRight = hasControl ? "2rem" : "0.5rem";
 }
 
 export function markControl(element: HTMLElement): void {

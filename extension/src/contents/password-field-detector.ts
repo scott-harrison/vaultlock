@@ -5,9 +5,8 @@ import {
 } from "../lib/extensionContext";
 import { fillLoginFields } from "../lib/formFillDom";
 import type { ExecuteFillPayload } from "../lib/messaging";
-import { injectFieldIndicator } from "./lib/fieldIndicator";
+import { injectFieldActionControl } from "./lib/fieldActionControl";
 import { ensureActionsHost, ensureFieldWrapper, syncFieldPadding } from "./lib/fieldWrapper";
-import { injectPasswordGeneratorButton } from "./lib/passwordGeneratorButton";
 
 /**
  * Content script for VaultLock.
@@ -16,7 +15,7 @@ import { injectPasswordGeneratorButton } from "./lib/passwordGeneratorButton";
  * - Detect password fields
  * - Detect likely username / email fields (including multi-step login forms)
  * - Associate related fields when possible
- * - Inject visual indicators and password generator controls
+ * - Inject a single VaultLock action control per detected field
  */
 
 function isVisibleField(input: HTMLInputElement): boolean {
@@ -141,11 +140,7 @@ function decorateField(field: HTMLInputElement, fieldType: "username" | "passwor
   const wrapper = ensureFieldWrapper(field);
   const actionsHost = ensureActionsHost(wrapper);
 
-  if (fieldType === "password") {
-    injectPasswordGeneratorButton(field, actionsHost);
-  }
-
-  injectFieldIndicator(field, actionsHost, fieldType);
+  injectFieldActionControl(field, fieldType, actionsHost);
   syncFieldPadding(wrapper);
 }
 
