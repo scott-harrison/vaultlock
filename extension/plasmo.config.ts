@@ -33,7 +33,6 @@ export default defineConfig({
     action: {
       default_popup: "popup.html",
       default_title: "VaultLock",
-      // default_icon will be added when we have proper icons.
     },
 
     options_ui: {
@@ -56,6 +55,11 @@ export default defineConfig({
 
     // Content scripts for field detection and future autofill features.
     content_scripts: [
+      {
+        matches: ["<all_urls>"],
+        js: ["src/contents/extension-context-guard.ts"],
+        run_at: "document_start",
+      },
       {
         matches: ["<all_urls>"],
         js: ["src/contents/password-field-detector.ts"],
