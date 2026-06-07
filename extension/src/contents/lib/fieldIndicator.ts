@@ -1,3 +1,4 @@
+import { safeSendMessage } from "../../lib/extensionContext";
 import { markControl } from "./fieldWrapper";
 import { createThemedShadowHost } from "./themedShadowHost";
 
@@ -30,7 +31,7 @@ export function injectFieldIndicator(
     event.preventDefault();
     event.stopImmediatePropagation();
 
-    chrome.runtime.sendMessage({
+    safeSendMessage({
       type: "INDICATOR_CLICKED",
       hostname: window.location.hostname,
       fieldType,

@@ -1,3 +1,8 @@
+import {
+  isExtensionContextValid,
+  onExtensionContextInvalidated,
+  safeSessionStorageSet,
+} from "../lib/extensionContext";
 import { fillLoginFields } from "../lib/formFillDom";
 import type { ExecuteFillPayload } from "../lib/messaging";
 import { injectFieldIndicator } from "./lib/fieldIndicator";
@@ -145,55 +150,63 @@ function decorateField(field: HTMLInputElement, fieldType: "username" | "passwor
 }
 
 function isExtensionSender(sender: chrome.runtime.MessageSender): boolean {
-  return sender.id === chrome.runtime.id;
+  try {
+    return sender.id === chrome.runtime.id;
+  } catch {
+    return false;
+  }
 }
 
-chrome.runtime.onMessage.addListener(
-  (
-    message: unknown,
-    sender: chrome.runtime.MessageSender,
-    sendResponse: (response?: unknown) => void,
-  ) => {
-    if (!isExtensionSender(sender)) {
-      sendResponse({ success: false, error: "Invalid sender" });
-      return;
-    }
+const extensionContextActive = isExtensionContextValid();
 
-    const msg = message as Partial<ExecuteFillPayload>;
-    if (msg.type !== "EXECUTE_FILL") return;
+if (extensionContextActive) {
+  chrome.runtime.onMessage.addListener(
+    (
+      message: unknown,
+      sender: chrome.runtime.MessageSender,
+      sendResponse: (response?: unknown) => void,
+    ) => {
+      if (!isExtensionSender(sender)) {
+        sendResponse({ success: false, error: "Invalid sender" });
+        return;
+      }
 
-    if (msg.hostname !== window.location.hostname) {
-      sendResponse({ success: false, error: "Hostname mismatch" });
-      return true;
-    }
+      const msg = message as Partial<ExecuteFillPayload>;
+      if (msg.type !== "EXECUTE_FILL") return;
 
-    if (!msg.password && !msg.username) {
-      sendResponse({ success: false, error: "Nothing to fill" });
-      return true;
-    }
-
-    try {
-      const result = fillLoginFields({
-        username: msg.username ?? "",
-        password: msg.password ?? "",
-        triggerFieldType: msg.fieldType ?? "password",
-        associatedFieldId: msg.associatedFieldId,
-      });
-
-      if (!result.filledUsername && !result.filledPassword) {
-        sendResponse({ success: false, error: "No matching fields found on this page" });
+      if (msg.hostname !== window.location.hostname) {
+        sendResponse({ success: false, error: "Hostname mismatch" });
         return true;
       }
 
-      sendResponse({ success: true, ...result });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Fill failed";
-      sendResponse({ success: false, error: message });
-    }
+      if (!msg.password && !msg.username) {
+        sendResponse({ success: false, error: "Nothing to fill" });
+        return true;
+      }
 
-    return true;
-  },
-);
+      try {
+        const result = fillLoginFields({
+          username: msg.username ?? "",
+          password: msg.password ?? "",
+          triggerFieldType: msg.fieldType ?? "password",
+          associatedFieldId: msg.associatedFieldId,
+        });
+
+        if (!result.filledUsername && !result.filledPassword) {
+          sendResponse({ success: false, error: "No matching fields found on this page" });
+          return true;
+        }
+
+        sendResponse({ success: true, ...result });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Fill failed";
+        sendResponse({ success: false, error: message });
+      }
+
+      return true;
+    },
+  );
+}
 
 function scanForLoginFields() {
   const passwordFields = findPasswordFields();
@@ -211,48 +224,58 @@ function scanForLoginFields() {
   }
 }
 
-scanForLoginFields();
+if (extensionContextActive) {
+  scanForLoginFields();
+}
 
 const observer = new MutationObserver(() => {
+  if (!isExtensionContextValid()) {
+    observer.disconnect();
+    return;
+  }
   scanForLoginFields();
 });
 
-observer.observe(document.body || document.documentElement, {
-  childList: true,
-  subtree: true,
-});
+if (extensionContextActive && (document.body || document.documentElement)) {
+  observer.observe(document.body || document.documentElement, {
+    childList: true,
+    subtree: true,
+  });
 
-async function rememberLastLoginIdentifier(value: string) {
-  if (!value) return;
-  try {
-    const origin = window.location.origin;
-    await chrome.storage.session.set({
-      [`lastLoginId:${origin}`]: {
-        value,
-        timestamp: Date.now(),
-      },
-    });
-  } catch (_err) {
-    // session storage might not be available in some contexts; ignore
-  }
+  onExtensionContextInvalidated(() => {
+    observer.disconnect();
+  });
 }
 
-document.addEventListener(
-  "input",
-  (e) => {
-    const target = e.target as HTMLInputElement;
-    if (!target || !["text", "email"].includes(target.type || "")) return;
+async function rememberLastLoginIdentifier(value: string) {
+  if (!value || !isExtensionContextValid()) return;
+  const origin = window.location.origin;
+  await safeSessionStorageSet({
+    [`lastLoginId:${origin}`]: {
+      value,
+      timestamp: Date.now(),
+    },
+  });
+}
 
-    const val = target.value?.trim();
-    if ((val && val.length > 2 && val.includes("@")) || val.length > 3) {
-      rememberLastLoginIdentifier(val);
+if (extensionContextActive) {
+  document.addEventListener(
+    "input",
+    (e) => {
+      const target = e.target as HTMLInputElement;
+      if (!target || !["text", "email"].includes(target.type || "")) return;
+
+      const val = target.value?.trim();
+      if ((val && val.length > 2 && val.includes("@")) || val.length > 3) {
+        rememberLastLoginIdentifier(val);
+      }
+    },
+    true,
+  );
+
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden && isExtensionContextValid()) {
+      scanForLoginFields();
     }
-  },
-  true,
-);
-
-document.addEventListener("visibilitychange", () => {
-  if (!document.hidden) {
-    scanForLoginFields();
-  }
-});
+  });
+}
