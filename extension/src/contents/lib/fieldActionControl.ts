@@ -1,5 +1,6 @@
 import { safeSendMessage } from "../../lib/extensionContext";
 import { getFieldContext } from "./fieldContext";
+import { bindMenuReposition, getMenuPortalRoot, positionFloatingMenu } from "./fieldMenuPortal";
 import { markControl } from "./fieldWrapper";
 import { createGeneratorPanel, generateDefaultPassword } from "./generatorPanel";
 import { fillGeneratedPassword } from "./passwordGeneratorFill";
@@ -21,8 +22,9 @@ export function injectFieldActionControl(
 
   const context = getFieldContext(field, fieldType);
   const { host, root } = createThemedShadowHost();
-  root.classList.add("vl-host-relative");
   markControl(host);
+  host.style.position = "relative";
+  host.style.zIndex = "2147483647";
 
   const trigger = document.createElement("button");
   trigger.type = "button";
@@ -73,6 +75,7 @@ export function injectFieldActionControl(
         if (expanding) {
           generatorPanel.refresh();
         }
+        positionFloatingMenu(menu, trigger);
       },
     );
     customizeAction.setAttribute("aria-expanded", "false");
@@ -115,7 +118,11 @@ export function injectFieldActionControl(
     menu.append(header, actions);
   }
 
-  root.append(trigger, menu);
+  const portalRoot = getMenuPortalRoot();
+  portalRoot.append(menu);
+  root.append(trigger);
+
+  let unbindReposition: (() => void) | null = null;
 
   const closeMenu = () => {
     menu.hidden = true;
@@ -124,14 +131,23 @@ export function injectFieldActionControl(
       generatorHost.hidden = true;
     }
     customizeAction?.setAttribute("aria-expanded", "false");
+    unbindReposition?.();
+    unbindReposition = null;
+  };
+
+  const openMenu = () => {
+    menu.hidden = false;
+    trigger.setAttribute("aria-expanded", "true");
+    positionFloatingMenu(menu, trigger);
+    unbindReposition?.();
+    unbindReposition = bindMenuReposition(menu, trigger, () => !menu.hidden);
   };
 
   trigger.addEventListener("click", (event) => {
     event.preventDefault();
     event.stopImmediatePropagation();
     if (menu.hidden) {
-      menu.hidden = false;
-      trigger.setAttribute("aria-expanded", "true");
+      openMenu();
     } else {
       closeMenu();
     }
@@ -144,7 +160,8 @@ export function injectFieldActionControl(
         return;
       }
       const path = event.composedPath();
-      if (!path.includes(host)) {
+      const clickedInside = path.includes(host) || path.includes(menu);
+      if (!clickedInside) {
         closeMenu();
       }
     },
@@ -152,7 +169,7 @@ export function injectFieldActionControl(
   );
 
   document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") {
+    if (event.key === "Escape" && !menu.hidden) {
       closeMenu();
     }
   });

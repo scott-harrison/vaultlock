@@ -4,6 +4,8 @@ export const SHADOW_COMPONENT_STYLES = `
   :host {
     all: initial;
     font-family: var(--font-sans);
+    position: relative;
+    z-index: 2147483647;
   }
 
   .vl-root {
@@ -48,11 +50,10 @@ export const SHADOW_COMPONENT_STYLES = `
   }
 
   .vl-menu {
-    position: absolute;
-    right: 0;
-    top: calc(100% + 6px);
+    position: fixed;
     z-index: 2147483647;
     width: 232px;
+    pointer-events: auto;
     border: 1px solid color-mix(in oklch, var(--border) 85%, transparent);
     border-radius: var(--radius);
     background: var(--popover);

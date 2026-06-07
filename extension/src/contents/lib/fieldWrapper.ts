@@ -1,7 +1,8 @@
 const WRAPPER_ATTR = "data-vaultlock-field-wrapper";
 const ACTIONS_ATTR = "data-vaultlock-actions";
 
-const WRAPPER_STYLE = "position:relative;display:inline-block;width:100%;max-width:100%;";
+const WRAPPER_STYLE =
+  "position:relative;display:inline-block;width:100%;max-width:100%;overflow:visible;z-index:2147483646;";
 const ACTIONS_STYLE =
   "position:absolute;right:6px;top:50%;transform:translateY(-50%);display:flex;align-items:center;gap:4px;z-index:2147483647;pointer-events:auto;";
 
