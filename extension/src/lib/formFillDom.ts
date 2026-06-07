@@ -115,13 +115,51 @@ export function fillLoginFields(options: FillLoginFieldsOptions): {
 
   if (usernameField && options.username) {
     setInputValue(usernameField, options.username);
+    usernameField.dataset.vaultlockSkipSave = "1";
     filledUsername = true;
   }
 
   if (passwordField && options.password) {
     setInputValue(passwordField, options.password);
+    passwordField.dataset.vaultlockSkipSave = "1";
     filledPassword = true;
   }
 
   return { filledUsername, filledPassword };
+}
+
+export function captureLoginFromForm(form: HTMLFormElement): {
+  username: string;
+  password: string;
+} | null {
+  const passwordFields = Array.from(
+    form.querySelectorAll<HTMLInputElement>('input[type="password"]'),
+  ).filter(isVisibleField);
+
+  const passwordField =
+    passwordFields.find((field) => field.dataset.vaultlockSkipSave !== "1") ??
+    passwordFields[0] ??
+    null;
+
+  if (!passwordField) {
+    return null;
+  }
+
+  const password = passwordField.value;
+  if (!password.trim()) {
+    return null;
+  }
+
+  const linkedUsernameId = passwordField.dataset.vaultlockAssociatedUsernameId;
+  let usernameField = fieldById(linkedUsernameId);
+  if (!usernameField || !isVisibleField(usernameField)) {
+    usernameField = findAssociatedUsernameField(passwordField);
+  }
+
+  const username =
+    usernameField && usernameField.dataset.vaultlockSkipSave !== "1"
+      ? usernameField.value.trim()
+      : "";
+
+  return { username, password };
 }

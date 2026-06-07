@@ -18,7 +18,7 @@ import {
   rejectUntrustedSender,
   tabHostnameFromSender,
 } from "./lib/messageSenderValidation";
-import type { AutofillRequest, ExecuteFillPayload } from "./lib/messaging";
+import type { AutofillRequest, ExecuteFillPayload, SaveLoginCandidate } from "./lib/messaging";
 import { createTimedFetch } from "./lib/serverSettings";
 import {
   clearEncryptedVaultCache,
@@ -31,6 +31,7 @@ import {
 import { getServerSettings } from "./lib/storage";
 
 let pendingFillRequest: AutofillRequest | null = null;
+let pendingSaveLogin: SaveLoginCandidate | null = null;
 let vaultSyncInFlight: Promise<void> | null = null;
 
 chrome.runtime.onMessage.addListener(
@@ -86,6 +87,11 @@ chrome.runtime.onMessage.addListener(
   },
 );
 
+const CONTENT_SCRIPT_MESSAGE_TYPES = new Set([
+  "CHECK_SAVE_LOGIN_AVAILABLE",
+  "SAVE_LOGIN_CANDIDATE",
+]);
+
 const EXTENSION_ONLY_MESSAGE_TYPES = new Set([
   "GET_PENDING_FILL_REQUEST",
   "CLEAR_PENDING_FILL_REQUEST",
@@ -93,6 +99,8 @@ const EXTENSION_ONLY_MESSAGE_TYPES = new Set([
   "TRIGGER_VAULT_SYNC",
   "GET_ENCRYPTED_VAULT_CACHE",
   "VAULT_LOCKED",
+  "GET_PENDING_SAVE_LOGIN",
+  "CLEAR_PENDING_SAVE_LOGIN",
 ]);
 
 chrome.runtime.onMessage.addListener(
@@ -102,6 +110,43 @@ chrome.runtime.onMessage.addListener(
     sendResponse: (response?: unknown) => void,
   ) => {
     const msg = message as { type?: string };
+
+    if (msg.type && CONTENT_SCRIPT_MESSAGE_TYPES.has(msg.type)) {
+      if (!isTrustedContentScriptSender(sender)) {
+        return rejectUntrustedSender(sender, sendResponse, `${msg.type} from non-content-script`);
+      }
+
+      if (msg.type === "CHECK_SAVE_LOGIN_AVAILABLE") {
+        void getAuthSession().then((session) => {
+          sendResponse({ authenticated: Boolean(session) });
+        });
+        return true;
+      }
+
+      if (msg.type === "SAVE_LOGIN_CANDIDATE") {
+        const candidate = (message as { candidate?: SaveLoginCandidate }).candidate;
+        const tabHost = tabHostnameFromSender(sender);
+
+        if (!candidate?.hostname || !candidate.password || !tabHost) {
+          sendResponse({ success: false, error: "Invalid save candidate" });
+          return true;
+        }
+
+        if (!hostnamesMatch(candidate.hostname, tabHost)) {
+          return rejectUntrustedSender(
+            sender,
+            sendResponse,
+            "SAVE_LOGIN_CANDIDATE hostname mismatch",
+          );
+        }
+
+        pendingSaveLogin = candidate;
+        getStorageSession()?.set({ pendingSaveLogin });
+        chrome.action.openPopup().catch(() => {});
+        sendResponse({ success: true });
+        return true;
+      }
+    }
 
     if (!msg.type || !EXTENSION_ONLY_MESSAGE_TYPES.has(msg.type)) {
       return;
@@ -157,6 +202,27 @@ chrome.runtime.onMessage.addListener(
     }
 
     if (msg.type === "VAULT_LOCKED") {
+      pendingSaveLogin = null;
+      getStorageSession()?.remove("pendingSaveLogin");
+      sendResponse({ success: true });
+      return true;
+    }
+
+    if (msg.type === "GET_PENDING_SAVE_LOGIN") {
+      const session = getStorageSession();
+      if (!session) {
+        sendResponse(pendingSaveLogin);
+        return true;
+      }
+      session.get("pendingSaveLogin").then((result: { pendingSaveLogin?: unknown }) => {
+        sendResponse(result.pendingSaveLogin ?? pendingSaveLogin ?? null);
+      });
+      return true;
+    }
+
+    if (msg.type === "CLEAR_PENDING_SAVE_LOGIN") {
+      pendingSaveLogin = null;
+      getStorageSession()?.remove("pendingSaveLogin");
       sendResponse({ success: true });
       return true;
     }

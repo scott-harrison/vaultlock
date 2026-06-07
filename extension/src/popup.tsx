@@ -6,6 +6,7 @@ import { LoginForm } from "./popup/components/LoginForm";
 import { NeedsServerState } from "./popup/components/NeedsServerState";
 import { PopupHeader } from "./popup/components/PopupHeader";
 import { PopupShell } from "./popup/components/PopupShell";
+import { SaveLoginForm } from "./popup/components/SaveLoginForm";
 import { UnlockForm } from "./popup/components/UnlockForm";
 import { VaultListView } from "./popup/components/VaultListView";
 import { useAuthState } from "./popup/hooks/useAuthState";
@@ -23,9 +24,11 @@ export default function IndexPopup() {
     isSubmitting,
     error,
     pendingFillRequest,
+    pendingSaveLogin,
     setEmail,
     setMasterPassword,
     setPendingFillRequest,
+    clearPendingSaveLogin,
     handleLogin,
     handleUnlock,
     handleLock,
@@ -38,6 +41,21 @@ export default function IndexPopup() {
 
   if (authState === "needs-server") {
     return <NeedsServerState />;
+  }
+
+  if (authState === "unlocked" && pendingSaveLogin) {
+    return (
+      <SaveLoginForm
+        serverUrl={serverUrl}
+        candidate={pendingSaveLogin}
+        onCancel={() => {
+          void clearPendingSaveLogin();
+        }}
+        onSaved={() => {
+          void clearPendingSaveLogin();
+        }}
+      />
+    );
   }
 
   if (authState === "login") {
@@ -63,6 +81,7 @@ export default function IndexPopup() {
         masterPassword={masterPassword}
         isSubmitting={isSubmitting}
         error={error}
+        savePromptHostname={pendingSaveLogin?.hostname}
         onMasterPasswordChange={setMasterPassword}
         onSubmit={handleUnlock}
         onSignOut={() => handleLogout(() => {})}

@@ -14,6 +14,7 @@ interface UnlockFormProps {
   masterPassword: string;
   isSubmitting: boolean;
   error: string;
+  savePromptHostname?: string;
   onMasterPasswordChange: (value: string) => void;
   onSubmit: (event: React.FormEvent) => void;
   onSignOut: () => void;
@@ -28,6 +29,7 @@ export function UnlockForm({
   onMasterPasswordChange,
   onSubmit,
   onSignOut,
+  savePromptHostname,
 }: UnlockFormProps) {
   const formId = useId();
 
@@ -40,7 +42,9 @@ export function UnlockForm({
         <div className="space-y-2">
           <h2 className="text-2xl font-bold tracking-tight">Unlock your vault</h2>
           <p className="text-sm text-muted-foreground">
-            Enter your master password to decrypt your items on this device.
+            {savePromptHostname
+              ? `Unlock to review and save the login for ${savePromptHostname}.`
+              : "Enter your master password to decrypt your items on this device."}
           </p>
         </div>
 

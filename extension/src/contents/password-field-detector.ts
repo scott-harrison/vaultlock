@@ -7,6 +7,7 @@ import { fillLoginFields } from "../lib/formFillDom";
 import type { ExecuteFillPayload } from "../lib/messaging";
 import { injectFieldActionControl } from "./lib/fieldActionControl";
 import { repositionAllFieldTriggers } from "./lib/fieldMenuPortal";
+import { initSaveLoginDetection } from "./lib/saveLoginDetector";
 
 /**
  * Content script for VaultLock.
@@ -219,6 +220,7 @@ function scanForLoginFields() {
 
 if (extensionContextActive) {
   scanForLoginFields();
+  initSaveLoginDetection();
 }
 
 const observer = new MutationObserver(() => {
