@@ -6,6 +6,7 @@ export function loginCredentialMatchesPage(
   savedUsername: string | undefined,
   pageUrl: string,
   submittedUsername: string,
+  relatedDomains?: readonly string[],
 ): boolean {
   let hostname: string;
   try {
@@ -21,7 +22,7 @@ export function loginCredentialMatchesPage(
     return false;
   }
 
-  return loginMatchesPageHost(savedUrl, hostname);
+  return loginMatchesPageHost(savedUrl, hostname, { relatedDomains });
 }
 
 export type SaveLoginDecision =
@@ -41,7 +42,13 @@ export function findMatchingLoginCredential(
 ): VaultLoginItemRef | null {
   const normalizedSubmitted = username.trim().toLowerCase();
   const matches = items.filter((item) =>
-    loginCredentialMatchesPage(item.plaintext.url, item.plaintext.username, pageUrl, username),
+    loginCredentialMatchesPage(
+      item.plaintext.url,
+      item.plaintext.username,
+      pageUrl,
+      username,
+      item.plaintext.relatedDomains,
+    ),
   );
 
   if (matches.length === 0) {

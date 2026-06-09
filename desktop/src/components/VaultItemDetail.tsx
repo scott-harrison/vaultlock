@@ -79,6 +79,13 @@ function LoginDetail({
       {login.title?.trim() && (
         <DetailField label="Title" value={login.title.trim()} onCopied={onCopied} />
       )}
+      {login.relatedDomains && login.relatedDomains.length > 0 && (
+        <DetailField
+          label="Related sites"
+          value={login.relatedDomains.join(", ")}
+          onCopied={onCopied}
+        />
+      )}
       {login.url?.trim() && (
         <div className="space-y-2">
           <div className="flex items-center justify-between gap-2">

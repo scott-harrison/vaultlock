@@ -13,6 +13,8 @@ export function isVaultItemType(value: string): value is VaultItemType {
 export interface LoginItemPlaintext {
   title?: string;
   url?: string;
+  /** Additional hostnames or `*.suffix` patterns where this login should match. */
+  relatedDomains?: string[];
   username?: string;
   password?: string;
   notes?: string;

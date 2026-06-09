@@ -65,11 +65,26 @@ describe("scoreLoginForPageHost", () => {
     });
   });
 
-  it("supports related domains for future user-managed matching", () => {
+  it("supports user-managed related domains", () => {
     const result = scoreLoginForPageHost("https://accounts.google.com", "mail.google.com", {
       relatedDomains: ["google.com"],
     });
     expect(result).toMatchObject({ matches: true, kind: "related" });
+  });
+
+  it("supports wildcard related domain patterns", () => {
+    const result = scoreLoginForPageHost("https://login.example.org", "app.example.com", {
+      relatedDomains: ["*.example.com"],
+    });
+    expect(result).toMatchObject({ matches: true, kind: "related" });
+  });
+
+  it("does not match apex hostnames against wildcard patterns", () => {
+    expect(
+      scoreLoginForPageHost("https://login.example.org", "example.com", {
+        relatedDomains: ["*.example.com"],
+      }).matches,
+    ).toBe(false);
   });
 
   it("falls back to substring matching for malformed URLs", () => {

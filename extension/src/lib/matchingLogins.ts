@@ -1,4 +1,8 @@
-import { compareLoginMatchScores, scoreLoginForPageHost } from "@vaultlock/shared/domain-matching";
+import {
+  compareLoginMatchScores,
+  loginMatchOptionsFromLogin,
+  scoreLoginForPageHost,
+} from "@vaultlock/shared/domain-matching";
 import type { LoginItemPlaintext, VaultItemResponse } from "@vaultlock/shared/types";
 import { getEncryptedVaultCache } from "./storage";
 import { applyUnlockedDek } from "./vaultDekLifecycle";
@@ -72,7 +76,11 @@ export async function listMatchingLoginsForHost(hostname: string): Promise<Match
 
     try {
       const plaintext = (await decryptVaultItem(item)) as LoginItemPlaintext;
-      const match = scoreLoginForPageHost(plaintext.url, hostname);
+      const match = scoreLoginForPageHost(
+        plaintext.url,
+        hostname,
+        loginMatchOptionsFromLogin(plaintext),
+      );
       if (!match.matches) {
         continue;
       }
@@ -111,7 +119,11 @@ export async function decryptMatchingLogin(
 
   try {
     const plaintext = (await decryptVaultItem(item)) as LoginItemPlaintext;
-    const match = scoreLoginForPageHost(plaintext.url, hostname);
+    const match = scoreLoginForPageHost(
+      plaintext.url,
+      hostname,
+      loginMatchOptionsFromLogin(plaintext),
+    );
     if (!match.matches) {
       return null;
     }

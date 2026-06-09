@@ -1,5 +1,6 @@
 import {
   compareLoginMatchScores,
+  loginMatchOptionsFromLogin,
   loginMatchesPageHost,
   scoreLoginForPageHost,
 } from "@vaultlock/shared/domain-matching";
@@ -184,7 +185,7 @@ export function useVaultList(pendingFillRequest: AutofillRequest | null) {
         const login = item.plaintext as LoginItemPlaintext;
         return {
           item,
-          match: scoreLoginForPageHost(login.url, fillHostname),
+          match: scoreLoginForPageHost(login.url, fillHostname, loginMatchOptionsFromLogin(login)),
         };
       })
       .filter(({ match }) => match.matches)
@@ -215,7 +216,13 @@ export function useVaultList(pendingFillRequest: AutofillRequest | null) {
       setFillingId(itemId);
 
       try {
-        if (!loginMatchesPageHost(login.url, pendingFillRequest.hostname)) {
+        if (
+          !loginMatchesPageHost(
+            login.url,
+            pendingFillRequest.hostname,
+            loginMatchOptionsFromLogin(login),
+          )
+        ) {
           throw new Error("This login does not match the current page hostname");
         }
 
