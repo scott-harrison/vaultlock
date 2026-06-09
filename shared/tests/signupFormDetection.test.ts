@@ -88,4 +88,29 @@ describe("signup form detection", () => {
       }),
     ).toBe(true);
   });
+
+  it("detects signup from password field hints without backtracking-prone regex", () => {
+    expect(
+      scoreSignupContext({
+        passwordFieldHints: "new-password id",
+      }).signup,
+    ).toBeGreaterThanOrEqual(2);
+    expect(
+      scoreSignupContext({
+        passwordFieldHints: "password confirm",
+      }).signup,
+    ).toBeGreaterThanOrEqual(2);
+    expect(scoreSignupContext({ passwordFieldHints: "password" }).signup).toBe(0);
+  });
+
+  it("handles adversarial password hint strings in linear time", () => {
+    const adversarial = `new${"x".repeat(10_000)}pwd`;
+    const start = performance.now();
+    expect(
+      scoreSignupContext({
+        passwordFieldHints: adversarial,
+      }).signup,
+    ).toBeGreaterThanOrEqual(2);
+    expect(performance.now() - start).toBeLessThan(50);
+  });
 });
