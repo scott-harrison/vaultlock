@@ -3,11 +3,20 @@
  */
 
 export function isExtensionPrivilegedSender(sender: chrome.runtime.MessageSender): boolean {
-  return sender.id === chrome.runtime.id && sender.tab === undefined;
+  if (!sender.id) {
+    return false;
+  }
+
+  if (sender.tab === undefined) {
+    return true;
+  }
+
+  const senderUrl = sender.url ?? "";
+  return senderUrl.startsWith(`chrome-extension://${sender.id}/`);
 }
 
 export function isTrustedContentScriptSender(sender: chrome.runtime.MessageSender): boolean {
-  if (sender.id !== chrome.runtime.id) {
+  if (!sender.id) {
     return false;
   }
   if (sender.tab?.id === undefined || sender.frameId === undefined) {

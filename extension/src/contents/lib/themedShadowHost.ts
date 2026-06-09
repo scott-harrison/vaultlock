@@ -81,9 +81,34 @@ export const SHADOW_COMPONENT_STYLES = `
     margin: 0 4px 6px;
   }
 
+  .vl-menu-matches {
+    display: grid;
+    gap: 2px;
+    margin-bottom: 6px;
+  }
+
+  .vl-menu-subtitle {
+    margin: 0 4px 4px;
+    font-size: 10px;
+    color: var(--muted-foreground);
+  }
+
+  .vl-menu-status {
+    margin: 0 4px 6px;
+    font-size: 10px;
+    line-height: 1.4;
+    color: var(--muted-foreground);
+  }
+
   .vl-menu-actions {
     display: grid;
     gap: 2px;
+    padding-top: 6px;
+    border-top: 1px solid var(--border);
+  }
+
+  .vl-menu-match .vl-menu-item-label {
+    font-weight: 600;
   }
 
   .vl-menu-item {
@@ -271,7 +296,7 @@ export interface ThemedShadowHost {
 
 export function createThemedShadowHost(): ThemedShadowHost {
   const host = document.createElement("div");
-  const shadow = host.attachShadow({ mode: "closed" });
+  const shadow = host.attachShadow({ mode: "open" });
 
   const style = document.createElement("style");
   style.textContent = `${AUTOFILL_TOKENS_CSS}\n${SHADOW_COMPONENT_STYLES}`;

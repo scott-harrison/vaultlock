@@ -44,9 +44,32 @@ export type SaveLoginEvaluation =
   | { action: "unavailable" }
   | { action: "locked" };
 
+export interface MatchingLoginPreview {
+  id: string;
+  title: string;
+  username: string;
+}
+
+export type MatchingLoginsStatus = "locked" | "unavailable" | "ready";
+
+export interface MatchingLoginsResponse {
+  status: MatchingLoginsStatus;
+  matches: MatchingLoginPreview[];
+}
+
+export interface FillMatchingLoginRequest {
+  type: "FILL_MATCHING_LOGIN";
+  hostname: string;
+  itemId: string;
+  fieldType: "username" | "password";
+  associatedFieldId?: string;
+}
+
 // Chrome runtime message shapes for autofill
 export type AutofillMessage =
   | { type: "INDICATOR_CLICKED"; payload: AutofillRequest }
+  | { type: "GET_MATCHING_LOGINS_FOR_HOST"; hostname: string }
+  | FillMatchingLoginRequest
   | { type: "GET_PENDING_FILL_REQUEST" }
   | { type: "CLEAR_PENDING_FILL_REQUEST" }
   | ExecuteFillPayload
