@@ -119,6 +119,9 @@ jobs:
     - name: Run shared package tests
       run: pnpm --filter @vaultlock/shared test
 
+    - name: Run extension unit tests
+      run: pnpm --filter @vaultlock/extension test
+
     - name: Setup Rust
       uses: dtolnay/rust-toolchain@stable
       with:

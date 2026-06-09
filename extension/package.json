@@ -14,6 +14,7 @@
     "dev:brave": "node scripts/plasmo-dev.mjs brave-mv3",
     "build": "node scripts/patch-plasmo-mount.mjs && plasmo build && node scripts/patch-plasmo-mount.mjs",
     "build:brave": "node scripts/patch-plasmo-mount.mjs && plasmo build -- --target=brave-mv3 && node scripts/patch-plasmo-mount.mjs",
+    "test": "vitest run",
     "test:e2e": "playwright test --config e2e/playwright.config.ts",
     "test:e2e:install": "playwright install chromium",
     "lint": "biome lint .",
@@ -36,7 +37,8 @@
     "playwright": "1.60.0",
     "postcss": "8.5.14",
     "tailwindcss": "3.4.17",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "vitest": "4.1.0"
   },
   "manifest": {
     "name": "VaultLock",
