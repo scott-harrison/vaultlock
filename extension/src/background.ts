@@ -10,6 +10,7 @@
 import { VaultlockApiClient } from "@vaultlock/shared/api";
 import type { VaultItemResponse } from "@vaultlock/shared/types";
 import { getStorageSession } from "./lib/browser";
+import { decryptMatchingLogin, listMatchingLoginsForHost } from "./lib/matchingLogins";
 import {
   hostnamesMatch,
   isExtensionPrivilegedSender,
@@ -104,6 +105,8 @@ const CONTENT_SCRIPT_MESSAGE_TYPES = new Set([
   "GET_PENDING_SAVE_LOGIN_BANNER",
   "CLEAR_PENDING_SAVE_LOGIN_BANNER",
   "SAVE_LOGIN_CANDIDATE",
+  "GET_MATCHING_LOGINS_FOR_HOST",
+  "FILL_MATCHING_LOGIN",
 ]);
 
 async function renderSaveLoginBannerInTopFrame(
@@ -280,6 +283,109 @@ chrome.runtime.onMessage.addListener(
         }
         chrome.action.openPopup().catch(() => {});
         sendResponse({ success: true });
+        return true;
+      }
+
+      if (msg.type === "GET_MATCHING_LOGINS_FOR_HOST") {
+        const hostname = (message as { hostname?: string }).hostname;
+        const tabHost = tabHostnameFromSender(sender);
+
+        if (!hostname || !tabHost) {
+          sendResponse({ status: "unavailable", matches: [] });
+          return true;
+        }
+
+        if (!hostnamesMatch(hostname, tabHost)) {
+          return rejectUntrustedSender(
+            sender,
+            sendResponse,
+            "GET_MATCHING_LOGINS_FOR_HOST hostname mismatch",
+          );
+        }
+
+        void listMatchingLoginsForHost(hostname).then((result) => {
+          sendResponse(result);
+        });
+        return true;
+      }
+
+      if (msg.type === "FILL_MATCHING_LOGIN") {
+        const fillRequest = message as {
+          hostname?: string;
+          itemId?: string;
+          fieldType?: "username" | "password";
+          associatedFieldId?: string;
+        };
+        const tabId = sender.tab?.id;
+        const tabHost = tabHostnameFromSender(sender);
+
+        if (
+          !fillRequest.hostname ||
+          !fillRequest.itemId ||
+          !fillRequest.fieldType ||
+          tabId === undefined ||
+          !tabHost
+        ) {
+          sendResponse({ success: false, error: "Invalid fill request" });
+          return true;
+        }
+
+        if (!hostnamesMatch(fillRequest.hostname, tabHost)) {
+          return rejectUntrustedSender(
+            sender,
+            sendResponse,
+            "FILL_MATCHING_LOGIN hostname mismatch",
+          );
+        }
+
+        void (async () => {
+          const hostname = fillRequest.hostname;
+          const itemId = fillRequest.itemId;
+          const fieldType = fillRequest.fieldType;
+          if (!hostname || !itemId || !fieldType) {
+            sendResponse({ success: false, error: "Invalid fill request" });
+            return;
+          }
+
+          const login = await decryptMatchingLogin(itemId, hostname);
+          if (!login) {
+            sendResponse({ success: false, error: "Login not found or vault is locked" });
+            return;
+          }
+
+          const request: AutofillRequest = {
+            hostname,
+            fieldType,
+            associatedFieldId: fillRequest.associatedFieldId,
+            tabId,
+          };
+
+          pendingFillRequest = request;
+          pendingSaveLogin = null;
+          getStorageSession()?.set({ pendingFillRequest });
+          getStorageSession()?.remove("pendingSaveLogin");
+
+          const payload: ExecuteFillPayload = {
+            type: "EXECUTE_FILL",
+            hostname,
+            fieldType,
+            associatedFieldId: fillRequest.associatedFieldId,
+            username: login.username ?? "",
+            password: login.password ?? "",
+          };
+
+          try {
+            const result = await chrome.tabs.sendMessage(tabId, payload);
+            if (result && typeof result === "object" && "success" in result && result.success) {
+              pendingFillRequest = null;
+              getStorageSession()?.remove("pendingFillRequest");
+            }
+            sendResponse(result);
+          } catch (err) {
+            const message = err instanceof Error ? err.message : "Failed to fill fields";
+            sendResponse({ success: false, error: message });
+          }
+        })();
         return true;
       }
     }

@@ -181,3 +181,29 @@ jobs:
         files: backend/coverage/cobertura.xml
         token: ${{ env.CODECOV_TOKEN }}
         fail_ci_if_error: true
+
+  extension-e2e:
+    runs-on: ubuntu-latest
+    needs: lint-and-test
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install npm dependencies (frozen lockfile)
+        run: pnpm install --frozen-lockfile
+
+      - name: Build extension for E2E
+        run: pnpm extension:build
+
+      - name: Install Playwright Chromium
+        run: pnpm --filter @vaultlock/extension test:e2e:install
+
+      - name: Run extension Phase 1 E2E smoke tests
+        run: xvfb-run -a pnpm extension:test:e2e

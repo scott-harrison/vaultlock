@@ -1,4 +1,5 @@
-import { safeSendMessage } from "../../lib/extensionContext";
+import { safeSendMessage, safeSendMessageAsync } from "../../lib/extensionContext";
+import type { MatchingLoginsResponse } from "../../lib/messaging";
 import { getFieldContext } from "./fieldContext";
 import {
   bindMenuReposition,
@@ -47,12 +48,18 @@ export function injectFieldActionControl(
   header.className = "vl-menu-title";
   header.textContent = "VaultLock";
 
+  const matchesSection = document.createElement("div");
+  matchesSection.className = "vl-menu-matches";
+  matchesSection.setAttribute("role", "group");
+  matchesSection.setAttribute("aria-label", "Matching logins");
+
   const actions = document.createElement("div");
   actions.className = "vl-menu-actions";
 
   let customizeAction: HTMLButtonElement | null = null;
   let generatorPanel: ReturnType<typeof createGeneratorPanel> | null = null;
   let generatorHost: HTMLElement | null = null;
+  let matchesRequestId = 0;
 
   if (context.fieldType === "password" && context.isNewPassword) {
     const quickGenerate = createMenuAction(
@@ -96,30 +103,22 @@ export function injectFieldActionControl(
       closeMenu();
     });
 
-    const fillAction = createMenuAction(
-      "Fill credentials",
-      "Use a saved login from your vault",
-      () => {
-        requestCredentialFill(field, fieldType);
-        closeMenu();
-      },
-    );
-
     generatorHost.append(generatorPanel.element);
-    actions.append(quickGenerate, customizeAction, fillAction);
-    menu.append(header, actions, generatorHost);
+    actions.append(quickGenerate, customizeAction);
+    menu.append(header, matchesSection, actions, generatorHost);
   } else {
-    const fillAction = createMenuAction(
-      "Fill credentials",
-      "Use a saved login from your vault",
-      () => {
-        requestCredentialFill(field, fieldType);
-        closeMenu();
-      },
-    );
-    actions.append(fillAction);
-    menu.append(header, actions);
+    menu.append(header, matchesSection, actions);
   }
+
+  const openVaultAction = createMenuAction(
+    "Open full vault",
+    "Browse all logins in the extension popup",
+    () => {
+      requestCredentialFill(field, fieldType);
+      closeMenu();
+    },
+  );
+  actions.append(openVaultAction);
 
   const portalRoot = getMenuPortalRoot();
   portalRoot.append(menu);
@@ -138,6 +137,87 @@ export function injectFieldActionControl(
     customizeAction?.setAttribute("aria-expanded", "false");
     unbindReposition?.();
     unbindReposition = null;
+    matchesRequestId += 1;
+  };
+
+  const renderMatchesLoading = () => {
+    matchesSection.replaceChildren();
+    const status = document.createElement("p");
+    status.className = "vl-menu-status";
+    status.textContent = "Loading matching logins…";
+    matchesSection.append(status);
+  };
+
+  const renderMatchesState = (response: MatchingLoginsResponse) => {
+    matchesSection.replaceChildren();
+
+    if (response.status === "locked") {
+      const status = document.createElement("p");
+      status.className = "vl-menu-status";
+      status.textContent = "Unlock your vault to autofill from this page.";
+      matchesSection.append(status);
+
+      const unlockAction = createMenuAction("Unlock and fill", "Open VaultLock to unlock", () => {
+        requestCredentialFill(field, fieldType);
+        closeMenu();
+      });
+      matchesSection.append(unlockAction);
+      return;
+    }
+
+    if (response.status === "unavailable") {
+      const status = document.createElement("p");
+      status.className = "vl-menu-status";
+      status.textContent = "Vault is syncing. Open the popup to continue.";
+      matchesSection.append(status);
+      return;
+    }
+
+    if (response.matches.length === 0) {
+      const status = document.createElement("p");
+      status.className = "vl-menu-status";
+      status.textContent = `No saved logins match ${window.location.hostname}.`;
+      matchesSection.append(status);
+      return;
+    }
+
+    const subtitle = document.createElement("p");
+    subtitle.className = "vl-menu-subtitle";
+    subtitle.textContent =
+      response.matches.length === 1
+        ? "1 matching login"
+        : `${response.matches.length} matching logins`;
+    matchesSection.append(subtitle);
+
+    for (const match of response.matches) {
+      const button = createMatchAction(match.title, match.username, () => {
+        void fillMatchingLogin(field, fieldType, match.id);
+        closeMenu();
+      });
+      matchesSection.append(button);
+    }
+  };
+
+  const loadMatchingLogins = async () => {
+    const requestId = matchesRequestId + 1;
+    matchesRequestId = requestId;
+    renderMatchesLoading();
+
+    const response = await safeSendMessageAsync<MatchingLoginsResponse>({
+      type: "GET_MATCHING_LOGINS_FOR_HOST",
+      hostname: window.location.hostname,
+    });
+
+    if (requestId !== matchesRequestId || menu.hidden) {
+      return;
+    }
+
+    renderMatchesState(
+      response ?? {
+        status: "unavailable",
+        matches: [],
+      },
+    );
   };
 
   const openMenu = () => {
@@ -146,6 +226,7 @@ export function injectFieldActionControl(
     positionFloatingMenu(menu, field);
     unbindReposition?.();
     unbindReposition = bindMenuReposition(menu, field, () => !menu.hidden);
+    void loadMatchingLogins();
   };
 
   trigger.addEventListener("click", (event) => {
@@ -208,10 +289,52 @@ function createMenuAction(
   return button;
 }
 
+function createMatchAction(
+  title: string,
+  username: string,
+  onSelect: () => void,
+): HTMLButtonElement {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "vl-menu-item vl-menu-match";
+  button.setAttribute("role", "menuitem");
+
+  const label = document.createElement("span");
+  label.className = "vl-menu-item-label";
+  label.textContent = title;
+
+  const hint = document.createElement("span");
+  hint.className = "vl-menu-item-hint";
+  hint.textContent = username || "No username saved";
+
+  button.append(label, hint);
+  button.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    onSelect();
+  });
+
+  return button;
+}
+
 function requestCredentialFill(field: HTMLInputElement, fieldType: "username" | "password"): void {
   safeSendMessage({
     type: "INDICATOR_CLICKED",
     hostname: window.location.hostname,
+    fieldType,
+    associatedFieldId: field.dataset.vaultlockAssociatedUsernameId || undefined,
+  });
+}
+
+async function fillMatchingLogin(
+  field: HTMLInputElement,
+  fieldType: "username" | "password",
+  itemId: string,
+): Promise<void> {
+  await safeSendMessageAsync({
+    type: "FILL_MATCHING_LOGIN",
+    hostname: window.location.hostname,
+    itemId,
     fieldType,
     associatedFieldId: field.dataset.vaultlockAssociatedUsernameId || undefined,
   });

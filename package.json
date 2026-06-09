@@ -20,6 +20,7 @@
     "extension:dev:brave": "pnpm --filter @vaultlock/extension dev:brave",
     "extension:build": "pnpm --filter @vaultlock/extension build",
     "extension:build:brave": "pnpm --filter @vaultlock/extension build:brave",
+    "extension:test:e2e": "pnpm --filter @vaultlock/extension test:e2e",
     "ci": "biome check . && node scripts/check-pinned-deps.mjs && cargo fmt --all --manifest-path backend/Cargo.toml -- --check && cargo clippy --manifest-path backend/Cargo.toml --all-targets -- -D warnings"
   },
   "devDependencies": {
