@@ -1,8 +1,9 @@
 const SUBMIT_LABEL_PATTERN =
-  /\b(sign[\s-]?up|register|create(?:\s+(?:an?\s+)?account)?|log[\s-]?in|sign[\s-]?in|continue|next|submit|join|get[\s-]?started)\b/i;
-const EXCLUDE_LABEL_PATTERN = /\b(cancel|back|skip|close|not\s+now|maybe\s+later|forgot|reset)\b/i;
+  /\b(sign[\s-]?up|register|create(?:\s+(?:an?\s+)?account)?|log[\s-]?in|sign[\s-]?in|continue|next|submit|join(?:\s+now)?|get[\s-]?started)\b/i;
+const EXCLUDE_LABEL_PATTERN =
+  /\b(cancel|back|skip|close|not\s+now|maybe\s+later|forgot|reset|facebook|google|apple|social|connect)\b/i;
 
-function controlLabel(element: Element): string {
+export function controlLabel(element: Element): string {
   const parts = [
     element.textContent,
     element.getAttribute("aria-label"),
@@ -45,6 +46,6 @@ export function findClickedSubmitControl(target: EventTarget | null): Element | 
   }
 
   return target.closest(
-    'button, input[type="submit"], input[type="button"], a[role="button"], [role="button"]',
+    'button, input[type="submit"], input[type="button"], a[role="button"], a[class*="auth-btn"], [role="button"]',
   );
 }

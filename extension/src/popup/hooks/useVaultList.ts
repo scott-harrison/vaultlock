@@ -132,6 +132,7 @@ export function useVaultList(pendingFillRequest: AutofillRequest | null) {
         const { encryptedCount, decryptedCount } = await loadFromCache();
         if (!cancelled && encryptedCount === 0 && decryptedCount === 0) {
           await refreshFromServer(true);
+          return;
         }
       } catch (err) {
         if (!cancelled) {
@@ -142,6 +143,10 @@ export function useVaultList(pendingFillRequest: AutofillRequest | null) {
         if (!cancelled) {
           setLoading(false);
         }
+      }
+
+      if (!cancelled) {
+        void refreshFromServer(true);
       }
     })();
 

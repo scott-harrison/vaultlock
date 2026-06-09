@@ -34,6 +34,23 @@ function isVisibleField(input: HTMLInputElement): boolean {
   );
 }
 
+function isCapturableField(input: HTMLInputElement): boolean {
+  if (input.type === "hidden") {
+    return false;
+  }
+
+  const style = window.getComputedStyle(input);
+  if (style.display === "none" || style.visibility === "hidden") {
+    return false;
+  }
+
+  if (input.disabled || input.readOnly) {
+    return input.value.trim().length > 0;
+  }
+
+  return isVisibleField(input);
+}
+
 function fieldById(id: string | undefined): HTMLInputElement | null {
   if (!id) return null;
   const el = document.getElementById(id);
@@ -213,7 +230,7 @@ export function captureLoginNearElement(anchor: Element): {
   const root = findLoginCaptureRoot(anchor);
   const passwordFields = Array.from(
     root.querySelectorAll<HTMLInputElement>(PASSWORD_FIELD_SELECTOR),
-  ).filter((field) => isVisibleField(field) && isPasswordField(field));
+  ).filter((field) => isCapturableField(field) && isPasswordField(field));
 
   const passwordField =
     passwordFields.find((field) => field.dataset.vaultlockSkipSave !== "1") ??
@@ -233,7 +250,7 @@ export function captureLoginFromForm(form: HTMLFormElement): {
 } | null {
   const passwordFields = Array.from(
     form.querySelectorAll<HTMLInputElement>(PASSWORD_FIELD_SELECTOR),
-  ).filter((field) => isVisibleField(field) && isPasswordField(field));
+  ).filter((field) => isCapturableField(field) && isPasswordField(field));
 
   const passwordField =
     passwordFields.find((field) => field.dataset.vaultlockSkipSave !== "1") ??

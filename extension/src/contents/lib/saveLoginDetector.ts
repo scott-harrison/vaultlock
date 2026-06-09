@@ -4,10 +4,18 @@ import {
   captureLoginFromPasswordField,
   captureLoginNearElement,
 } from "../../lib/formFillDom";
+import { enrichCapturedLogin, trackLoginFieldInput } from "../../lib/loginCaptureState";
 import { findClickedSubmitControl, isSubmitLikeControl } from "../../lib/saveLoginHeuristics";
 import { maybeShowSaveLoginPrompt } from "./saveLoginPrompt";
 
+interface CaptureContext {
+  anchor: Element;
+  submitControl?: Element;
+}
+
 const PROMPT_DEBOUNCE_MS = 2500;
+const CAPTURE_RETRY_DELAYS_MS = [0, 100, 250, 500] as const;
+
 let lastPromptKey = "";
 let lastPromptAt = 0;
 
@@ -20,6 +28,8 @@ function clearSkipSaveOnUserInput(event: Event): void {
   if (target.dataset.vaultlockSkipSave === "1") {
     delete target.dataset.vaultlockSkipSave;
   }
+
+  trackLoginFieldInput(event);
 }
 
 function shouldDebouncePrompt(capture: { username: string; password: string }): boolean {
@@ -36,12 +46,29 @@ function shouldDebouncePrompt(capture: { username: string; password: string }): 
 
 async function offerSavePrompt(
   capture: { username: string; password: string } | null,
+  context: CaptureContext,
 ): Promise<void> {
-  if (!capture || shouldDebouncePrompt(capture)) {
+  const enriched = await enrichCapturedLogin(capture);
+  if (!enriched || shouldDebouncePrompt(enriched)) {
     return;
   }
 
-  await maybeShowSaveLoginPrompt(capture);
+  await maybeShowSaveLoginPrompt(enriched);
+}
+
+function scheduleCaptureAttempts(
+  collect: () => { username: string; password: string } | null,
+  context: CaptureContext,
+): void {
+  for (const delay of CAPTURE_RETRY_DELAYS_MS) {
+    setTimeout(() => {
+      if (!isExtensionContextValid()) {
+        return;
+      }
+
+      void offerSavePrompt(collect(), context);
+    }, delay);
+  }
 }
 
 async function handleFormSubmit(event: Event): Promise<void> {
@@ -54,7 +81,13 @@ async function handleFormSubmit(event: Event): Promise<void> {
     return;
   }
 
-  await offerSavePrompt(captureLoginFromForm(form));
+  const submitter = (event as SubmitEvent).submitter;
+  const submitControl = submitter instanceof Element ? submitter : undefined;
+
+  scheduleCaptureAttempts(() => captureLoginFromForm(form), {
+    anchor: form,
+    submitControl,
+  });
 }
 
 async function handleSubmitControlClick(event: Event): Promise<void> {
@@ -69,7 +102,19 @@ async function handleSubmitControlClick(event: Event): Promise<void> {
 
   const form = control.closest("form");
   if (form) {
-    await offerSavePrompt(captureLoginFromForm(form));
+    const shouldCapture =
+      control instanceof HTMLInputElement ||
+      control instanceof HTMLButtonElement ||
+      isSubmitLikeControl(control);
+
+    if (!shouldCapture) {
+      return;
+    }
+
+    scheduleCaptureAttempts(() => captureLoginFromForm(form), {
+      anchor: form,
+      submitControl: control,
+    });
     return;
   }
 
@@ -77,7 +122,10 @@ async function handleSubmitControlClick(event: Event): Promise<void> {
     return;
   }
 
-  await offerSavePrompt(captureLoginNearElement(control));
+  scheduleCaptureAttempts(() => captureLoginNearElement(control), {
+    anchor: control,
+    submitControl: control,
+  });
 }
 
 async function handlePasswordEnter(event: KeyboardEvent): Promise<void> {
@@ -100,7 +148,7 @@ async function handlePasswordEnter(event: KeyboardEvent): Promise<void> {
     return;
   }
 
-  await offerSavePrompt(captureLoginFromPasswordField(target));
+  scheduleCaptureAttempts(() => captureLoginFromPasswordField(target), { anchor: target });
 }
 
 export function initSaveLoginDetection(): void {
@@ -130,6 +178,14 @@ export function initSaveLoginDetection(): void {
 
   document.addEventListener(
     "input",
+    (event) => {
+      clearSkipSaveOnUserInput(event);
+    },
+    true,
+  );
+
+  document.addEventListener(
+    "change",
     (event) => {
       clearSkipSaveOnUserInput(event);
     },

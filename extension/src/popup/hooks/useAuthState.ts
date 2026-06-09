@@ -46,6 +46,10 @@ export function useAuthState() {
       }
 
       if (isVaultUnlocked()) {
+        const { persistVaultUnlockSession } = await import("../../lib/vaultUnlockSession");
+        const { syncVaultDekToBackground } = await import("../../lib/vaultDekSync");
+        void persistVaultUnlockSession(true);
+        void syncVaultDekToBackground();
         setAuthState("unlocked");
         await loadPendingRequests();
       } else {
@@ -63,6 +67,22 @@ export function useAuthState() {
     document.getElementById("__plasmo-fallback")?.remove();
     resolveAuthState();
   }, [resolveAuthState]);
+
+  useEffect(() => {
+    const onMessage = (message: unknown) => {
+      const msg = message as { type?: string };
+      if (msg.type !== "REQUEST_VAULT_DEK_SYNC") {
+        return;
+      }
+
+      void import("../../lib/vaultDekSync").then(({ syncVaultDekToBackground }) => {
+        void syncVaultDekToBackground();
+      });
+    };
+
+    chrome.runtime.onMessage.addListener(onMessage);
+    return () => chrome.runtime.onMessage.removeListener(onMessage);
+  }, []);
 
   useEffect(() => {
     const onStorageChanged = (
@@ -89,10 +109,12 @@ export function useAuthState() {
       await loginAndUnlock({ email, masterPassword });
       setMasterPassword("");
       setAuthState("unlocked");
-      await chrome.runtime
+      await loadPendingRequests();
+      const { syncVaultDekToBackground } = await import("../../lib/vaultDekSync");
+      void syncVaultDekToBackground();
+      void chrome.runtime
         .sendMessage({ type: "TRIGGER_VAULT_SYNC", forceFull: true })
         .catch(() => {});
-      await loadPendingRequests();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed");
     } finally {
@@ -117,10 +139,12 @@ export function useAuthState() {
 
       setMasterPassword("");
       setAuthState("unlocked");
-      await chrome.runtime
+      await loadPendingRequests();
+      const { syncVaultDekToBackground } = await import("../../lib/vaultDekSync");
+      void syncVaultDekToBackground();
+      void chrome.runtime
         .sendMessage({ type: "TRIGGER_VAULT_SYNC", forceFull: true })
         .catch(() => {});
-      await loadPendingRequests();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unlock failed");
     } finally {

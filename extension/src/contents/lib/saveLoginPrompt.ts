@@ -3,43 +3,22 @@ import {
   safeSendMessage,
   safeSendMessageAsync,
 } from "../../lib/extensionContext";
-import type { SaveLoginAvailability, SaveLoginCandidate } from "../../lib/messaging";
+import type {
+  SaveLoginAvailability,
+  SaveLoginCandidate,
+  SaveLoginEvaluation,
+  SaveLoginPromptMode,
+} from "../../lib/messaging";
+import {
+  isSaveLoginDismissed,
+  originForCandidate,
+  rememberSaveLoginDismissed,
+} from "../../lib/saveLoginBannerSession";
 import { createThemedShadowHost } from "./themedShadowHost";
 
-const DISMISS_TTL_MS = 30 * 60 * 1000;
-const DISMISS_KEY_PREFIX = "vaultlock:saveDismissed:";
+const EVALUATION_RETRY_MS = 200;
 
 let activeBannerHost: HTMLElement | null = null;
-
-function dismissKeyForOrigin(origin: string): string {
-  return `${DISMISS_KEY_PREFIX}${origin}`;
-}
-
-function isDismissedRecently(origin: string): boolean {
-  try {
-    const raw = sessionStorage.getItem(dismissKeyForOrigin(origin));
-    if (!raw) {
-      return false;
-    }
-
-    const dismissedAt = Number(raw);
-    if (!Number.isFinite(dismissedAt)) {
-      return false;
-    }
-
-    return Date.now() - dismissedAt < DISMISS_TTL_MS;
-  } catch {
-    return false;
-  }
-}
-
-function rememberDismissed(origin: string): void {
-  try {
-    sessionStorage.setItem(dismissKeyForOrigin(origin), String(Date.now()));
-  } catch {
-    // ignore
-  }
-}
 
 function removeActiveBanner(): void {
   activeBannerHost?.remove();
@@ -50,16 +29,114 @@ function defaultTitle(hostname: string): string {
   return hostname.replace(/^www\./, "");
 }
 
-export async function maybeShowSaveLoginPrompt(capture: {
-  username: string;
-  password: string;
-}): Promise<void> {
-  if (!isExtensionContextValid()) {
+function buildCandidate(capture: { username: string; password: string }): SaveLoginCandidate {
+  return {
+    hostname: window.location.hostname,
+    pageUrl: window.location.href,
+    username: capture.username,
+    password: capture.password,
+    title: defaultTitle(window.location.hostname),
+  };
+}
+
+function candidateForEvaluation(candidate: SaveLoginCandidate): SaveLoginCandidate {
+  const { mode: _mode, existingItemId: _existingItemId, ...fresh } = candidate;
+  return fresh;
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+async function clearPendingBannerForTab(): Promise<void> {
+  await safeSendMessageAsync({ type: "CLEAR_PENDING_SAVE_LOGIN_BANNER" });
+}
+
+async function persistBannerForTab(candidate: SaveLoginCandidate): Promise<void> {
+  await safeSendMessageAsync({ type: "PERSIST_SAVE_LOGIN_BANNER", candidate });
+}
+
+async function requestEvaluation(
+  candidate: SaveLoginCandidate,
+): Promise<SaveLoginEvaluation | null> {
+  return safeSendMessageAsync<SaveLoginEvaluation>({
+    type: "EVALUATE_SAVE_LOGIN_CANDIDATE",
+    candidate: candidateForEvaluation(candidate),
+  });
+}
+
+async function evaluateCandidate(
+  candidate: SaveLoginCandidate,
+  allowRetry = true,
+): Promise<SaveLoginCandidate | null> {
+  const evaluation = await requestEvaluation(candidate);
+  if (!evaluation) {
+    return null;
+  }
+
+  if (evaluation.action === "skip") {
+    return null;
+  }
+
+  if (evaluation.action === "update") {
+    return {
+      ...candidate,
+      mode: "update",
+      existingItemId: evaluation.existingItemId,
+    };
+  }
+
+  if (evaluation.action === "unavailable" && allowRetry) {
+    await safeSendMessageAsync({ type: "REQUEST_VAULT_DEK_SYNC" });
+    await delay(EVALUATION_RETRY_MS);
+    return evaluateCandidate(candidate, false);
+  }
+
+  if (
+    evaluation.action === "save" ||
+    evaluation.action === "locked" ||
+    evaluation.action === "unavailable"
+  ) {
+    return { ...candidate, mode: "save" };
+  }
+
+  return null;
+}
+
+function bannerCopy(mode: SaveLoginPromptMode): { title: string; actionLabel: string } {
+  if (mode === "update") {
+    return {
+      title: "Update saved login in VaultLock?",
+      actionLabel: "Update",
+    };
+  }
+
+  return {
+    title: "Save login to VaultLock?",
+    actionLabel: "Save",
+  };
+}
+
+export async function clearSaveLoginBanner(): Promise<void> {
+  removeActiveBanner();
+  await clearPendingBannerForTab();
+}
+
+export async function showSaveLoginBanner(candidate: SaveLoginCandidate): Promise<void> {
+  if (!isExtensionContextValid() || window !== window.top) {
     return;
   }
 
-  const origin = window.location.origin;
-  if (isDismissedRecently(origin)) {
+  const resolved = await evaluateCandidate(candidate);
+  if (!resolved) {
+    await clearPendingBannerForTab();
+    return;
+  }
+
+  const origin = originForCandidate(resolved);
+  if (await isSaveLoginDismissed(origin)) {
     return;
   }
 
@@ -74,13 +151,7 @@ export async function maybeShowSaveLoginPrompt(capture: {
     return;
   }
 
-  const candidate: SaveLoginCandidate = {
-    hostname: window.location.hostname,
-    pageUrl: window.location.href,
-    username: capture.username,
-    password: capture.password,
-    title: defaultTitle(window.location.hostname),
-  };
+  await persistBannerForTab(resolved);
 
   const { host, root } = createThemedShadowHost();
   host.style.cssText = "all:initial;position:fixed;inset:0;z-index:2147483647;pointer-events:none;";
@@ -88,15 +159,17 @@ export async function maybeShowSaveLoginPrompt(capture: {
   const banner = document.createElement("div");
   banner.className = "vl-save-banner";
 
+  const copy = bannerCopy(resolved.mode ?? "save");
+
   const title = document.createElement("p");
   title.className = "vl-save-title";
-  title.textContent = "Save login to VaultLock?";
+  title.textContent = copy.title;
 
   const subtitle = document.createElement("p");
   subtitle.className = "vl-save-subtitle";
-  subtitle.textContent = capture.username
-    ? `${capture.username} on ${candidate.hostname}`
-    : candidate.hostname;
+  subtitle.textContent = resolved.username
+    ? `${resolved.username} on ${resolved.hostname}`
+    : resolved.hostname;
 
   const actions = document.createElement("div");
   actions.className = "vl-actions";
@@ -109,17 +182,19 @@ export async function maybeShowSaveLoginPrompt(capture: {
   const saveButton = document.createElement("button");
   saveButton.type = "button";
   saveButton.className = "vl-btn vl-btn-primary";
-  saveButton.textContent = "Save";
+  saveButton.textContent = copy.actionLabel;
 
-  dismissButton.addEventListener("click", () => {
-    rememberDismissed(origin);
+  const dismiss = () => {
+    void rememberSaveLoginDismissed(origin);
+    void clearPendingBannerForTab();
     removeActiveBanner();
-  });
+  };
+
+  dismissButton.addEventListener("click", dismiss);
 
   saveButton.addEventListener("click", () => {
-    safeSendMessage({ type: "SAVE_LOGIN_CANDIDATE", candidate });
-    rememberDismissed(origin);
-    removeActiveBanner();
+    safeSendMessage({ type: "SAVE_LOGIN_CANDIDATE", candidate: resolved });
+    dismiss();
   });
 
   actions.append(dismissButton, saveButton);
@@ -127,4 +202,57 @@ export async function maybeShowSaveLoginPrompt(capture: {
   root.appendChild(banner);
   document.body.appendChild(host);
   activeBannerHost = host;
+}
+
+export async function restorePendingSaveLoginBanner(): Promise<void> {
+  if (!isExtensionContextValid() || window !== window.top) {
+    return;
+  }
+
+  const candidate = await safeSendMessageAsync<SaveLoginCandidate | null>({
+    type: "GET_PENDING_SAVE_LOGIN_BANNER",
+  });
+  if (!candidate) {
+    return;
+  }
+
+  await showSaveLoginBanner(candidate);
+}
+
+export async function maybeShowSaveLoginPrompt(capture: {
+  username: string;
+  password: string;
+}): Promise<void> {
+  if (!isExtensionContextValid()) {
+    return;
+  }
+
+  const candidate = buildCandidate(capture);
+  const origin = originForCandidate(candidate);
+  if (await isSaveLoginDismissed(origin)) {
+    return;
+  }
+
+  const availability = await safeSendMessageAsync<SaveLoginAvailability>({
+    type: "CHECK_SAVE_LOGIN_AVAILABLE",
+  });
+  if (!availability?.authenticated) {
+    return;
+  }
+
+  const resolved = await evaluateCandidate(candidate);
+  if (!resolved) {
+    await clearSaveLoginBanner();
+    return;
+  }
+
+  if (window.top !== window) {
+    await safeSendMessageAsync({
+      type: "QUEUE_SAVE_LOGIN_BANNER",
+      candidate: resolved,
+    });
+    return;
+  }
+
+  await showSaveLoginBanner(resolved);
 }

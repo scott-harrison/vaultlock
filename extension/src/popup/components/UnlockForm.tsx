@@ -8,6 +8,8 @@ import { AuthUserChip } from "./AuthUserChip";
 import { PopupHeader } from "./PopupHeader";
 import { PopupShell } from "./PopupShell";
 
+type UnlockPurpose = "default" | "fill" | "save";
+
 interface UnlockFormProps {
   serverUrl: string;
   email: string;
@@ -15,6 +17,7 @@ interface UnlockFormProps {
   isSubmitting: boolean;
   error: string;
   savePromptHostname?: string;
+  unlockPurpose?: UnlockPurpose;
   onMasterPasswordChange: (value: string) => void;
   onSubmit: (event: React.FormEvent) => void;
   onSignOut: () => void;
@@ -30,8 +33,16 @@ export function UnlockForm({
   onSubmit,
   onSignOut,
   savePromptHostname,
+  unlockPurpose = "default",
 }: UnlockFormProps) {
   const formId = useId();
+
+  const unlockDescription =
+    unlockPurpose === "fill" && savePromptHostname
+      ? `Unlock to fill saved credentials on ${savePromptHostname}.`
+      : unlockPurpose === "save" && savePromptHostname
+        ? `Unlock to review and save the login for ${savePromptHostname}.`
+        : "Enter your master password to decrypt your items on this device.";
 
   return (
     <PopupShell>
@@ -41,11 +52,7 @@ export function UnlockForm({
 
         <div className="space-y-2">
           <h2 className="text-2xl font-bold tracking-tight">Unlock your vault</h2>
-          <p className="text-sm text-muted-foreground">
-            {savePromptHostname
-              ? `Unlock to review and save the login for ${savePromptHostname}.`
-              : "Enter your master password to decrypt your items on this device."}
-          </p>
+          <p className="text-sm text-muted-foreground">{unlockDescription}</p>
         </div>
 
         <form className="space-y-4" onSubmit={onSubmit}>

@@ -1,4 +1,10 @@
+import type { PlasmoCSConfig } from "plasmo";
 import { installRuntimeConnectGuard } from "../lib/extensionContext";
+
+export const config: PlasmoCSConfig = {
+  all_frames: true,
+  run_at: "document_start",
+};
 
 installRuntimeConnectGuard();
 

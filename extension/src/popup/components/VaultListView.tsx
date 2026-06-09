@@ -132,7 +132,7 @@ export function VaultListView({
               size="sm"
               className="h-7 gap-1.5 px-2 text-xs"
               disabled={loading || isSyncing}
-              onClick={() => refreshFromServer(false)}
+              onClick={() => refreshFromServer(true)}
             >
               <RefreshCw className={cn("size-3.5", isSyncing && "animate-spin")} aria-hidden />
               {isSyncing ? "Syncing…" : "Sync"}

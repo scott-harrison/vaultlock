@@ -58,7 +58,9 @@ export function SaveLoginForm({ serverUrl, candidate, onCancel, onSaved }: SaveL
   const [url, setUrl] = useState(candidate.pageUrl);
   const [username, setUsername] = useState(candidate.username);
   const [password, setPassword] = useState(candidate.password);
-  const [existingItemId, setExistingItemId] = useState<string | null>(null);
+  const [existingItemId, setExistingItemId] = useState<string | null>(
+    candidate.existingItemId ?? null,
+  );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
 

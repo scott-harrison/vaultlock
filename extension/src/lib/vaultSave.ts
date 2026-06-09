@@ -1,12 +1,12 @@
 import { VaultlockApiClient } from "@vaultlock/shared/api";
-import { loginMatchesPageHost } from "@vaultlock/shared/domain-matching";
+import { findMatchingLoginCredential } from "@vaultlock/shared/login-save-match";
 import type { LoginItemPlaintext, VaultItemResponse } from "@vaultlock/shared/types";
 import { getAuthSession } from "./auth";
 import { createTimedFetch } from "./serverSettings";
 import { getEncryptedVaultCache, getServerSettings, saveEncryptedVaultCache } from "./storage";
 import { decryptVaultItem, encryptVaultItemPlaintext } from "./vaultCrypto";
+import { isVaultUnlocked } from "./vaultDekState";
 import type { DecryptedVaultItem } from "./vaultItems";
-import { isVaultUnlocked } from "./vaultSession";
 
 function mergeCreatedItem(
   cacheItems: VaultItemResponse[],
@@ -22,29 +22,19 @@ export function findMatchingLoginItem(
   pageUrl: string,
   items: DecryptedVaultItem[],
 ): DecryptedVaultItem | null {
-  let hostname = "";
-  try {
-    hostname = new URL(pageUrl).hostname;
-  } catch {
+  const loginItems = items
+    .filter((item) => item.itemType === "login")
+    .map((item) => ({
+      id: item.id,
+      plaintext: item.plaintext as LoginItemPlaintext,
+    }));
+
+  const match = findMatchingLoginCredential(username, pageUrl, loginItems);
+  if (!match) {
     return null;
   }
 
-  const normalizedUsername = username.trim().toLowerCase();
-  return (
-    items.find((item) => {
-      if (item.itemType !== "login") {
-        return false;
-      }
-
-      const login = item.plaintext as LoginItemPlaintext;
-      const itemUsername = (login.username ?? "").trim().toLowerCase();
-      if (normalizedUsername && itemUsername !== normalizedUsername) {
-        return false;
-      }
-
-      return loginMatchesPageHost(login.url, hostname);
-    }) ?? null
-  );
+  return items.find((item) => item.id === match.id) ?? null;
 }
 
 export async function createLoginVaultItem(

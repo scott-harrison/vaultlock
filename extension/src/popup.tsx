@@ -43,21 +43,6 @@ export default function IndexPopup() {
     return <NeedsServerState />;
   }
 
-  if (authState === "unlocked" && pendingSaveLogin) {
-    return (
-      <SaveLoginForm
-        serverUrl={serverUrl}
-        candidate={pendingSaveLogin}
-        onCancel={() => {
-          void clearPendingSaveLogin();
-        }}
-        onSaved={() => {
-          void clearPendingSaveLogin();
-        }}
-      />
-    );
-  }
-
   if (authState === "login") {
     return (
       <LoginForm
@@ -81,10 +66,28 @@ export default function IndexPopup() {
         masterPassword={masterPassword}
         isSubmitting={isSubmitting}
         error={error}
-        savePromptHostname={pendingSaveLogin?.hostname}
+        savePromptHostname={
+          pendingFillRequest ? pendingFillRequest.hostname : pendingSaveLogin?.hostname
+        }
+        unlockPurpose={pendingFillRequest ? "fill" : pendingSaveLogin ? "save" : "default"}
         onMasterPasswordChange={setMasterPassword}
         onSubmit={handleUnlock}
         onSignOut={() => handleLogout(() => {})}
+      />
+    );
+  }
+
+  if (authState === "unlocked" && pendingSaveLogin && !pendingFillRequest) {
+    return (
+      <SaveLoginForm
+        serverUrl={serverUrl}
+        candidate={pendingSaveLogin}
+        onCancel={() => {
+          void clearPendingSaveLogin();
+        }}
+        onSaved={() => {
+          void clearPendingSaveLogin();
+        }}
       />
     );
   }
