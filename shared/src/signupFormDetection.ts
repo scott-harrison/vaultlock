@@ -21,8 +21,23 @@ const SIGNUP_CONTAINER_PATTERN =
 const LOGIN_CONTAINER_PATTERN =
   /\b(log[\s-]?in|sign[\s-]?in|welcome\s+back|existing\s+(?:account|member))\b/i;
 
-const NEW_PASSWORD_HINT_PATTERN =
-  /(?:new|confirm|signup|sign-up|register|create|choose).*(?:pass|pwd)|(?:pass|pwd).*(?:new|confirm)/i;
+const NEW_PASSWORD_HINT_TERMS = [
+  "new",
+  "confirm",
+  "signup",
+  "sign-up",
+  "register",
+  "create",
+  "choose",
+] as const;
+const PASSWORD_HINT_TERMS = ["pass", "pwd"] as const;
+
+function hasNewPasswordHint(hints: string): boolean {
+  const normalized = hints.toLowerCase();
+  const hasPasswordHint = PASSWORD_HINT_TERMS.some((term) => normalized.includes(term));
+  const hasNewHint = NEW_PASSWORD_HINT_TERMS.some((term) => normalized.includes(term));
+  return hasPasswordHint && hasNewHint;
+}
 
 export function scoreSignupContext(signals: SignupContextSignals): {
   signup: number;
@@ -71,7 +86,7 @@ export function scoreSignupContext(signals: SignupContextSignals): {
   }
 
   const passwordHints = signals.passwordFieldHints ?? "";
-  if (NEW_PASSWORD_HINT_PATTERN.test(passwordHints)) {
+  if (hasNewPasswordHint(passwordHints)) {
     signup += 2;
   }
 
