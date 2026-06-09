@@ -41,8 +41,25 @@ export function registerFieldOverlay(triggerHost: HTMLElement, field: HTMLInputE
   positionFieldTrigger(triggerHost, field);
 }
 
+export function unregisterFieldOverlay(field: HTMLInputElement): void {
+  for (const anchor of [...fieldAnchors]) {
+    if (anchor.field !== field) {
+      continue;
+    }
+
+    anchor.triggerHost.remove();
+    fieldAnchors.delete(anchor);
+  }
+}
+
 export function repositionAllFieldTriggers(): void {
-  for (const anchor of fieldAnchors) {
+  for (const anchor of [...fieldAnchors]) {
+    if (!anchor.field.isConnected) {
+      anchor.triggerHost.remove();
+      fieldAnchors.delete(anchor);
+      continue;
+    }
+
     positionFieldTrigger(anchor.triggerHost, anchor.field);
   }
 }

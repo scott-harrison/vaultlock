@@ -42,6 +42,7 @@ export { expect } from "@playwright/test";
 export const testPages = {
   login: `${TEST_ORIGIN}/login-form.html`,
   signup: `${TEST_ORIGIN}/signup-form.html`,
+  appleLikeLogin: `${TEST_ORIGIN}/apple-like-login.html`,
 };
 
 export async function getExtensionServiceWorker(context: BrowserContext) {

@@ -3,6 +3,8 @@
  * Uses native value setter + input/change events so React/Vue pick up updates.
  */
 
+import { isVisibleField } from "./fieldVisibility";
+
 export interface FillLoginFieldsOptions {
   username: string;
   password: string;
@@ -20,18 +22,6 @@ function isPasswordField(input: HTMLInputElement): boolean {
 
   const autocomplete = (input.autocomplete || "").toLowerCase();
   return autocomplete === "new-password" || autocomplete === "current-password";
-}
-
-function isVisibleField(input: HTMLInputElement): boolean {
-  const style = window.getComputedStyle(input);
-  return (
-    style.display !== "none" &&
-    style.visibility !== "hidden" &&
-    input.offsetWidth > 20 &&
-    input.offsetHeight > 10 &&
-    !input.disabled &&
-    !input.readOnly
-  );
 }
 
 function isCapturableField(input: HTMLInputElement): boolean {
