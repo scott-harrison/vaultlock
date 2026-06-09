@@ -9,7 +9,6 @@
 
 import { VaultlockApiClient } from "@vaultlock/shared/api";
 import type { VaultItemResponse } from "@vaultlock/shared/types";
-import { getAuthSession } from "./lib/auth";
 import { getStorageSession } from "./lib/browser";
 import {
   hostnamesMatch,
@@ -18,8 +17,15 @@ import {
   rejectUntrustedSender,
   tabHostnameFromSender,
 } from "./lib/messageSenderValidation";
-import type { AutofillRequest, ExecuteFillPayload } from "./lib/messaging";
+import type { AutofillRequest, ExecuteFillPayload, SaveLoginCandidate } from "./lib/messaging";
+import {
+  clearPendingSaveLoginBanner,
+  getPendingSaveLoginBanner,
+  persistPendingSaveLoginBanner,
+} from "./lib/saveLoginBannerSession";
+import { evaluateSaveLoginCandidate } from "./lib/saveLoginEvaluation";
 import { createTimedFetch } from "./lib/serverSettings";
+import { getAuthSession } from "./lib/storage";
 import {
   clearEncryptedVaultCache,
   clearVaultSyncToken,
@@ -29,8 +35,10 @@ import {
   saveVaultSyncToken,
 } from "./lib/storage";
 import { getServerSettings } from "./lib/storage";
+import { isVaultUnlockedInSession } from "./lib/vaultUnlockSession";
 
 let pendingFillRequest: AutofillRequest | null = null;
+let pendingSaveLogin: SaveLoginCandidate | null = null;
 let vaultSyncInFlight: Promise<void> | null = null;
 
 chrome.runtime.onMessage.addListener(
@@ -77,7 +85,9 @@ chrome.runtime.onMessage.addListener(
     };
 
     pendingFillRequest = request;
+    pendingSaveLogin = null;
     getStorageSession()?.set({ pendingFillRequest });
+    getStorageSession()?.remove("pendingSaveLogin");
 
     chrome.action.openPopup().catch(() => {});
 
@@ -86,6 +96,31 @@ chrome.runtime.onMessage.addListener(
   },
 );
 
+const CONTENT_SCRIPT_MESSAGE_TYPES = new Set([
+  "CHECK_SAVE_LOGIN_AVAILABLE",
+  "EVALUATE_SAVE_LOGIN_CANDIDATE",
+  "QUEUE_SAVE_LOGIN_BANNER",
+  "PERSIST_SAVE_LOGIN_BANNER",
+  "GET_PENDING_SAVE_LOGIN_BANNER",
+  "CLEAR_PENDING_SAVE_LOGIN_BANNER",
+  "SAVE_LOGIN_CANDIDATE",
+]);
+
+async function renderSaveLoginBannerInTopFrame(
+  tabId: number,
+  candidate: SaveLoginCandidate,
+): Promise<void> {
+  try {
+    await chrome.tabs.sendMessage(
+      tabId,
+      { type: "RENDER_SAVE_LOGIN_BANNER", candidate },
+      { frameId: 0 },
+    );
+  } catch {
+    // Top frame may be navigating; content script will restore on next load.
+  }
+}
+
 const EXTENSION_ONLY_MESSAGE_TYPES = new Set([
   "GET_PENDING_FILL_REQUEST",
   "CLEAR_PENDING_FILL_REQUEST",
@@ -93,6 +128,9 @@ const EXTENSION_ONLY_MESSAGE_TYPES = new Set([
   "TRIGGER_VAULT_SYNC",
   "GET_ENCRYPTED_VAULT_CACHE",
   "VAULT_LOCKED",
+  "SYNC_VAULT_DEK",
+  "GET_PENDING_SAVE_LOGIN",
+  "CLEAR_PENDING_SAVE_LOGIN",
 ]);
 
 chrome.runtime.onMessage.addListener(
@@ -102,6 +140,149 @@ chrome.runtime.onMessage.addListener(
     sendResponse: (response?: unknown) => void,
   ) => {
     const msg = message as { type?: string };
+
+    if (msg.type && CONTENT_SCRIPT_MESSAGE_TYPES.has(msg.type)) {
+      if (!isTrustedContentScriptSender(sender)) {
+        return rejectUntrustedSender(sender, sendResponse, `${msg.type} from non-content-script`);
+      }
+
+      if (msg.type === "CHECK_SAVE_LOGIN_AVAILABLE") {
+        void Promise.all([getAuthSession(), isVaultUnlockedInSession()]).then(
+          ([session, unlocked]) => {
+            sendResponse({
+              authenticated: Boolean(session),
+              unlocked,
+            });
+          },
+        );
+        return true;
+      }
+
+      if (msg.type === "EVALUATE_SAVE_LOGIN_CANDIDATE") {
+        const candidate = (message as { candidate?: SaveLoginCandidate }).candidate;
+        const tabHost = tabHostnameFromSender(sender);
+
+        if (!candidate?.pageUrl || !candidate.password || !tabHost) {
+          sendResponse({ action: "unavailable" });
+          return true;
+        }
+
+        if (!hostnamesMatch(candidate.hostname, tabHost)) {
+          return rejectUntrustedSender(
+            sender,
+            sendResponse,
+            "EVALUATE_SAVE_LOGIN_CANDIDATE hostname mismatch",
+          );
+        }
+
+        void evaluateSaveLoginCandidate(candidate).then((evaluation) => {
+          sendResponse(evaluation);
+        });
+        return true;
+      }
+
+      if (msg.type === "QUEUE_SAVE_LOGIN_BANNER") {
+        const candidate = (message as { candidate?: SaveLoginCandidate }).candidate;
+        const tabId = sender.tab?.id;
+        const tabHost = tabHostnameFromSender(sender);
+
+        if (!candidate?.hostname || !candidate.password || tabId === undefined || !tabHost) {
+          sendResponse({ success: false, error: "Invalid save banner request" });
+          return true;
+        }
+
+        if (!hostnamesMatch(candidate.hostname, tabHost)) {
+          return rejectUntrustedSender(
+            sender,
+            sendResponse,
+            "QUEUE_SAVE_LOGIN_BANNER hostname mismatch",
+          );
+        }
+
+        void persistPendingSaveLoginBanner(tabId, candidate).then(async () => {
+          await renderSaveLoginBannerInTopFrame(tabId, candidate);
+          sendResponse({ success: true });
+        });
+        return true;
+      }
+
+      if (msg.type === "PERSIST_SAVE_LOGIN_BANNER") {
+        const candidate = (message as { candidate?: SaveLoginCandidate }).candidate;
+        const tabId = sender.tab?.id;
+        const tabHost = tabHostnameFromSender(sender);
+
+        if (!candidate?.hostname || !candidate.password || tabId === undefined || !tabHost) {
+          sendResponse({ success: false, error: "Invalid save banner persist request" });
+          return true;
+        }
+
+        if (!hostnamesMatch(candidate.hostname, tabHost)) {
+          return rejectUntrustedSender(
+            sender,
+            sendResponse,
+            "PERSIST_SAVE_LOGIN_BANNER hostname mismatch",
+          );
+        }
+
+        void persistPendingSaveLoginBanner(tabId, candidate).then(() => {
+          sendResponse({ success: true });
+        });
+        return true;
+      }
+
+      if (msg.type === "GET_PENDING_SAVE_LOGIN_BANNER") {
+        const tabId = sender.tab?.id;
+        if (tabId === undefined) {
+          sendResponse(null);
+          return true;
+        }
+
+        void getPendingSaveLoginBanner(tabId).then((record) => {
+          sendResponse(record?.candidate ?? null);
+        });
+        return true;
+      }
+
+      if (msg.type === "CLEAR_PENDING_SAVE_LOGIN_BANNER") {
+        const tabId = sender.tab?.id;
+        if (tabId === undefined) {
+          sendResponse({ success: false, error: "Missing tab context" });
+          return true;
+        }
+
+        void clearPendingSaveLoginBanner(tabId).then(() => {
+          sendResponse({ success: true });
+        });
+        return true;
+      }
+
+      if (msg.type === "SAVE_LOGIN_CANDIDATE") {
+        const candidate = (message as { candidate?: SaveLoginCandidate }).candidate;
+        const tabHost = tabHostnameFromSender(sender);
+
+        if (!candidate?.hostname || !candidate.password || !tabHost) {
+          sendResponse({ success: false, error: "Invalid save candidate" });
+          return true;
+        }
+
+        if (!hostnamesMatch(candidate.hostname, tabHost)) {
+          return rejectUntrustedSender(
+            sender,
+            sendResponse,
+            "SAVE_LOGIN_CANDIDATE hostname mismatch",
+          );
+        }
+
+        pendingSaveLogin = candidate;
+        getStorageSession()?.set({ pendingSaveLogin });
+        if (sender.tab?.id !== undefined) {
+          void clearPendingSaveLoginBanner(sender.tab.id);
+        }
+        chrome.action.openPopup().catch(() => {});
+        sendResponse({ success: true });
+        return true;
+      }
+    }
 
     if (!msg.type || !EXTENSION_ONLY_MESSAGE_TYPES.has(msg.type)) {
       return;
@@ -157,6 +338,52 @@ chrome.runtime.onMessage.addListener(
     }
 
     if (msg.type === "VAULT_LOCKED") {
+      void import("./lib/vaultDekLifecycle").then(({ clearUnlockedDek }) => {
+        clearUnlockedDek();
+        pendingSaveLogin = null;
+        getStorageSession()?.remove("pendingSaveLogin");
+        sendResponse({ success: true });
+      });
+      return true;
+    }
+
+    if (msg.type === "SYNC_VAULT_DEK") {
+      if (!isExtensionPrivilegedSender(sender)) {
+        return rejectUntrustedSender(
+          sender,
+          sendResponse,
+          "SYNC_VAULT_DEK from non-extension page",
+        );
+      }
+
+      const dek = (message as { dek?: number[] }).dek;
+      if (!Array.isArray(dek) || dek.length !== 32) {
+        sendResponse({ success: false, error: "Invalid DEK payload" });
+        return true;
+      }
+
+      void import("./lib/vaultDekLifecycle").then(({ applyUnlockedDek }) => {
+        applyUnlockedDek(new Uint8Array(dek));
+        sendResponse({ success: true });
+      });
+      return true;
+    }
+
+    if (msg.type === "GET_PENDING_SAVE_LOGIN") {
+      const session = getStorageSession();
+      if (!session) {
+        sendResponse(pendingSaveLogin);
+        return true;
+      }
+      session.get("pendingSaveLogin").then((result: { pendingSaveLogin?: unknown }) => {
+        sendResponse(result.pendingSaveLogin ?? pendingSaveLogin ?? null);
+      });
+      return true;
+    }
+
+    if (msg.type === "CLEAR_PENDING_SAVE_LOGIN") {
+      pendingSaveLogin = null;
+      getStorageSession()?.remove("pendingSaveLogin");
       sendResponse({ success: true });
       return true;
     }
@@ -225,6 +452,20 @@ async function performVaultSync(forceFull = false): Promise<void> {
   return vaultSyncInFlight;
 }
 
+function mergeIncrementalVaultItems(
+  existingItems: VaultItemResponse[],
+  changes: VaultItemResponse[],
+): VaultItemResponse[] {
+  const byId = new Map(existingItems.map((item) => [item.id, item]));
+  for (const item of changes) {
+    const prev = byId.get(item.id);
+    if (!prev || item.updated_at >= prev.updated_at) {
+      byId.set(item.id, item);
+    }
+  }
+  return Array.from(byId.values());
+}
+
 async function performVaultSyncInner(forceFull = false): Promise<void> {
   const session = await getAuthSession();
   if (!session) return;
@@ -242,18 +483,15 @@ async function performVaultSyncInner(forceFull = false): Promise<void> {
 
     const response = await client.listVaultItems(session.accessToken, since);
 
-    const byId = new Map(existingItems.map((item) => [item.id, item]));
-    for (const item of response.items) {
-      const prev = byId.get(item.id);
-      if (!prev || item.updated_at >= prev.updated_at) {
-        byId.set(item.id, item);
-      }
-    }
-    const mergedItems: VaultItemResponse[] = Array.from(byId.values());
+    // Full sync replaces the cache so deletions on other clients are reflected.
+    // Incremental sync only merges upserts; remote deletes need a full sync.
+    const mergedItems: VaultItemResponse[] = since
+      ? mergeIncrementalVaultItems(existingItems, response.items)
+      : response.items;
 
     const syncToken = response.sync_token ?? since ?? existing?.syncToken ?? null;
     const hadChanges =
-      forceFull ||
+      !since ||
       response.items.length > 0 ||
       mergedItems.length !== existingItems.length ||
       syncToken !== (existing?.syncToken ?? null);

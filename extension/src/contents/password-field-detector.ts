@@ -1,12 +1,20 @@
+import type { PlasmoCSConfig } from "plasmo";
 import {
   isExtensionContextValid,
   onExtensionContextInvalidated,
   safeSessionStorageSet,
 } from "../lib/extensionContext";
 import { fillLoginFields } from "../lib/formFillDom";
-import type { ExecuteFillPayload } from "../lib/messaging";
+import type { ExecuteFillPayload, SaveLoginCandidate } from "../lib/messaging";
 import { injectFieldActionControl } from "./lib/fieldActionControl";
 import { repositionAllFieldTriggers } from "./lib/fieldMenuPortal";
+import { initSaveLoginDetection } from "./lib/saveLoginDetector";
+import { restorePendingSaveLoginBanner, showSaveLoginBanner } from "./lib/saveLoginPrompt";
+
+export const config: PlasmoCSConfig = {
+  all_frames: true,
+  run_at: "document_idle",
+};
 
 /**
  * Content script for VaultLock.
@@ -162,7 +170,22 @@ if (extensionContextActive) {
         return;
       }
 
-      const msg = message as Partial<ExecuteFillPayload>;
+      const msg = message as Partial<ExecuteFillPayload> & {
+        type?: string;
+        candidate?: SaveLoginCandidate;
+      };
+
+      if (msg.type === "RENDER_SAVE_LOGIN_BANNER" && msg.candidate) {
+        if (window === window.top) {
+          void showSaveLoginBanner(msg.candidate).then(() => {
+            sendResponse({ success: true });
+          });
+        } else {
+          sendResponse({ success: false, error: "Banner renders in top frame only" });
+        }
+        return true;
+      }
+
       if (msg.type !== "EXECUTE_FILL") return;
 
       if (msg.hostname !== window.location.hostname) {
@@ -217,8 +240,13 @@ function scanForLoginFields() {
   repositionAllFieldTriggers();
 }
 
+initSaveLoginDetection();
+
 if (extensionContextActive) {
   scanForLoginFields();
+  if (window === window.top) {
+    void restorePendingSaveLoginBanner();
+  }
 }
 
 const observer = new MutationObserver(() => {
@@ -271,4 +299,12 @@ if (extensionContextActive) {
       scanForLoginFields();
     }
   });
+
+  if (window === window.top) {
+    window.addEventListener("pageshow", () => {
+      if (isExtensionContextValid()) {
+        void restorePendingSaveLoginBanner();
+      }
+    });
+  }
 }

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import type { AutofillRequest } from "../../lib/messaging";
+import type { AutofillRequest, SaveLoginCandidate } from "../../lib/messaging";
 import { getServerSettings, isServerConfigured } from "../../lib/storage";
 
 export type AuthState = "loading" | "needs-server" | "login" | "unlock" | "unlocked";
@@ -12,6 +12,17 @@ export function useAuthState() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [pendingFillRequest, setPendingFillRequest] = useState<AutofillRequest | null>(null);
+  const [pendingSaveLogin, setPendingSaveLogin] = useState<SaveLoginCandidate | null>(null);
+
+  const loadPendingRequests = useCallback(async () => {
+    const [fillRequest, saveRequest] = await Promise.all([
+      chrome.runtime.sendMessage({ type: "GET_PENDING_FILL_REQUEST" }).catch(() => null),
+      chrome.runtime.sendMessage({ type: "GET_PENDING_SAVE_LOGIN" }).catch(() => null),
+    ]);
+
+    setPendingFillRequest(fillRequest ? (fillRequest as AutofillRequest) : null);
+    setPendingSaveLogin(saveRequest ? (saveRequest as SaveLoginCandidate) : null);
+  }, []);
 
   const resolveAuthState = useCallback(async () => {
     try {
@@ -35,15 +46,14 @@ export function useAuthState() {
       }
 
       if (isVaultUnlocked()) {
+        const { persistVaultUnlockSession } = await import("../../lib/vaultUnlockSession");
+        const { syncVaultDekToBackground } = await import("../../lib/vaultDekSync");
+        void persistVaultUnlockSession(true);
+        void syncVaultDekToBackground();
         setAuthState("unlocked");
-        chrome.runtime
-          .sendMessage({ type: "GET_PENDING_FILL_REQUEST" })
-          .then((request: unknown) => {
-            if (request) {
-              setPendingFillRequest(request as AutofillRequest);
-            }
-          });
+        await loadPendingRequests();
       } else {
+        await loadPendingRequests();
         setEmail(session.email);
         setAuthState("unlock");
       }
@@ -51,12 +61,28 @@ export function useAuthState() {
       console.error(err);
       setAuthState("login");
     }
-  }, []);
+  }, [loadPendingRequests]);
 
   useEffect(() => {
     document.getElementById("__plasmo-fallback")?.remove();
     resolveAuthState();
   }, [resolveAuthState]);
+
+  useEffect(() => {
+    const onMessage = (message: unknown) => {
+      const msg = message as { type?: string };
+      if (msg.type !== "REQUEST_VAULT_DEK_SYNC") {
+        return;
+      }
+
+      void import("../../lib/vaultDekSync").then(({ syncVaultDekToBackground }) => {
+        void syncVaultDekToBackground();
+      });
+    };
+
+    chrome.runtime.onMessage.addListener(onMessage);
+    return () => chrome.runtime.onMessage.removeListener(onMessage);
+  }, []);
 
   useEffect(() => {
     const onStorageChanged = (
@@ -83,13 +109,12 @@ export function useAuthState() {
       await loginAndUnlock({ email, masterPassword });
       setMasterPassword("");
       setAuthState("unlocked");
-      await chrome.runtime
+      await loadPendingRequests();
+      const { syncVaultDekToBackground } = await import("../../lib/vaultDekSync");
+      void syncVaultDekToBackground();
+      void chrome.runtime
         .sendMessage({ type: "TRIGGER_VAULT_SYNC", forceFull: true })
         .catch(() => {});
-      const request = await chrome.runtime
-        .sendMessage({ type: "GET_PENDING_FILL_REQUEST" })
-        .catch(() => null);
-      if (request) setPendingFillRequest(request as AutofillRequest);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed");
     } finally {
@@ -114,13 +139,12 @@ export function useAuthState() {
 
       setMasterPassword("");
       setAuthState("unlocked");
-      await chrome.runtime
+      await loadPendingRequests();
+      const { syncVaultDekToBackground } = await import("../../lib/vaultDekSync");
+      void syncVaultDekToBackground();
+      void chrome.runtime
         .sendMessage({ type: "TRIGGER_VAULT_SYNC", forceFull: true })
         .catch(() => {});
-      const request = await chrome.runtime
-        .sendMessage({ type: "GET_PENDING_FILL_REQUEST" })
-        .catch(() => null);
-      if (request) setPendingFillRequest(request as AutofillRequest);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unlock failed");
     } finally {
@@ -128,11 +152,17 @@ export function useAuthState() {
     }
   };
 
+  const clearPendingSaveLogin = useCallback(async () => {
+    setPendingSaveLogin(null);
+    await chrome.runtime.sendMessage({ type: "CLEAR_PENDING_SAVE_LOGIN" }).catch(() => {});
+  }, []);
+
   const handleLock = async (clearVaultItems: () => void) => {
     const { lockVault } = await import("../../lib/vaultSession");
     await lockVault();
     chrome.runtime.sendMessage({ type: "VAULT_LOCKED" }).catch(() => {});
     clearVaultItems();
+    setPendingSaveLogin(null);
     setAuthState("unlock");
   };
 
@@ -143,6 +173,7 @@ export function useAuthState() {
     clearVaultItems();
     setEmail("");
     setMasterPassword("");
+    setPendingSaveLogin(null);
     setAuthState("login");
   };
 
@@ -154,9 +185,11 @@ export function useAuthState() {
     isSubmitting,
     error,
     pendingFillRequest,
+    pendingSaveLogin,
     setEmail,
     setMasterPassword,
     setPendingFillRequest,
+    clearPendingSaveLogin,
     handleLogin,
     handleUnlock,
     handleLock,

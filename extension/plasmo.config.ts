@@ -53,17 +53,15 @@ export default defineConfig({
       extension_pages: "script-src 'self' 'wasm-unsafe-eval'; object-src 'self';",
     },
 
-    // Content scripts for field detection and future autofill features.
+    // Content script match/run_at/all_frames are defined per file via exported `config`.
     content_scripts: [
       {
         matches: ["<all_urls>"],
         js: ["src/contents/extension-context-guard.ts"],
-        run_at: "document_start",
       },
       {
         matches: ["<all_urls>"],
         js: ["src/contents/password-field-detector.ts"],
-        run_at: "document_idle",
       },
     ],
   },

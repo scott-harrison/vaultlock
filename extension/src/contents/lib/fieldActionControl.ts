@@ -27,6 +27,7 @@ export function injectFieldActionControl(
   const context = getFieldContext(field, fieldType);
   const { host, root } = createThemedShadowHost();
   host.setAttribute("data-vaultlock-trigger", "true");
+  host.style.zIndex = "0";
 
   const trigger = document.createElement("button");
   trigger.type = "button";

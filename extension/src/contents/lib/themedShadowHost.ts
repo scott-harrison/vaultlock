@@ -232,6 +232,36 @@ export const SHADOW_COMPONENT_STYLES = `
   .vl-actions .vl-btn:not(.vl-btn-primary) {
     flex: 0 0 auto;
   }
+
+  .vl-save-banner {
+    position: fixed;
+    right: 16px;
+    bottom: 16px;
+    z-index: 2147483647;
+    width: min(320px, calc(100vw - 32px));
+    pointer-events: auto;
+    border: 1px solid color-mix(in oklch, var(--border) 85%, transparent);
+    border-radius: var(--radius);
+    background: var(--popover);
+    color: var(--popover-foreground);
+    padding: 12px;
+    box-shadow:
+      0 4px 16px color-mix(in oklch, var(--foreground) 10%, transparent),
+      0 12px 32px color-mix(in oklch, var(--foreground) 14%, transparent);
+  }
+
+  .vl-save-title {
+    margin: 0 0 4px;
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .vl-save-subtitle {
+    margin: 0 0 10px;
+    font-size: 11px;
+    color: var(--muted-foreground);
+    word-break: break-word;
+  }
 `;
 
 export interface ThemedShadowHost {

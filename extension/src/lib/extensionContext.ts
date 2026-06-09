@@ -22,6 +22,17 @@ export function safeSendMessage(message: unknown): void {
   }
 }
 
+export async function safeSendMessageAsync<T = unknown>(message: unknown): Promise<T | null> {
+  try {
+    return (await chrome.runtime.sendMessage(message)) as T;
+  } catch (error) {
+    if (isContextInvalidatedError(error)) {
+      return null;
+    }
+    throw error;
+  }
+}
+
 export async function safeSessionStorageSet(items: Record<string, unknown>): Promise<void> {
   try {
     await chrome.storage.session.set(items);

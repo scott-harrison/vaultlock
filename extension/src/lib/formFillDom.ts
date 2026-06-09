@@ -10,6 +10,18 @@ export interface FillLoginFieldsOptions {
   associatedFieldId?: string;
 }
 
+export const PASSWORD_FIELD_SELECTOR =
+  'input[type="password"], input[autocomplete="new-password"], input[autocomplete="current-password"]';
+
+function isPasswordField(input: HTMLInputElement): boolean {
+  if (input.type === "password") {
+    return true;
+  }
+
+  const autocomplete = (input.autocomplete || "").toLowerCase();
+  return autocomplete === "new-password" || autocomplete === "current-password";
+}
+
 function isVisibleField(input: HTMLInputElement): boolean {
   const style = window.getComputedStyle(input);
   return (
@@ -22,6 +34,23 @@ function isVisibleField(input: HTMLInputElement): boolean {
   );
 }
 
+function isCapturableField(input: HTMLInputElement): boolean {
+  if (input.type === "hidden") {
+    return false;
+  }
+
+  const style = window.getComputedStyle(input);
+  if (style.display === "none" || style.visibility === "hidden") {
+    return false;
+  }
+
+  if (input.disabled || input.readOnly) {
+    return input.value.trim().length > 0;
+  }
+
+  return isVisibleField(input);
+}
+
 function fieldById(id: string | undefined): HTMLInputElement | null {
   if (!id) return null;
   const el = document.getElementById(id);
@@ -29,32 +58,76 @@ function fieldById(id: string | undefined): HTMLInputElement | null {
 }
 
 function findPasswordFields(): HTMLInputElement[] {
-  return Array.from(document.querySelectorAll<HTMLInputElement>('input[type="password"]')).filter(
-    isVisibleField,
+  return Array.from(document.querySelectorAll<HTMLInputElement>(PASSWORD_FIELD_SELECTOR)).filter(
+    (field) => isVisibleField(field) && isPasswordField(field),
   );
+}
+
+const USERNAME_INPUT_SELECTOR =
+  'input[type="text"], input[type="email"], input[type="tel"], input:not([type])';
+
+function usernameCandidatesIn(root: ParentNode): HTMLInputElement[] {
+  return Array.from(root.querySelectorAll<HTMLInputElement>(USERNAME_INPUT_SELECTOR)).filter(
+    (field) => isVisibleField(field) && field.type !== "password",
+  );
+}
+
+function pickUsernameField(
+  passwordField: HTMLInputElement,
+  candidates: HTMLInputElement[],
+): HTMLInputElement | null {
+  if (candidates.length === 0) {
+    return null;
+  }
+
+  const beforePassword = candidates.filter(
+    (field) => field.compareDocumentPosition(passwordField) & Node.DOCUMENT_POSITION_FOLLOWING,
+  );
+  if (beforePassword.length > 0) {
+    return beforePassword[beforePassword.length - 1];
+  }
+
+  return candidates[0];
 }
 
 function findAssociatedUsernameField(passwordField: HTMLInputElement): HTMLInputElement | null {
   const linkedId = passwordField.dataset.vaultlockAssociatedUsernameId;
   const linked = fieldById(linkedId);
-  if (linked && isVisibleField(linked)) return linked;
+  if (linked && isVisibleField(linked)) {
+    return linked;
+  }
 
   const form = passwordField.closest("form");
   if (form) {
-    const usernameCandidates = Array.from(
-      form.querySelectorAll<HTMLInputElement>(
-        'input[type="text"], input[type="email"], input:not([type])',
-      ),
-    ).filter(isVisibleField);
-
-    const beforePassword = usernameCandidates.filter(
-      (f) => f.compareDocumentPosition(passwordField) & Node.DOCUMENT_POSITION_FOLLOWING,
-    );
-    if (beforePassword.length > 0) return beforePassword[beforePassword.length - 1];
-    if (usernameCandidates.length > 0) return usernameCandidates[0];
+    const picked = pickUsernameField(passwordField, usernameCandidatesIn(form));
+    if (picked) {
+      return picked;
+    }
   }
 
-  return null;
+  let container: Element | null = passwordField.parentElement;
+  while (container && container !== document.body) {
+    const picked = pickUsernameField(passwordField, usernameCandidatesIn(container));
+    if (picked) {
+      return picked;
+    }
+    container = container.parentElement;
+  }
+
+  return pickUsernameField(passwordField, usernameCandidatesIn(document));
+}
+
+function findLoginCaptureRoot(anchor: Element): Element {
+  let node: Element | null = anchor;
+  while (node && node !== document.body) {
+    const passwordFields = node.querySelectorAll(PASSWORD_FIELD_SELECTOR);
+    if (passwordFields.length > 0) {
+      return node;
+    }
+    node = node.parentElement;
+  }
+
+  return document.body;
 }
 
 function resolveTargetFields(options: FillLoginFieldsOptions): {
@@ -115,13 +188,78 @@ export function fillLoginFields(options: FillLoginFieldsOptions): {
 
   if (usernameField && options.username) {
     setInputValue(usernameField, options.username);
+    usernameField.dataset.vaultlockSkipSave = "1";
     filledUsername = true;
   }
 
   if (passwordField && options.password) {
     setInputValue(passwordField, options.password);
+    passwordField.dataset.vaultlockSkipSave = "1";
     filledPassword = true;
   }
 
   return { filledUsername, filledPassword };
+}
+
+export function captureLoginFromPasswordField(passwordField: HTMLInputElement): {
+  username: string;
+  password: string;
+} | null {
+  if (passwordField.dataset.vaultlockSkipSave === "1") {
+    return null;
+  }
+
+  const password = passwordField.value;
+  if (!password.trim()) {
+    return null;
+  }
+
+  const usernameField = findAssociatedUsernameField(passwordField);
+  const username =
+    usernameField && usernameField.dataset.vaultlockSkipSave !== "1"
+      ? usernameField.value.trim()
+      : "";
+
+  return { username, password };
+}
+
+export function captureLoginNearElement(anchor: Element): {
+  username: string;
+  password: string;
+} | null {
+  const root = findLoginCaptureRoot(anchor);
+  const passwordFields = Array.from(
+    root.querySelectorAll<HTMLInputElement>(PASSWORD_FIELD_SELECTOR),
+  ).filter((field) => isCapturableField(field) && isPasswordField(field));
+
+  const passwordField =
+    passwordFields.find((field) => field.dataset.vaultlockSkipSave !== "1") ??
+    passwordFields[0] ??
+    null;
+
+  if (!passwordField) {
+    return null;
+  }
+
+  return captureLoginFromPasswordField(passwordField);
+}
+
+export function captureLoginFromForm(form: HTMLFormElement): {
+  username: string;
+  password: string;
+} | null {
+  const passwordFields = Array.from(
+    form.querySelectorAll<HTMLInputElement>(PASSWORD_FIELD_SELECTOR),
+  ).filter((field) => isCapturableField(field) && isPasswordField(field));
+
+  const passwordField =
+    passwordFields.find((field) => field.dataset.vaultlockSkipSave !== "1") ??
+    passwordFields[0] ??
+    null;
+
+  if (!passwordField) {
+    return null;
+  }
+
+  return captureLoginFromPasswordField(passwordField);
 }
