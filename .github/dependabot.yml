@@ -39,8 +39,11 @@ updates:
     open-pull-requests-limit: 5
     ignore:
       # Tauri/wry Linux GTK stack; wait for upstream gtk-rs 0.20 migration (RUSTSEC-2024-0429).
+      # glib 0.20 is a breaking gtk-rs bump — cannot patch 0.18.x in isolation.
       - dependency-name: glib
         update-types: [version-update:semver-major]
+      - dependency-name: glib
+        versions: ["< 0.20.0"]
 
   - package-ecosystem: github-actions
     directory: /
