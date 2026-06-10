@@ -44,6 +44,7 @@ export const testPages = {
   signup: `${TEST_ORIGIN}/signup-form.html`,
   appleLikeLogin: `${TEST_ORIGIN}/apple-like-login.html`,
   reactLogin: `${TEST_ORIGIN}/react-login-form.html`,
+  trustedInputLogin: `${TEST_ORIGIN}/trusted-input-login.html`,
 };
 
 export async function getExtensionServiceWorker(context: BrowserContext) {

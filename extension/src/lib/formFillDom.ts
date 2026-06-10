@@ -192,12 +192,14 @@ export function fillLoginFields(options: FillLoginFieldsOptions): {
   let filledPassword = false;
 
   if (usernameField && options.username) {
+    ensureVaultlockFieldId(usernameField);
     setInputValue(usernameField, options.username);
     usernameField.dataset.vaultlockSkipSave = "1";
     filledUsername = true;
   }
 
   if (passwordField && options.password) {
+    ensureVaultlockFieldId(passwordField);
     setInputValue(passwordField, options.password);
     passwordField.dataset.vaultlockSkipSave = "1";
     filledPassword = true;
