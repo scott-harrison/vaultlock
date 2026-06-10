@@ -5,6 +5,7 @@
 
 import { VAULTLOCK_DECORATED_FIELD_SELECTOR, ensureVaultlockFieldId } from "./fieldMarkers";
 import { isVisibleField } from "./fieldVisibility";
+import { setInputValue } from "./inputSimulation";
 
 export interface FillLoginFieldsOptions {
   username: string;
@@ -180,15 +181,7 @@ function resolveTargetFields(options: FillLoginFieldsOptions): {
   return { usernameField, passwordField };
 }
 
-export { ensureVaultlockFieldId };
-
-/** Set value in a way that triggers framework listeners (React 16+, etc.). */
-export function setInputValue(element: HTMLInputElement, value: string): void {
-  const descriptor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value");
-  descriptor?.set?.call(element, value);
-  element.dispatchEvent(new InputEvent("input", { bubbles: true, cancelable: true }));
-  element.dispatchEvent(new Event("change", { bubbles: true }));
-}
+export { ensureVaultlockFieldId, setInputValue };
 
 export function fillLoginFields(options: FillLoginFieldsOptions): {
   filledUsername: boolean;
