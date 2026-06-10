@@ -10,8 +10,10 @@
         max-width: 420px;
       }
 
-      .field {
-        position: relative;
+      form {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
       }
 
       input {
@@ -35,13 +37,22 @@
   <body>
     <h1>Sign in to Apple Developer</h1>
     <form>
-      <div class="field">
+      <input
+        id="account_name_text_field"
+        type="text"
+        name="accountName"
+        autocomplete="username"
+        placeholder="Email or Phone Number"
+      />
+      <div style="pointer-events: none">
         <input
-          id="account_name_text_field"
-          type="text"
-          name="accountName"
-          autocomplete="username"
-          placeholder="Email or Phone Number"
+          id="password_text_field"
+          type="password"
+          name="password"
+          autocomplete="current-password"
+          placeholder="Password"
+          tabindex="-1"
+          aria-hidden="true"
         />
       </div>
       <input

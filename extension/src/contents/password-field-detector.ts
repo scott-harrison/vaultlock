@@ -4,7 +4,11 @@ import {
   onExtensionContextInvalidated,
   safeSessionStorageSet,
 } from "../lib/extensionContext";
-import { isVisibleField, selectPrimaryUsernameField } from "../lib/fieldVisibility";
+import {
+  isPasswordFieldOnActiveStep,
+  isVisibleField,
+  selectPrimaryUsernameField,
+} from "../lib/fieldVisibility";
 import { fillLoginFields } from "../lib/formFillDom";
 import type { ExecuteFillPayload, SaveLoginCandidate } from "../lib/messaging";
 import { injectFieldActionControl } from "./lib/fieldActionControl";
@@ -27,12 +31,17 @@ export const config: PlasmoCSConfig = {
  * - Inject a single VaultLock action control per detected field
  */
 
-function findPasswordFields(): HTMLInputElement[] {
-  const passwordInputs = Array.from(
-    document.querySelectorAll<HTMLInputElement>('input[type="password"]'),
+function findPasswordFieldCandidates(): HTMLInputElement[] {
+  return Array.from(document.querySelectorAll<HTMLInputElement>('input[type="password"]')).filter(
+    isVisibleField,
   );
+}
 
-  return passwordInputs.filter(isVisibleField);
+function selectPasswordFieldsToDecorate(
+  passwordFields: HTMLInputElement[],
+  usernameFields: HTMLInputElement[],
+): HTMLInputElement[] {
+  return passwordFields.filter((field) => isPasswordFieldOnActiveStep(field, usernameFields));
 }
 
 function findAssociatedUsernameField(passwordField: HTMLInputElement): HTMLInputElement | null {
@@ -256,8 +265,9 @@ if (extensionContextActive) {
 }
 
 function scanForLoginFields() {
-  const passwordFields = findPasswordFields();
   const usernameFields = findUsernameOrEmailFields();
+  const passwordFieldCandidates = findPasswordFieldCandidates();
+  const passwordFields = selectPasswordFieldsToDecorate(passwordFieldCandidates, usernameFields);
   const usernameFieldsToDecorate = selectUsernameFieldsToDecorate(usernameFields, passwordFields);
   const activeFields = new Set<HTMLInputElement>([...passwordFields, ...usernameFieldsToDecorate]);
 
@@ -316,16 +326,52 @@ async function rememberLastLoginIdentifier(value: string) {
   });
 }
 
+let scanAfterInputTimer: ReturnType<typeof setTimeout> | null = null;
+
+function scheduleScanAfterInput(): void {
+  if (scanAfterInputTimer) {
+    clearTimeout(scanAfterInputTimer);
+  }
+
+  scanAfterInputTimer = setTimeout(() => {
+    scanAfterInputTimer = null;
+    if (isExtensionContextValid()) {
+      scanForLoginFields();
+    }
+  }, 120);
+}
+
 if (extensionContextActive) {
   document.addEventListener(
     "input",
     (e) => {
       const target = e.target as HTMLInputElement;
-      if (!target || !["text", "email"].includes(target.type || "")) return;
+      if (!target || target.tagName !== "INPUT") {
+        return;
+      }
+
+      if (["text", "email", "tel", "password"].includes(target.type || "")) {
+        scheduleScanAfterInput();
+      }
+
+      if (!["text", "email"].includes(target.type || "")) {
+        return;
+      }
 
       const val = target.value?.trim();
       if ((val && val.length > 2 && val.includes("@")) || val.length > 3) {
         rememberLastLoginIdentifier(val);
+      }
+    },
+    true,
+  );
+
+  document.addEventListener(
+    "focusin",
+    (e) => {
+      const target = e.target;
+      if (target instanceof HTMLInputElement) {
+        scheduleScanAfterInput();
       }
     },
     true,

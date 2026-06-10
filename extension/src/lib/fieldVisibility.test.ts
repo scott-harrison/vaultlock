@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { scoreUsernameFieldCandidate, selectPrimaryUsernameField } from "./fieldVisibility";
+import {
+  isStackedPasswordStepInactive,
+  scoreUsernameFieldCandidate,
+  selectPrimaryUsernameField,
+} from "./fieldVisibility";
 
 function mockInput(partial: {
   type?: string;
@@ -75,5 +79,27 @@ describe("selectPrimaryUsernameField", () => {
     });
 
     expect(selectPrimaryUsernameField([honeypot, primary])).toBe(primary);
+  });
+});
+
+describe("isStackedPasswordStepInactive", () => {
+  it("treats stacked password fields as inactive while username is empty", () => {
+    expect(
+      isStackedPasswordStepInactive(
+        { top: 60, bottom: 104 },
+        [{ top: 0, bottom: 44, value: "" }],
+        false,
+      ),
+    ).toBe(true);
+  });
+
+  it("activates password step once username has a value", () => {
+    expect(
+      isStackedPasswordStepInactive(
+        { top: 60, bottom: 104 },
+        [{ top: 0, bottom: 44, value: "user@example.com" }],
+        false,
+      ),
+    ).toBe(false);
   });
 });
