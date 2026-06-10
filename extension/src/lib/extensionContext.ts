@@ -54,7 +54,9 @@ export function installRuntimeConnectGuard(): void {
 
   runtime.connect = ((...args: Parameters<typeof runtime.connect>) => {
     try {
-      return nativeConnect(...args);
+      const port = nativeConnect(...args);
+      wrapPortDisconnect(port);
+      return port;
     } catch (error) {
       if (isContextInvalidatedError(error)) {
         notifyContextInvalidated();
@@ -63,6 +65,22 @@ export function installRuntimeConnectGuard(): void {
       throw error;
     }
   }) as typeof runtime.connect;
+}
+
+function wrapPortDisconnect(port: chrome.runtime.Port): void {
+  const disconnectEvents = port.onDisconnect;
+  const nativeAddListener = disconnectEvents.addListener.bind(disconnectEvents);
+
+  disconnectEvents.addListener = ((listener: () => void) => {
+    nativeAddListener(() => {
+      if (!isExtensionContextValid()) {
+        notifyContextInvalidated();
+        return;
+      }
+
+      listener();
+    });
+  }) as typeof disconnectEvents.addListener;
 }
 
 function createDeadPort(): chrome.runtime.Port {
