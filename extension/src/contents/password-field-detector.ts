@@ -246,6 +246,7 @@ if (extensionContextActive) {
           password: msg.password ?? "",
           triggerFieldType: msg.fieldType ?? "password",
           associatedFieldId: msg.associatedFieldId,
+          triggerFieldId: msg.triggerFieldId,
         });
 
         if (!result.filledUsername && !result.filledPassword) {

@@ -3,6 +3,7 @@
  * Uses native value setter + input/change events so React/Vue pick up updates.
  */
 
+import { VAULTLOCK_DECORATED_FIELD_SELECTOR, ensureVaultlockFieldId } from "./fieldMarkers";
 import { isVisibleField } from "./fieldVisibility";
 
 export interface FillLoginFieldsOptions {
@@ -10,6 +11,7 @@ export interface FillLoginFieldsOptions {
   password: string;
   triggerFieldType: "username" | "password";
   associatedFieldId?: string;
+  triggerFieldId?: string;
 }
 
 export const PASSWORD_FIELD_SELECTOR =
@@ -41,10 +43,23 @@ function isCapturableField(input: HTMLInputElement): boolean {
   return isVisibleField(input);
 }
 
-function fieldById(id: string | undefined): HTMLInputElement | null {
-  if (!id) return null;
-  const el = document.getElementById(id);
-  return el instanceof HTMLInputElement ? el : null;
+function resolveFieldReference(id: string | undefined): HTMLInputElement | null {
+  if (!id) {
+    return null;
+  }
+
+  const byId = document.getElementById(id);
+  if (byId instanceof HTMLInputElement) {
+    return byId;
+  }
+
+  return document.querySelector<HTMLInputElement>(`input[data-vaultlock-field-id="${id}"]`);
+}
+
+function decoratedFields(): HTMLInputElement[] {
+  return Array.from(
+    document.querySelectorAll<HTMLInputElement>(VAULTLOCK_DECORATED_FIELD_SELECTOR),
+  );
 }
 
 function findPasswordFields(): HTMLInputElement[] {
@@ -82,7 +97,7 @@ function pickUsernameField(
 
 function findAssociatedUsernameField(passwordField: HTMLInputElement): HTMLInputElement | null {
   const linkedId = passwordField.dataset.vaultlockAssociatedUsernameId;
-  const linked = fieldById(linkedId);
+  const linked = resolveFieldReference(linkedId);
   if (linked && isVisibleField(linked)) {
     return linked;
   }
@@ -125,28 +140,33 @@ function resolveTargetFields(options: FillLoginFieldsOptions): {
   passwordField: HTMLInputElement | null;
 } {
   const passwordFields = findPasswordFields();
+  const triggerField = resolveFieldReference(options.triggerFieldId);
   let passwordField: HTMLInputElement | null = null;
   let usernameField: HTMLInputElement | null = null;
 
   if (options.triggerFieldType === "password") {
     passwordField =
-      fieldById(options.associatedFieldId) ??
-      passwordFields.find((f) => f.dataset.vaultlockIndicator) ??
+      (triggerField?.type === "password" ? triggerField : null) ??
+      passwordFields.find((field) => field.dataset.vaultlockActionControl === "true") ??
       passwordFields[0] ??
       null;
+
     if (passwordField) {
-      usernameField = findAssociatedUsernameField(passwordField);
+      usernameField =
+        resolveFieldReference(options.associatedFieldId) ??
+        findAssociatedUsernameField(passwordField);
     }
   } else {
     usernameField =
-      fieldById(options.associatedFieldId) ??
-      Array.from(
-        document.querySelectorAll<HTMLInputElement>("input[data-vaultlock-indicator]"),
-      ).find((f) => f.type !== "password" && isVisibleField(f)) ??
+      (triggerField && triggerField.type !== "password" ? triggerField : null) ??
+      resolveFieldReference(options.associatedFieldId) ??
+      decoratedFields().find((field) => field.type !== "password" && isVisibleField(field)) ??
+      usernameCandidatesIn(document).find((field) => isVisibleField(field)) ??
       null;
 
     const linkedPasswordId = usernameField?.dataset.vaultlockAssociatedPasswordId;
-    passwordField = fieldById(linkedPasswordId) ?? passwordFields[0] ?? null;
+    passwordField = resolveFieldReference(linkedPasswordId) ?? passwordFields[0] ?? null;
+
     if (!usernameField && passwordField) {
       usernameField = findAssociatedUsernameField(passwordField);
     }
@@ -159,6 +179,8 @@ function resolveTargetFields(options: FillLoginFieldsOptions): {
 
   return { usernameField, passwordField };
 }
+
+export { ensureVaultlockFieldId };
 
 /** Set value in a way that triggers framework listeners (React 16+, etc.). */
 export function setInputValue(element: HTMLInputElement, value: string): void {
