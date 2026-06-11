@@ -17,6 +17,28 @@ test.describe("Phase 1 extension flows (seeded state)", () => {
     await clearExtensionState(serviceWorker);
   });
 
+  test("inline fill enables continue button on react-controlled inputs", async ({
+    page,
+    extensionContext,
+  }) => {
+    const serviceWorker = await getExtensionServiceWorker(extensionContext);
+    await seedUnlockedVaultExtension(serviceWorker);
+
+    await page.goto(testPages.reactControlledLogin);
+    await waitForFieldTrigger(page);
+    await expect(page.locator("#continue")).toBeDisabled();
+
+    await page.locator("[data-vaultlock-trigger]").first().click();
+    const menuPortal = page.locator("[data-vaultlock-menu-portal]");
+    await menuPortal
+      .locator(".vl-menu:not([hidden])")
+      .getByRole("menuitem", { name: E2E_TEST_LOGIN_ITEM.title })
+      .click();
+
+    await expect(page.locator("#email")).toHaveValue(E2E_TEST_CREDENTIALS.email);
+    await expect(page.locator("#continue")).toBeEnabled();
+  });
+
   test("inline fill enables continue button on trusted-input validators", async ({
     page,
     extensionContext,
@@ -79,6 +101,7 @@ test.describe("Phase 1 extension flows (seeded state)", () => {
     await openMenu.getByRole("menuitem", { name: E2E_TEST_LOGIN_ITEM.title }).click();
 
     await expect(page.locator("#account_name_text_field")).toHaveValue(E2E_TEST_CREDENTIALS.email);
+    await expect(page.locator("#sign-in")).toBeEnabled();
   });
 
   test("inline match selection fills credentials when vault is unlocked", async ({

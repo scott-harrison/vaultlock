@@ -25,6 +25,20 @@
         font-size: 16px;
       }
 
+      button {
+        padding: 12px 16px;
+        border-radius: 10px;
+        border: none;
+        font-size: 16px;
+        background: #0071e3;
+        color: #fff;
+      }
+
+      button:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+      }
+
       .honeypot {
         position: absolute;
         left: -9999px;
@@ -44,6 +58,7 @@
         autocomplete="username"
         placeholder="Email or Phone Number"
       />
+      <button id="sign-in" type="button" disabled>Continue</button>
       <div style="pointer-events: none">
         <input
           id="password_text_field"
@@ -64,5 +79,18 @@
         autocomplete="off"
       />
     </form>
+    <script>
+      const input = document.getElementById("account_name_text_field");
+      const button = document.getElementById("sign-in");
+
+      input.addEventListener("input", (event) => {
+        if (!event.isTrusted) {
+          return;
+        }
+
+        const value = input.value.trim();
+        button.disabled = !value.includes("@") || value.length < 5;
+      });
+    </script>
   </body>
 </html>

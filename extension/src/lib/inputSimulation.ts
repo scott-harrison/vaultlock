@@ -13,7 +13,7 @@ export function setInputValue(element: HTMLInputElement, value: string): void {
     return;
   }
 
-  setInputValueInPageContext(element, value, { nudgeTrustedInput: false });
+  setInputValueInPageContext(element, value, { nudgeTrustedInput: true });
 }
 
 export { dispatchInputLifecycleEvents };

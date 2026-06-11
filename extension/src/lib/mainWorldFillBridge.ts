@@ -43,10 +43,16 @@ export function requestMainWorldInputFill(
   value: string,
   options: MainWorldFillRequestOptions = {},
 ): boolean {
+  const fieldId = element.id || undefined;
+  const vaultlockFieldId = element.dataset.vaultlockFieldId || undefined;
+
+  if (!fieldId && !vaultlockFieldId) {
+    return false;
+  }
+
   const detail: MainWorldFillRequestDetail = {
-    element,
-    fieldId: element.id || undefined,
-    vaultlockFieldId: element.dataset.vaultlockFieldId || undefined,
+    fieldId,
+    vaultlockFieldId,
     value,
     nudgeTrustedInput: options.nudgeTrustedInput ?? true,
     preferTypedInsert: options.preferTypedInsert ?? true,

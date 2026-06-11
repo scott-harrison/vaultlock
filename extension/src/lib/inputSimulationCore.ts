@@ -1,3 +1,5 @@
+import { tryFrameworkControlledFill } from "./frameworkInputBridge";
+
 type ValueCapableElement = HTMLInputElement | HTMLTextAreaElement;
 
 function valuePrototype(element: ValueCapableElement): HTMLInputElement | HTMLTextAreaElement {
@@ -131,21 +133,61 @@ function simulateTypedInput(element: ValueCapableElement, value: string): void {
   }
 }
 
+function tryTrustedValueInsert(
+  element: HTMLInputElement,
+  value: string,
+  preferTypedInsert: boolean,
+): boolean {
+  const insertedViaTypedExecCommand = preferTypedInsert
+    ? tryExecCommandTypedInsert(element, value)
+    : false;
+
+  return insertedViaTypedExecCommand || tryExecCommandInsert(element, value);
+}
+
+function syncFrameworkInputState(element: HTMLInputElement, value: string): void {
+  if (element.value !== value) {
+    return;
+  }
+
+  tryFrameworkControlledFill(element, value);
+}
+
 /**
  * Mimics a trusted space-then-backspace edit so validators that ignore
  * programmatic fills (Apple ID, etc.) re-run against the filled value.
  */
+function setCaretPosition(element: HTMLInputElement, start: number, end = start): boolean {
+  try {
+    element.setSelectionRange(start, end);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function nudgeTrustedInputValidation(element: HTMLInputElement): void {
   const expectedValue = element.value;
 
   element.focus({ preventScroll: true });
-  element.setSelectionRange(expectedValue.length, expectedValue.length);
+
+  if (!setCaretPosition(element, expectedValue.length)) {
+    return;
+  }
 
   if (!document.execCommand("insertText", false, " ")) {
     return;
   }
 
-  element.setSelectionRange(expectedValue.length, expectedValue.length + 1);
+  if (!setCaretPosition(element, expectedValue.length, expectedValue.length + 1)) {
+    document.execCommand("delete", false);
+    if (element.value !== expectedValue) {
+      assignValue(element, expectedValue);
+      dispatchInputLifecycleEvents(element, expectedValue);
+    }
+    return;
+  }
+
   document.execCommand("delete", false);
 
   if (element.value !== expectedValue) {
@@ -171,33 +213,20 @@ export function setInputValueInPageContext(
   const nudgeTrustedInput = options.nudgeTrustedInput ?? true;
   const preferTypedInsert = options.preferTypedInsert ?? true;
 
-  if (element.value === value) {
-    element.focus({ preventScroll: true });
-    if (nudgeTrustedInput) {
-      nudgeTrustedInputValidation(element);
-    } else {
-      dispatchInputLifecycleEvents(element, value);
-      element.blur();
-    }
-    return;
-  }
-
   element.focus({ preventScroll: true });
 
-  const insertedViaTypedExecCommand = preferTypedInsert
-    ? tryExecCommandTypedInsert(element, value)
-    : false;
-  const insertedViaExecCommand =
-    insertedViaTypedExecCommand || tryExecCommandInsert(element, value);
+  if (element.value !== value) {
+    const insertedViaExecCommand = tryTrustedValueInsert(element, value, preferTypedInsert);
 
-  if (!insertedViaExecCommand) {
-    simulateTypedInput(element, value);
-    dispatchInputLifecycleEvents(
-      element,
-      value,
-      insertedViaExecCommand ? "insertFromPaste" : "insertText",
-    );
+    if (!insertedViaExecCommand) {
+      if (!tryFrameworkControlledFill(element, value)) {
+        simulateTypedInput(element, value);
+        dispatchInputLifecycleEvents(element, value);
+      }
+    }
   }
+
+  syncFrameworkInputState(element, value);
 
   if (nudgeTrustedInput) {
     nudgeTrustedInputValidation(element);
