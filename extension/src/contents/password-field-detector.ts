@@ -4,10 +4,15 @@ import {
   onExtensionContextInvalidated,
   safeSessionStorageSet,
 } from "../lib/extensionContext";
+import {
+  isPasswordFieldOnActiveStep,
+  isVisibleField,
+  selectPrimaryUsernameField,
+} from "../lib/fieldVisibility";
 import { fillLoginFields } from "../lib/formFillDom";
 import type { ExecuteFillPayload, SaveLoginCandidate } from "../lib/messaging";
 import { injectFieldActionControl } from "./lib/fieldActionControl";
-import { repositionAllFieldTriggers } from "./lib/fieldMenuPortal";
+import { repositionAllFieldTriggers, unregisterFieldOverlay } from "./lib/fieldMenuPortal";
 import { initSaveLoginDetection } from "./lib/saveLoginDetector";
 import { restorePendingSaveLoginBanner, showSaveLoginBanner } from "./lib/saveLoginPrompt";
 
@@ -26,24 +31,17 @@ export const config: PlasmoCSConfig = {
  * - Inject a single VaultLock action control per detected field
  */
 
-function isVisibleField(input: HTMLInputElement): boolean {
-  const style = window.getComputedStyle(input);
-  return (
-    style.display !== "none" &&
-    style.visibility !== "hidden" &&
-    input.offsetWidth > 20 &&
-    input.offsetHeight > 10 &&
-    !input.disabled &&
-    !input.readOnly
+function findPasswordFieldCandidates(): HTMLInputElement[] {
+  return Array.from(document.querySelectorAll<HTMLInputElement>('input[type="password"]')).filter(
+    isVisibleField,
   );
 }
 
-function findPasswordFields(): HTMLInputElement[] {
-  const passwordInputs = Array.from(
-    document.querySelectorAll<HTMLInputElement>('input[type="password"]'),
-  );
-
-  return passwordInputs.filter(isVisibleField);
+function selectPasswordFieldsToDecorate(
+  passwordFields: HTMLInputElement[],
+  usernameFields: HTMLInputElement[],
+): HTMLInputElement[] {
+  return passwordFields.filter((field) => isPasswordFieldOnActiveStep(field, usernameFields));
 }
 
 function findAssociatedUsernameField(passwordField: HTMLInputElement): HTMLInputElement | null {
@@ -144,6 +142,50 @@ function findUsernameOrEmailFields(): HTMLInputElement[] {
   });
 }
 
+function selectUsernameFieldsToDecorate(
+  usernameFields: HTMLInputElement[],
+  passwordFields: HTMLInputElement[],
+): HTMLInputElement[] {
+  if (usernameFields.length === 0) {
+    return [];
+  }
+
+  if (passwordFields.length === 0) {
+    const primary = selectPrimaryUsernameField(usernameFields);
+    return primary ? [primary] : [];
+  }
+
+  const associated = new Set<HTMLInputElement>();
+  for (const passwordField of passwordFields) {
+    const associatedUsername = findAssociatedUsernameField(passwordField);
+    if (associatedUsername && usernameFields.includes(associatedUsername)) {
+      associated.add(associatedUsername);
+    }
+  }
+
+  if (associated.size > 0) {
+    return [...associated];
+  }
+
+  const primary = selectPrimaryUsernameField(usernameFields);
+  return primary ? [primary] : [];
+}
+
+function cleanupStaleFieldControls(activeFields: Set<HTMLInputElement>): void {
+  for (const input of document.querySelectorAll<HTMLInputElement>(
+    "input[data-vaultlock-action-control='true']",
+  )) {
+    if (activeFields.has(input)) {
+      continue;
+    }
+
+    unregisterFieldOverlay(input);
+    delete input.dataset.vaultlockActionControl;
+    delete input.dataset.vaultlockAssociatedUsernameId;
+    delete input.dataset.vaultlockAssociatedPasswordId;
+  }
+}
+
 function decorateField(field: HTMLInputElement, fieldType: "username" | "password"): void {
   injectFieldActionControl(field, fieldType);
 }
@@ -204,6 +246,7 @@ if (extensionContextActive) {
           password: msg.password ?? "",
           triggerFieldType: msg.fieldType ?? "password",
           associatedFieldId: msg.associatedFieldId,
+          triggerFieldId: msg.triggerFieldId,
         });
 
         if (!result.filledUsername && !result.filledPassword) {
@@ -223,11 +266,16 @@ if (extensionContextActive) {
 }
 
 function scanForLoginFields() {
-  const passwordFields = findPasswordFields();
   const usernameFields = findUsernameOrEmailFields();
+  const passwordFieldCandidates = findPasswordFieldCandidates();
+  const passwordFields = selectPasswordFieldsToDecorate(passwordFieldCandidates, usernameFields);
+  const usernameFieldsToDecorate = selectUsernameFieldsToDecorate(usernameFields, passwordFields);
+  const activeFields = new Set<HTMLInputElement>([...passwordFields, ...usernameFieldsToDecorate]);
+
+  cleanupStaleFieldControls(activeFields);
 
   for (const field of passwordFields) decorateField(field, "password");
-  for (const field of usernameFields) decorateField(field, "username");
+  for (const field of usernameFieldsToDecorate) decorateField(field, "username");
 
   for (const pwField of passwordFields) {
     const associatedUsername = findAssociatedUsernameField(pwField);
@@ -279,16 +327,52 @@ async function rememberLastLoginIdentifier(value: string) {
   });
 }
 
+let scanAfterInputTimer: ReturnType<typeof setTimeout> | null = null;
+
+function scheduleScanAfterInput(): void {
+  if (scanAfterInputTimer) {
+    clearTimeout(scanAfterInputTimer);
+  }
+
+  scanAfterInputTimer = setTimeout(() => {
+    scanAfterInputTimer = null;
+    if (isExtensionContextValid()) {
+      scanForLoginFields();
+    }
+  }, 120);
+}
+
 if (extensionContextActive) {
   document.addEventListener(
     "input",
     (e) => {
       const target = e.target as HTMLInputElement;
-      if (!target || !["text", "email"].includes(target.type || "")) return;
+      if (!target || target.tagName !== "INPUT") {
+        return;
+      }
+
+      if (["text", "email", "tel", "password"].includes(target.type || "")) {
+        scheduleScanAfterInput();
+      }
+
+      if (!["text", "email"].includes(target.type || "")) {
+        return;
+      }
 
       const val = target.value?.trim();
       if ((val && val.length > 2 && val.includes("@")) || val.length > 3) {
         rememberLastLoginIdentifier(val);
+      }
+    },
+    true,
+  );
+
+  document.addEventListener(
+    "focusin",
+    (e) => {
+      const target = e.target;
+      if (target instanceof HTMLInputElement) {
+        scheduleScanAfterInput();
       }
     },
     true,

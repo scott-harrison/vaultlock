@@ -13,6 +13,15 @@ test.describe("Phase 1 extension smoke flows", () => {
     await expect(triggers).toHaveCount(2);
   });
 
+  test("injects a single trigger on Apple-like single-step login pages", async ({ page }) => {
+    await page.goto(testPages.appleLikeLogin);
+    await waitForFieldTrigger(page);
+
+    const triggers = page.locator("[data-vaultlock-trigger]");
+    await expect(triggers).toHaveCount(1);
+    await expect(triggers.first()).toBeVisible();
+  });
+
   test("opens inline match menu with vault status", async ({ page }) => {
     await page.goto(testPages.login);
     await waitForFieldTrigger(page);

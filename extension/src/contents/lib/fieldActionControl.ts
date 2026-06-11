@@ -1,4 +1,6 @@
 import { safeSendMessage, safeSendMessageAsync } from "../../lib/extensionContext";
+import { buildFillFieldRefs } from "../../lib/fieldMarkers";
+import { fillMatchingLoginInline } from "../../lib/inlineFill";
 import type { MatchingLoginsResponse } from "../../lib/messaging";
 import { getFieldContext } from "./fieldContext";
 import {
@@ -24,6 +26,7 @@ export function injectFieldActionControl(
     return;
   }
   field.dataset.vaultlockActionControl = "true";
+  buildFillFieldRefs(field, fieldType);
 
   const context = getFieldContext(field, fieldType);
   const { host, root } = createThemedShadowHost();
@@ -191,7 +194,10 @@ export function injectFieldActionControl(
 
     for (const match of response.matches) {
       const button = createMatchAction(match.title, match.username, () => {
-        void fillMatchingLogin(field, fieldType, match.id);
+        fillMatchingLoginInline(field, fieldType, {
+          username: match.username,
+          password: match.password,
+        });
         closeMenu();
       });
       matchesSection.append(button);
@@ -318,24 +324,12 @@ function createMatchAction(
 }
 
 function requestCredentialFill(field: HTMLInputElement, fieldType: "username" | "password"): void {
+  const { triggerFieldId, associatedFieldId } = buildFillFieldRefs(field, fieldType);
   safeSendMessage({
     type: "INDICATOR_CLICKED",
     hostname: window.location.hostname,
     fieldType,
-    associatedFieldId: field.dataset.vaultlockAssociatedUsernameId || undefined,
-  });
-}
-
-async function fillMatchingLogin(
-  field: HTMLInputElement,
-  fieldType: "username" | "password",
-  itemId: string,
-): Promise<void> {
-  await safeSendMessageAsync({
-    type: "FILL_MATCHING_LOGIN",
-    hostname: window.location.hostname,
-    itemId,
-    fieldType,
-    associatedFieldId: field.dataset.vaultlockAssociatedUsernameId || undefined,
+    triggerFieldId,
+    associatedFieldId,
   });
 }

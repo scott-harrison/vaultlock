@@ -1,16 +1,5 @@
+import { isVisibleField } from "../../lib/fieldVisibility";
 import { setInputValue } from "../../lib/formFillDom";
-
-function isVisibleField(input: HTMLInputElement): boolean {
-  const style = window.getComputedStyle(input);
-  return (
-    style.display !== "none" &&
-    style.visibility !== "hidden" &&
-    input.offsetWidth > 20 &&
-    input.offsetHeight > 10 &&
-    !input.disabled &&
-    !input.readOnly
-  );
-}
 
 export function fillGeneratedPassword(targetField: HTMLInputElement, password: string): void {
   setInputValue(targetField, password);

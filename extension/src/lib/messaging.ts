@@ -7,8 +7,13 @@
 export interface AutofillRequest {
   hostname: string;
   fieldType: "username" | "password";
+  /** Linked username field when the trigger is on a password input. */
   associatedFieldId?: string;
+  /** Input the user activated (id or generated data-vaultlock-field-id). */
+  triggerFieldId?: string;
   tabId?: number;
+  /** Frame that owns the login fields (required for iframe-hosted forms). */
+  frameId?: number;
 }
 
 export interface ExecuteFillPayload {
@@ -18,6 +23,7 @@ export interface ExecuteFillPayload {
   password: string;
   fieldType: "username" | "password";
   associatedFieldId?: string;
+  triggerFieldId?: string;
 }
 
 export type SaveLoginPromptMode = "save" | "update";
@@ -48,6 +54,7 @@ export interface MatchingLoginPreview {
   id: string;
   title: string;
   username: string;
+  password: string;
 }
 
 export type MatchingLoginsStatus = "locked" | "unavailable" | "ready";
@@ -63,6 +70,7 @@ export interface FillMatchingLoginRequest {
   itemId: string;
   fieldType: "username" | "password";
   associatedFieldId?: string;
+  triggerFieldId?: string;
 }
 
 // Chrome runtime message shapes for autofill

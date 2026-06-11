@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>React controlled login validation</title>
+  </head>
+  <body>
+    <main>
+      <h1>Sign in</h1>
+      <input id="email" name="email" type="email" autocomplete="username" value="" />
+      <button id="continue" type="button" disabled>Continue</button>
+    </main>
+    <script>
+      const input = document.getElementById("email");
+      const button = document.getElementById("continue");
+      let email = "";
+
+      function syncButton() {
+        button.disabled = !email.includes("@") || email.length < 5;
+      }
+
+      const reactPropsKey = "__reactProps$mock";
+      input[reactPropsKey] = {
+        onInput(event) {
+          email = event.target.value;
+          syncButton();
+        },
+        onChange(event) {
+          email = event.target.value;
+          syncButton();
+        },
+      };
+    </script>
+  </body>
+</html>

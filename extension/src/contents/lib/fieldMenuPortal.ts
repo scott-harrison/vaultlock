@@ -6,6 +6,7 @@ const MENU_WIDTH_PX = 232;
 const MENU_GAP_PX = 6;
 const VIEWPORT_MARGIN_PX = 8;
 const TRIGGER_SIZE_PX = 22;
+const TRIGGER_DEDUPE_DISTANCE_PX = 48;
 
 let portalRoot: HTMLElement | null = null;
 let globalRepositionBound = false;
@@ -41,10 +42,56 @@ export function registerFieldOverlay(triggerHost: HTMLElement, field: HTMLInputE
   positionFieldTrigger(triggerHost, field);
 }
 
+export function unregisterFieldOverlay(field: HTMLInputElement): void {
+  for (const anchor of [...fieldAnchors]) {
+    if (anchor.field !== field) {
+      continue;
+    }
+
+    anchor.triggerHost.remove();
+    fieldAnchors.delete(anchor);
+  }
+}
+
+function triggerPriority(field: HTMLInputElement): number {
+  return field.type === "password" ? 1 : 2;
+}
+
+function hideOverlappingTriggers(): void {
+  const anchors = [...fieldAnchors].filter(
+    (anchor) => anchor.triggerHost.style.visibility !== "hidden",
+  );
+
+  for (let i = 0; i < anchors.length; i += 1) {
+    for (let j = i + 1; j < anchors.length; j += 1) {
+      const left = anchors[i];
+      const right = anchors[j];
+      const leftRect = left.triggerHost.getBoundingClientRect();
+      const rightRect = right.triggerHost.getBoundingClientRect();
+      const distance = Math.hypot(leftRect.left - rightRect.left, leftRect.top - rightRect.top);
+
+      if (distance > TRIGGER_DEDUPE_DISTANCE_PX) {
+        continue;
+      }
+
+      const loser = triggerPriority(left.field) < triggerPriority(right.field) ? left : right;
+      loser.triggerHost.style.visibility = "hidden";
+    }
+  }
+}
+
 export function repositionAllFieldTriggers(): void {
-  for (const anchor of fieldAnchors) {
+  for (const anchor of [...fieldAnchors]) {
+    if (!anchor.field.isConnected) {
+      anchor.triggerHost.remove();
+      fieldAnchors.delete(anchor);
+      continue;
+    }
+
     positionFieldTrigger(anchor.triggerHost, anchor.field);
   }
+
+  hideOverlappingTriggers();
 }
 
 export function positionFieldTrigger(triggerHost: HTMLElement, field: HTMLInputElement): void {

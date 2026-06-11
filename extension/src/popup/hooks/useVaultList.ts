@@ -224,6 +224,7 @@ export function useVaultList(pendingFillRequest: AutofillRequest | null) {
           hostname: pendingFillRequest.hostname,
           fieldType: pendingFillRequest.fieldType,
           associatedFieldId: pendingFillRequest.associatedFieldId,
+          triggerFieldId: pendingFillRequest.triggerFieldId,
           username: login.username ?? "",
           password: login.password ?? "",
         });

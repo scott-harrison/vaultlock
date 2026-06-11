@@ -82,7 +82,9 @@ chrome.runtime.onMessage.addListener(
       hostname: msg.hostname,
       fieldType: msg.fieldType,
       associatedFieldId: msg.associatedFieldId,
+      triggerFieldId: msg.triggerFieldId,
       tabId,
+      frameId: sender.frameId,
     };
 
     pendingFillRequest = request;
@@ -315,6 +317,7 @@ chrome.runtime.onMessage.addListener(
           itemId?: string;
           fieldType?: "username" | "password";
           associatedFieldId?: string;
+          triggerFieldId?: string;
         };
         const tabId = sender.tab?.id;
         const tabHost = tabHostnameFromSender(sender);
@@ -357,7 +360,9 @@ chrome.runtime.onMessage.addListener(
             hostname,
             fieldType,
             associatedFieldId: fillRequest.associatedFieldId,
+            triggerFieldId: fillRequest.triggerFieldId,
             tabId,
+            frameId: sender.frameId,
           };
 
           pendingFillRequest = request;
@@ -370,12 +375,17 @@ chrome.runtime.onMessage.addListener(
             hostname,
             fieldType,
             associatedFieldId: fillRequest.associatedFieldId,
+            triggerFieldId: fillRequest.triggerFieldId,
             username: login.username ?? "",
             password: login.password ?? "",
           };
 
           try {
-            const result = await chrome.tabs.sendMessage(tabId, payload);
+            const result = await chrome.tabs.sendMessage(
+              tabId,
+              payload,
+              fillMessageOptions(sender.frameId),
+            );
             if (result && typeof result === "object" && "success" in result && result.success) {
               pendingFillRequest = null;
               getStorageSession()?.remove("pendingFillRequest");
@@ -496,6 +506,16 @@ chrome.runtime.onMessage.addListener(
   },
 );
 
+function fillMessageOptions(
+  frameId: number | undefined,
+): chrome.tabs.MessageSendOptions | undefined {
+  if (frameId === undefined) {
+    return undefined;
+  }
+
+  return { frameId };
+}
+
 async function handleExecuteFill(
   payload: ExecuteFillPayload,
   sendResponse: (response?: unknown) => void,
@@ -534,7 +554,11 @@ async function handleExecuteFill(
       return;
     }
 
-    const result = await chrome.tabs.sendMessage(pending.tabId, payload);
+    const result = await chrome.tabs.sendMessage(
+      pending.tabId,
+      payload,
+      fillMessageOptions(pending.frameId),
+    );
     if (result && typeof result === "object" && "success" in result && result.success) {
       pendingFillRequest = null;
       getStorageSession()?.remove("pendingFillRequest");
