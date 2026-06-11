@@ -1,8 +1,7 @@
 /**
  * Hostname matching for login items vs. the page the user is filling on.
  *
- * Phase 1: exact hostname + subdomain rules.
- * Phase 2 (#198): pass per-login `relatedDomains` via LoginMatchOptions.
+ * Supports exact hostname, subdomain, user-managed related domains, and `*.suffix` wildcards.
  */
 
 export type LoginMatchKind = "exact" | "subdomain" | "related" | "no_url";
@@ -15,8 +14,17 @@ export interface LoginHostMatchResult {
 }
 
 export interface LoginMatchOptions {
-  /** User-managed related hostnames for this login (Phase 2). */
+  /** User-managed related hostnames or `*.suffix` patterns for this login. */
   relatedDomains?: readonly string[];
+}
+
+export interface LoginMatchSource {
+  url?: string;
+  relatedDomains?: readonly string[];
+}
+
+export function loginMatchOptionsFromLogin(login: LoginMatchSource): LoginMatchOptions {
+  return { relatedDomains: login.relatedDomains };
 }
 
 const SCORE_EXACT = 0;
@@ -63,11 +71,33 @@ function subdomainRelationship(itemHost: string, pageHost: string): { extraLabel
   return null;
 }
 
+function matchesWildcardSuffix(pattern: string, pageHost: string): boolean {
+  if (!pattern.startsWith("*.")) {
+    return false;
+  }
+
+  const suffix = normalizeHostname(pattern.slice(2));
+  if (!suffix || !suffix.includes(".")) {
+    return false;
+  }
+
+  return pageHost.endsWith(`.${suffix}`);
+}
+
 function matchesRelatedDomain(
   relatedDomain: string,
   pageHost: string,
 ): { extraLabels: number } | null {
-  const relatedHost = normalizeHostname(relatedDomain);
+  const trimmed = relatedDomain.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  if (trimmed.startsWith("*.")) {
+    return matchesWildcardSuffix(trimmed, pageHost) ? { extraLabels: 0 } : null;
+  }
+
+  const relatedHost = normalizeHostname(trimmed);
   if (!relatedHost) {
     return null;
   }

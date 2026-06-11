@@ -10,6 +10,7 @@
     "./types": "./src/types/index.ts",
     "./api": "./src/api/index.ts",
     "./domain-matching": "./src/domainMatching.ts",
+    "./related-domains": "./src/relatedDomains.ts",
     "./signup-form-detection": "./src/signupFormDetection.ts",
     "./login-save-match": "./src/loginSaveMatch.ts",
     "./password-generator": "./src/passwordGenerator.ts"
