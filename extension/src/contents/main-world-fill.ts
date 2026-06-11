@@ -29,6 +29,7 @@ document.addEventListener(MAIN_WORLD_FILL_REQUEST_EVENT, (event) => {
 
   setInputValueInPageContext(target, detail.value, {
     nudgeTrustedInput: detail.nudgeTrustedInput,
+    preferTypedInsert: detail.preferTypedInsert,
   });
   detail.success = true;
 });

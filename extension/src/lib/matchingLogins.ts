@@ -11,6 +11,7 @@ export interface MatchingLoginPreview {
   id: string;
   title: string;
   username: string;
+  password: string;
 }
 
 export type MatchingLoginsStatus = "locked" | "unavailable" | "ready";
@@ -45,6 +46,7 @@ function toPreview(item: VaultItemResponse, plaintext: LoginItemPlaintext): Matc
     id: item.id,
     title: plaintext.title?.trim() || "Untitled login",
     username: plaintext.username?.trim() || "",
+    password: plaintext.password ?? "",
   };
 }
 

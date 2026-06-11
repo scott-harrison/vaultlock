@@ -73,15 +73,41 @@ function assignValue(element: ValueCapableElement, value: string): void {
   setter(value);
 }
 
+function clearFieldForExecCommand(element: ValueCapableElement): void {
+  element.focus({ preventScroll: true });
+  element.select();
+  document.execCommand("delete", false);
+  assignValue(element, "");
+}
+
+function tryExecCommandTypedInsert(element: ValueCapableElement, value: string): boolean {
+  if (!(element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement)) {
+    return false;
+  }
+
+  try {
+    clearFieldForExecCommand(element);
+
+    for (const char of value) {
+      if (!document.execCommand("insertText", false, char)) {
+        return false;
+      }
+    }
+
+    return element.value === value;
+  } catch {
+    return false;
+  }
+}
+
 function tryExecCommandInsert(element: ValueCapableElement, value: string): boolean {
   if (!(element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement)) {
     return false;
   }
 
   try {
-    element.focus({ preventScroll: true });
-    element.select();
-    return document.execCommand("insertText", false, value);
+    clearFieldForExecCommand(element);
+    return document.execCommand("insertText", false, value) && element.value === value;
   } catch {
     return false;
   }
@@ -130,6 +156,7 @@ export function nudgeTrustedInputValidation(element: HTMLInputElement): void {
 
 export interface SetInputValueInPageContextOptions {
   nudgeTrustedInput?: boolean;
+  preferTypedInsert?: boolean;
 }
 
 /**
@@ -142,6 +169,7 @@ export function setInputValueInPageContext(
   options: SetInputValueInPageContextOptions = {},
 ): void {
   const nudgeTrustedInput = options.nudgeTrustedInput ?? true;
+  const preferTypedInsert = options.preferTypedInsert ?? true;
 
   if (element.value === value) {
     element.focus({ preventScroll: true });
@@ -149,26 +177,31 @@ export function setInputValueInPageContext(
       nudgeTrustedInputValidation(element);
     } else {
       dispatchInputLifecycleEvents(element, value);
+      element.blur();
     }
-    element.blur();
     return;
   }
 
   element.focus({ preventScroll: true });
 
-  const insertedViaExecCommand = tryExecCommandInsert(element, value);
+  const insertedViaTypedExecCommand = preferTypedInsert
+    ? tryExecCommandTypedInsert(element, value)
+    : false;
+  const insertedViaExecCommand =
+    insertedViaTypedExecCommand || tryExecCommandInsert(element, value);
+
   if (!insertedViaExecCommand) {
     simulateTypedInput(element, value);
+    dispatchInputLifecycleEvents(
+      element,
+      value,
+      insertedViaExecCommand ? "insertFromPaste" : "insertText",
+    );
   }
-
-  dispatchInputLifecycleEvents(
-    element,
-    value,
-    insertedViaExecCommand ? "insertFromPaste" : "insertText",
-  );
 
   if (nudgeTrustedInput) {
     nudgeTrustedInputValidation(element);
+    return;
   }
 
   element.blur();

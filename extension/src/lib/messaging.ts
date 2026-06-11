@@ -54,6 +54,7 @@ export interface MatchingLoginPreview {
   id: string;
   title: string;
   username: string;
+  password: string;
 }
 
 export type MatchingLoginsStatus = "locked" | "unavailable" | "ready";
