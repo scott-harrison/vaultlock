@@ -1,5 +1,5 @@
 import type { Worker } from "@playwright/test";
-import { E2E_TEST_DEK, buildE2eVaultCache } from "./testVault";
+import { E2E_TEST_DEK, buildE2eRelatedDomainVaultCache, buildE2eVaultCache } from "./testVault";
 
 const DEFAULT_AUTH_SESSION = {
   email: "e2e@test.local",
@@ -41,8 +41,10 @@ export async function seedAuthenticatedExtension(serviceWorker: Worker): Promise
   );
 }
 
-export async function seedUnlockedVaultExtension(serviceWorker: Worker): Promise<void> {
-  const cache = await buildE2eVaultCache(E2E_TEST_DEK);
+async function seedUnlockedVaultExtensionWithCache(
+  serviceWorker: Worker,
+  cache: Awaited<ReturnType<typeof buildE2eVaultCache>>,
+): Promise<void> {
   const dekArray = Array.from(E2E_TEST_DEK);
 
   await serviceWorker.evaluate(
@@ -70,6 +72,18 @@ export async function seedUnlockedVaultExtension(serviceWorker: Worker): Promise
       dek: dekArray,
     },
   );
+}
+
+export async function seedUnlockedVaultExtension(serviceWorker: Worker): Promise<void> {
+  const cache = await buildE2eVaultCache(E2E_TEST_DEK);
+  await seedUnlockedVaultExtensionWithCache(serviceWorker, cache);
+}
+
+export async function seedUnlockedVaultExtensionWithRelatedDomainLogin(
+  serviceWorker: Worker,
+): Promise<void> {
+  const cache = await buildE2eRelatedDomainVaultCache(E2E_TEST_DEK);
+  await seedUnlockedVaultExtensionWithCache(serviceWorker, cache);
 }
 
 export async function seedPendingFillRequest(

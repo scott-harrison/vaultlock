@@ -4,8 +4,13 @@ import {
   getExtensionId,
   seedAuthenticatedExtension,
   seedUnlockedVaultExtension,
+  seedUnlockedVaultExtensionWithRelatedDomainLogin,
 } from "./fixtures/seedExtension";
-import { E2E_TEST_CREDENTIALS, E2E_TEST_LOGIN_ITEM } from "./fixtures/testVault";
+import {
+  E2E_RELATED_DOMAIN_LOGIN_ITEM,
+  E2E_TEST_CREDENTIALS,
+  E2E_TEST_LOGIN_ITEM,
+} from "./fixtures/testVault";
 
 async function waitForFieldTrigger(page: import("@playwright/test").Page): Promise<void> {
   await expect(page.locator("[data-vaultlock-trigger]").first()).toBeVisible({ timeout: 15000 });
@@ -102,6 +107,27 @@ test.describe("Phase 1 extension flows (seeded state)", () => {
 
     await expect(page.locator("#account_name_text_field")).toHaveValue(E2E_TEST_CREDENTIALS.email);
     await expect(page.locator("#sign-in")).toBeEnabled();
+  });
+
+  test("inline fill matches logins via user-managed related domains", async ({
+    page,
+    extensionContext,
+  }) => {
+    const serviceWorker = await getExtensionServiceWorker(extensionContext);
+    await seedUnlockedVaultExtensionWithRelatedDomainLogin(serviceWorker);
+
+    await page.goto(testPages.login);
+    await waitForFieldTrigger(page);
+
+    await page.locator("[data-vaultlock-trigger]").last().click();
+
+    const menuPortal = page.locator("[data-vaultlock-menu-portal]");
+    const openMenu = menuPortal.locator(".vl-menu:not([hidden])");
+    await expect(openMenu.getByText("1 matching login")).toBeVisible({ timeout: 10000 });
+    await openMenu.getByRole("menuitem", { name: E2E_RELATED_DOMAIN_LOGIN_ITEM.title }).click();
+
+    await expect(page.locator("#username")).toHaveValue(E2E_TEST_CREDENTIALS.email);
+    await expect(page.locator("#password")).toHaveValue(E2E_TEST_CREDENTIALS.password);
   });
 
   test("inline match selection fills credentials when vault is unlocked", async ({

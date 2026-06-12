@@ -1,3 +1,7 @@
+import {
+  formatRelatedDomainsForInput,
+  parseRelatedDomainsInput,
+} from "@vaultlock/shared/related-domains";
 import type { LoginItemPlaintext } from "@vaultlock/shared/types";
 import { Button } from "@vaultlock/ui/components/ui/button";
 import { Input } from "@vaultlock/ui/components/ui/input";
@@ -9,7 +13,11 @@ import {
   findMatchingLoginItem,
   updateLoginVaultItem,
 } from "../../lib/vaultSave";
-import { authInputClassName, authPrimaryButtonClassName } from "../constants";
+import {
+  authInputClassName,
+  authPrimaryButtonClassName,
+  authTextareaClassName,
+} from "../constants";
 import { AuthFeedback } from "./AuthFeedback";
 import { AuthField } from "./AuthField";
 import { PopupHeader } from "./PopupHeader";
@@ -58,6 +66,7 @@ export function SaveLoginForm({ serverUrl, candidate, onCancel, onSaved }: SaveL
   const [url, setUrl] = useState(candidate.pageUrl);
   const [username, setUsername] = useState(candidate.username);
   const [password, setPassword] = useState(candidate.password);
+  const [relatedDomainsInput, setRelatedDomainsInput] = useState("");
   const [existingItemId, setExistingItemId] = useState<string | null>(
     candidate.existingItemId ?? null,
   );
@@ -80,6 +89,7 @@ export function SaveLoginForm({ serverUrl, candidate, onCancel, onSaved }: SaveL
         setTitle(login.title || candidate.title);
         setUrl(login.url || candidate.pageUrl);
         setUsername(login.username || candidate.username);
+        setRelatedDomainsInput(formatRelatedDomainsForInput(login.relatedDomains));
       }
     })();
 
@@ -98,6 +108,7 @@ export function SaveLoginForm({ serverUrl, candidate, onCancel, onSaved }: SaveL
       url: url.trim() || candidate.pageUrl,
       username: username.trim(),
       password,
+      relatedDomains: parseRelatedDomainsInput(relatedDomainsInput),
     };
 
     try {
@@ -151,6 +162,20 @@ export function SaveLoginForm({ serverUrl, candidate, onCancel, onSaved }: SaveL
               onChange={(event) => setUrl(event.target.value)}
               required
             />
+          </AuthField>
+
+          <AuthField label="Related sites" htmlFor={`${formId}-related-domains`}>
+            <textarea
+              id={`${formId}-related-domains`}
+              className={authTextareaClassName}
+              rows={2}
+              placeholder="example.com, *.example.com"
+              value={relatedDomainsInput}
+              onChange={(event) => setRelatedDomainsInput(event.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">
+              Optional hostnames or wildcard patterns where this login should also appear.
+            </p>
           </AuthField>
 
           <AuthField label="Username" htmlFor={`${formId}-username`}>
