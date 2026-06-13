@@ -130,6 +130,50 @@ test.describe("Phase 1 extension flows (seeded state)", () => {
     await expect(page.locator("#password")).toHaveValue(E2E_TEST_CREDENTIALS.password);
   });
 
+  test("inline fill detects login fields injected after SPA delay", async ({
+    page,
+    extensionContext,
+  }) => {
+    const serviceWorker = await getExtensionServiceWorker(extensionContext);
+    await seedUnlockedVaultExtension(serviceWorker);
+
+    await page.goto(testPages.spaDelayedLogin);
+    await expect(page.locator("#username")).toBeVisible({ timeout: 5000 });
+    await waitForFieldTrigger(page);
+
+    await page.locator("[data-vaultlock-trigger]").last().click();
+
+    const menuPortal = page.locator("[data-vaultlock-menu-portal]");
+    const openMenu = menuPortal.locator(".vl-menu:not([hidden])");
+    await expect(openMenu.getByText("1 matching login")).toBeVisible({ timeout: 10000 });
+    await openMenu.getByRole("menuitem", { name: E2E_TEST_LOGIN_ITEM.title }).click();
+
+    await expect(page.locator("#username")).toHaveValue(E2E_TEST_CREDENTIALS.email);
+    await expect(page.locator("#password")).toHaveValue(E2E_TEST_CREDENTIALS.password);
+  });
+
+  test("inline fill works inside a same-origin iframe", async ({ page, extensionContext }) => {
+    const serviceWorker = await getExtensionServiceWorker(extensionContext);
+    await seedUnlockedVaultExtension(serviceWorker);
+
+    await page.goto(testPages.iframeLogin);
+    const loginFrame = page.frameLocator("#login-frame");
+    await expect(loginFrame.locator("#username")).toBeVisible({ timeout: 5000 });
+    await expect(loginFrame.locator("[data-vaultlock-trigger]").first()).toBeVisible({
+      timeout: 15000,
+    });
+
+    await loginFrame.locator("[data-vaultlock-trigger]").last().click();
+
+    const menuPortal = loginFrame.locator("[data-vaultlock-menu-portal]");
+    const openMenu = menuPortal.locator(".vl-menu:not([hidden])");
+    await expect(openMenu.getByText("1 matching login")).toBeVisible({ timeout: 10000 });
+    await openMenu.getByRole("menuitem", { name: E2E_TEST_LOGIN_ITEM.title }).click();
+
+    await expect(loginFrame.locator("#username")).toHaveValue(E2E_TEST_CREDENTIALS.email);
+    await expect(loginFrame.locator("#password")).toHaveValue(E2E_TEST_CREDENTIALS.password);
+  });
+
   test("inline match selection fills credentials when vault is unlocked", async ({
     page,
     extensionContext,

@@ -10,6 +10,7 @@ import {
   selectPrimaryUsernameField,
 } from "../lib/fieldVisibility";
 import { fillLoginFields } from "../lib/formFillDom";
+import { createLoginFieldScanner } from "../lib/loginFieldScanner";
 import type { ExecuteFillPayload, SaveLoginCandidate } from "../lib/messaging";
 import { injectFieldActionControl } from "./lib/fieldActionControl";
 import { repositionAllFieldTriggers, unregisterFieldOverlay } from "./lib/fieldMenuPortal";
@@ -290,29 +291,20 @@ function scanForLoginFields() {
 
 initSaveLoginDetection();
 
+const loginFieldScanner = createLoginFieldScanner({
+  scan: scanForLoginFields,
+  isContextValid: isExtensionContextValid,
+  getObserveTarget: () => document.body ?? document.documentElement,
+});
+
 if (extensionContextActive) {
-  scanForLoginFields();
+  loginFieldScanner.start();
   if (window === window.top) {
     void restorePendingSaveLoginBanner();
   }
-}
-
-const observer = new MutationObserver(() => {
-  if (!isExtensionContextValid()) {
-    observer.disconnect();
-    return;
-  }
-  scanForLoginFields();
-});
-
-if (extensionContextActive && (document.body || document.documentElement)) {
-  observer.observe(document.body || document.documentElement, {
-    childList: true,
-    subtree: true,
-  });
 
   onExtensionContextInvalidated(() => {
-    observer.disconnect();
+    loginFieldScanner.stop();
   });
 }
 
@@ -327,21 +319,6 @@ async function rememberLastLoginIdentifier(value: string) {
   });
 }
 
-let scanAfterInputTimer: ReturnType<typeof setTimeout> | null = null;
-
-function scheduleScanAfterInput(): void {
-  if (scanAfterInputTimer) {
-    clearTimeout(scanAfterInputTimer);
-  }
-
-  scanAfterInputTimer = setTimeout(() => {
-    scanAfterInputTimer = null;
-    if (isExtensionContextValid()) {
-      scanForLoginFields();
-    }
-  }, 120);
-}
-
 if (extensionContextActive) {
   document.addEventListener(
     "input",
@@ -349,10 +326,6 @@ if (extensionContextActive) {
       const target = e.target as HTMLInputElement;
       if (!target || target.tagName !== "INPUT") {
         return;
-      }
-
-      if (["text", "email", "tel", "password"].includes(target.type || "")) {
-        scheduleScanAfterInput();
       }
 
       if (!["text", "email"].includes(target.type || "")) {
@@ -367,26 +340,10 @@ if (extensionContextActive) {
     true,
   );
 
-  document.addEventListener(
-    "focusin",
-    (e) => {
-      const target = e.target;
-      if (target instanceof HTMLInputElement) {
-        scheduleScanAfterInput();
-      }
-    },
-    true,
-  );
-
-  document.addEventListener("visibilitychange", () => {
-    if (!document.hidden && isExtensionContextValid()) {
-      scanForLoginFields();
-    }
-  });
-
   if (window === window.top) {
     window.addEventListener("pageshow", () => {
       if (isExtensionContextValid()) {
+        loginFieldScanner.scanNow();
         void restorePendingSaveLoginBanner();
       }
     });
