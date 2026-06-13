@@ -46,6 +46,8 @@ export const testPages = {
   reactLogin: `${TEST_ORIGIN}/react-login-form.html`,
   trustedInputLogin: `${TEST_ORIGIN}/trusted-input-login.html`,
   reactControlledLogin: `${TEST_ORIGIN}/react-controlled-login.html`,
+  spaDelayedLogin: `${TEST_ORIGIN}/spa-delayed-login.html`,
+  iframeLogin: `${TEST_ORIGIN}/iframe-login.html`,
 };
 
 export async function getExtensionServiceWorker(context: BrowserContext) {

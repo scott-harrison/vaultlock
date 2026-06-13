@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>VaultLock E2E Iframe Login Host</title>
+    <style>
+      iframe {
+        width: 100%;
+        min-height: 360px;
+        border: 1px solid #d2d2d7;
+        border-radius: 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Host page</h1>
+      <p>Login form is rendered inside a same-origin iframe.</p>
+      <iframe
+        id="login-frame"
+        title="Embedded login"
+        src="/iframe-login-child.html"
+      ></iframe>
+    </main>
+  </body>
+</html>
