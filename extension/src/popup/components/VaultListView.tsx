@@ -1,3 +1,4 @@
+import { formatLoginMatchHint } from "@vaultlock/shared/domain-matching";
 import type { LoginItemPlaintext } from "@vaultlock/shared/types";
 import { Button } from "@vaultlock/ui/components/ui/button";
 import { Input } from "@vaultlock/ui/components/ui/input";
@@ -29,6 +30,7 @@ export function VaultListView({
 }: VaultListViewProps) {
   const {
     items,
+    matchKindByItemId,
     search,
     setSearch,
     loading,
@@ -198,6 +200,14 @@ export function VaultListView({
                 key={item.id}
                 item={item}
                 showFill={Boolean(pendingFillRequest && item.itemType === "login")}
+                matchHint={
+                  fillContext.isActive && item.itemType === "login"
+                    ? formatLoginMatchHint(
+                        matchKindByItemId.get(item.id) ?? null,
+                        (item.plaintext as LoginItemPlaintext).username ?? "",
+                      )
+                    : undefined
+                }
                 isFilling={fillingId === item.id}
                 copiedField={copiedField}
                 onCopy={copyToClipboard}

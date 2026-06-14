@@ -124,6 +124,9 @@ test.describe("Phase 1 extension flows (seeded state)", () => {
     const menuPortal = page.locator("[data-vaultlock-menu-portal]");
     const openMenu = menuPortal.locator(".vl-menu:not([hidden])");
     await expect(openMenu.getByText("1 matching login")).toBeVisible({ timeout: 10000 });
+    await expect(
+      openMenu.getByRole("menuitem", { name: E2E_RELATED_DOMAIN_LOGIN_ITEM.title }),
+    ).toContainText("Related site");
     await openMenu.getByRole("menuitem", { name: E2E_RELATED_DOMAIN_LOGIN_ITEM.title }).click();
 
     await expect(page.locator("#username")).toHaveValue(E2E_TEST_CREDENTIALS.email);

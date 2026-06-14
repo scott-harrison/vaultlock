@@ -7,6 +7,7 @@ import { VaultItemTypeIcon } from "./VaultItemTypeIcon";
 interface VaultListItemProps {
   item: DecryptedVaultItem;
   showFill: boolean;
+  matchHint?: string;
   isFilling: boolean;
   copiedField: string | null;
   onCopy: (text: string, fieldKey: string) => void;
@@ -16,6 +17,7 @@ interface VaultListItemProps {
 export function VaultListItem({
   item,
   showFill,
+  matchHint,
   isFilling,
   copiedField,
   onCopy,
@@ -33,7 +35,11 @@ export function VaultListItem({
         <VaultItemTypeIcon itemType={item.itemType} />
         <div className="min-w-0 flex-1 text-left">
           <p className="truncate text-sm font-medium">{title}</p>
-          {subtitle ? <p className="truncate text-xs text-muted-foreground">{subtitle}</p> : null}
+          {matchHint ? (
+            <p className="truncate text-xs text-muted-foreground">{matchHint}</p>
+          ) : subtitle ? (
+            <p className="truncate text-xs text-muted-foreground">{subtitle}</p>
+          ) : null}
         </div>
       </div>
 

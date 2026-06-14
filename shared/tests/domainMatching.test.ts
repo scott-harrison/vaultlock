@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   compareLoginMatchScores,
   extractLoginHostname,
+  formatLoginMatchHint,
   loginMatchesPageHost,
   normalizeHostname,
   scoreLoginForPageHost,
@@ -89,6 +90,22 @@ describe("scoreLoginForPageHost", () => {
 
   it("falls back to substring matching for malformed URLs", () => {
     expect(loginMatchesPageHost("not-a-valid-url github.com fragment", "github.com")).toBe(true);
+  });
+});
+
+describe("formatLoginMatchHint", () => {
+  it("labels related and subdomain matches for inline UI", () => {
+    expect(formatLoginMatchHint("related", "user@example.com")).toBe(
+      "user@example.com · Related site",
+    );
+    expect(formatLoginMatchHint("subdomain", "user@example.com")).toBe(
+      "user@example.com · Subdomain",
+    );
+  });
+
+  it("keeps exact matches as username-only hints", () => {
+    expect(formatLoginMatchHint("exact", "user@example.com")).toBe("user@example.com");
+    expect(formatLoginMatchHint(null, "")).toBe("No username saved");
   });
 });
 
