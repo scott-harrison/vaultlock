@@ -1,4 +1,5 @@
 import {
+  type LoginMatchKind,
   compareLoginMatchScores,
   loginMatchOptionsFromLogin,
   loginMatchesPageHost,
@@ -177,24 +178,34 @@ export function useVaultList(pendingFillRequest: AutofillRequest | null) {
 
   const hostnameMatchedLogins = useMemo(() => {
     if (!fillHostname) {
-      return loginItems;
+      return loginItems.map((item) => ({ item, matchKind: null as LoginMatchKind | null }));
     }
 
     return loginItems
       .map((item) => {
         const login = item.plaintext as LoginItemPlaintext;
-        return {
-          item,
-          match: scoreLoginForPageHost(login.url, fillHostname, loginMatchOptionsFromLogin(login)),
-        };
+        const match = scoreLoginForPageHost(
+          login.url,
+          fillHostname,
+          loginMatchOptionsFromLogin(login),
+        );
+        return { item, match };
       })
       .filter(({ match }) => match.matches)
       .sort((a, b) => compareLoginMatchScores(a.match, b.match))
-      .map(({ item }) => item);
+      .map(({ item, match }) => ({ item, matchKind: match.kind }));
   }, [fillHostname, loginItems]);
 
+  const matchKindByItemId = useMemo(() => {
+    const kinds = new Map<string, LoginMatchKind | null>();
+    for (const entry of hostnameMatchedLogins) {
+      kinds.set(entry.item.id, entry.matchKind);
+    }
+    return kinds;
+  }, [hostnameMatchedLogins]);
+
   const filteredItems = useMemo(() => {
-    const sourceItems = fillHostname ? hostnameMatchedLogins : items;
+    const sourceItems = fillHostname ? hostnameMatchedLogins.map(({ item }) => item) : items;
     return sourceItems.filter((item) => itemMatchesSearch(item, searchTerm));
   }, [fillHostname, hostnameMatchedLogins, items, searchTerm]);
 
@@ -264,6 +275,7 @@ export function useVaultList(pendingFillRequest: AutofillRequest | null) {
 
   return {
     items: filteredItems,
+    matchKindByItemId,
     search,
     setSearch,
     loading,

@@ -179,6 +179,21 @@ export function compareLoginMatchScores(a: LoginHostMatchResult, b: LoginHostMat
   return aKind - bKind;
 }
 
+export function formatLoginMatchHint(kind: LoginMatchKind | null, username: string): string {
+  const userLabel = username.trim() || "No username saved";
+
+  switch (kind) {
+    case "related":
+      return `${userLabel} · Related site`;
+    case "subdomain":
+      return `${userLabel} · Subdomain`;
+    case "no_url":
+      return `${userLabel} · No URL saved`;
+    default:
+      return userLabel;
+  }
+}
+
 export function sortLoginUrlsForPageHost(
   entries: readonly { url: string | undefined; relatedDomains?: readonly string[] }[],
   pageHostname: string,

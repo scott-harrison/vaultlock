@@ -16,6 +16,7 @@ export interface MatchingLoginPreview {
   title: string;
   username: string;
   password: string;
+  matchKind: ReturnType<typeof scoreLoginForPageHost>["kind"];
 }
 
 export type MatchingLoginsStatus = "locked" | "unavailable" | "ready";
@@ -45,12 +46,17 @@ async function ensureDecryptionReady(): Promise<MatchingLoginsStatus> {
   return "unavailable";
 }
 
-function toPreview(item: VaultItemResponse, plaintext: LoginItemPlaintext): MatchingLoginPreview {
+function toPreview(
+  item: VaultItemResponse,
+  plaintext: LoginItemPlaintext,
+  match: ReturnType<typeof scoreLoginForPageHost>,
+): MatchingLoginPreview {
   return {
     id: item.id,
     title: plaintext.title?.trim() || "Untitled login",
     username: plaintext.username?.trim() || "",
     password: plaintext.password ?? "",
+    matchKind: match.kind,
   };
 }
 
@@ -88,7 +94,7 @@ export async function listMatchingLoginsForHost(hostname: string): Promise<Match
       }
 
       scored.push({
-        preview: toPreview(item, plaintext),
+        preview: toPreview(item, plaintext, match),
         match,
       });
     } catch {

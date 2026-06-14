@@ -1,3 +1,5 @@
+import type { LoginMatchKind } from "@vaultlock/shared/domain-matching";
+
 /**
  * Message types for extension communication (background <-> content scripts <-> popup).
  *
@@ -55,6 +57,7 @@ export interface MatchingLoginPreview {
   title: string;
   username: string;
   password: string;
+  matchKind: LoginMatchKind | null;
 }
 
 export type MatchingLoginsStatus = "locked" | "unavailable" | "ready";

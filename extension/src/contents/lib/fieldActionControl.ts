@@ -1,3 +1,4 @@
+import { type LoginMatchKind, formatLoginMatchHint } from "@vaultlock/shared/domain-matching";
 import { safeSendMessage, safeSendMessageAsync } from "../../lib/extensionContext";
 import { buildFillFieldRefs } from "../../lib/fieldMarkers";
 import { fillMatchingLoginInline } from "../../lib/inlineFill";
@@ -193,7 +194,7 @@ export function injectFieldActionControl(
     matchesSection.append(subtitle);
 
     for (const match of response.matches) {
-      const button = createMatchAction(match.title, match.username, () => {
+      const button = createMatchAction(match.title, match.username, match.matchKind, () => {
         fillMatchingLoginInline(field, fieldType, {
           username: match.username,
           password: match.password,
@@ -298,6 +299,7 @@ function createMenuAction(
 function createMatchAction(
   title: string,
   username: string,
+  matchKind: LoginMatchKind | null,
   onSelect: () => void,
 ): HTMLButtonElement {
   const button = document.createElement("button");
@@ -311,7 +313,7 @@ function createMatchAction(
 
   const hint = document.createElement("span");
   hint.className = "vl-menu-item-hint";
-  hint.textContent = username || "No username saved";
+  hint.textContent = formatLoginMatchHint(matchKind, username);
 
   button.append(label, hint);
   button.addEventListener("click", (event) => {
