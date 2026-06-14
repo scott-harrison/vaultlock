@@ -179,10 +179,7 @@ export function compareLoginMatchScores(a: LoginHostMatchResult, b: LoginHostMat
   return aKind - bKind;
 }
 
-export function formatLoginMatchHint(
-  kind: LoginMatchKind | null,
-  username: string,
-): string {
+export function formatLoginMatchHint(kind: LoginMatchKind | null, username: string): string {
   const userLabel = username.trim() || "No username saved";
 
   switch (kind) {
