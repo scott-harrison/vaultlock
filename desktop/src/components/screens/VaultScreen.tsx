@@ -21,6 +21,7 @@ import {
 } from "@/lib/vaultItems";
 import { withAccessTokenRetry } from "@/lib/withAccessTokenRetry";
 import { VaultlockApiError } from "@vaultlock/shared/api";
+import { normalizeRelatedDomainList } from "@vaultlock/shared/related-domains";
 import type { LoginItemPlaintext, NoteItemPlaintext, VaultItemType } from "@vaultlock/shared/types";
 import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -71,6 +72,7 @@ function draftFromItem(item: DecryptedVaultItem): VaultCreateDraft {
       loginDraft: {
         title: login.title ?? "",
         url: login.url ?? "",
+        relatedDomains: login.relatedDomains,
         username: login.username ?? "",
         password: login.password ?? "",
         notes: login.notes ?? "",
@@ -94,6 +96,7 @@ function loginPlaintextFromDraft(draft: LoginItemPlaintext): LoginItemPlaintext 
   return {
     title: draft.title?.trim() || undefined,
     url: draft.url?.trim() || undefined,
+    relatedDomains: normalizeRelatedDomainList(draft.relatedDomains),
     username: draft.username?.trim() || undefined,
     password: draft.password || undefined,
     notes: draft.notes?.trim() || undefined,
@@ -222,6 +225,10 @@ export function VaultScreen({
     setLoginDraft((current) => ({ ...current, password }));
   };
 
+  const setLoginRelatedDomains = (relatedDomains: string[] | undefined) => {
+    setLoginDraft((current) => ({ ...current, relatedDomains }));
+  };
+
   const updateEditLoginField = (
     field: keyof LoginItemPlaintext,
     event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
@@ -232,6 +239,10 @@ export function VaultScreen({
 
   const setEditLoginPassword = (password: string) => {
     setEditLoginDraft((current) => ({ ...current, password }));
+  };
+
+  const setEditLoginRelatedDomains = (relatedDomains: string[] | undefined) => {
+    setEditLoginDraft((current) => ({ ...current, relatedDomains }));
   };
 
   const updateEditNoteField = (
@@ -577,6 +588,7 @@ export function VaultScreen({
         onCreateTypeChange={setCreateType}
         onLoginFieldChange={updateLoginField}
         onLoginPasswordChange={setLoginPassword}
+        onLoginRelatedDomainsChange={setLoginRelatedDomains}
         onNoteFieldChange={updateNoteField}
       />
 
@@ -590,6 +602,7 @@ export function VaultScreen({
         onCreateTypeChange={setEditType}
         onLoginFieldChange={updateEditLoginField}
         onLoginPasswordChange={setEditLoginPassword}
+        onLoginRelatedDomainsChange={setEditLoginRelatedDomains}
         onNoteFieldChange={updateEditNoteField}
       />
 

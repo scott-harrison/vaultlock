@@ -1,5 +1,7 @@
 import { VaultlockApiError } from "@vaultlock/shared/api";
 import { hashMasterPasswordAuth } from "@vaultlock/shared/crypto";
+import { Toaster } from "@vaultlock/ui/components/ui/sonner";
+import { TooltipProvider } from "@vaultlock/ui/components/ui/tooltip";
 import { useCallback, useState } from "react";
 import { LoadingOverlay } from "./components/LoadingOverlay";
 import { type ConnectionStatus, ServerStatusIndicator } from "./components/ServerStatusIndicator";
@@ -11,8 +13,6 @@ import { RegisterScreen } from "./components/screens/RegisterScreen";
 import { SignInScreen } from "./components/screens/SignInScreen";
 import { UnlockScreen } from "./components/screens/UnlockScreen";
 import { VaultScreen } from "./components/screens/VaultScreen";
-import { Toaster } from "./components/ui/sonner";
-import { TooltipProvider } from "./components/ui/tooltip";
 import { useAutoLock } from "./hooks/useAutoLock";
 import { useMountEffect } from "./hooks/useMountEffect";
 import { useVerifyDeepLink } from "./hooks/useVerifyDeepLink";
@@ -50,6 +50,7 @@ import {
 import { VAULT_LOCAL_KEYS_ERROR, VAULT_UNLOCK_ERROR, unlockVaultForUser } from "./lib/unlockVault";
 import { clearWrappedDekStorage, lockVault } from "./lib/vaultSession";
 import { clearAllVaultSyncTokens } from "./lib/vaultSync";
+import { syncLocalWrappedDekToServer } from "./lib/wrappedDekSync";
 import "./App.css";
 
 type WizardScreen = "connect" | "sign-in" | "register" | "check-email" | "unlock" | "vault";
@@ -379,7 +380,19 @@ function App() {
       await clearPendingVerificationEmail();
       setPendingVerificationEmail(null);
       setSession(nextSession);
-      await unlockVaultForUser(email, password, response.master_password_hash);
+      await unlockVaultForUser(
+        email,
+        password,
+        response.master_password_hash,
+        response.wrapped_dek as Record<string, unknown> | undefined,
+      );
+
+      try {
+        await syncLocalWrappedDekToServer(email, nextSession.accessToken);
+      } catch (e) {
+        console.warn("Failed to sync wrapped_dek to server after sign-in (non-fatal)", e);
+      }
+
       await recordMasterPasswordUnlock(email);
       setIsVaultCreateOpen(false);
       setIsUnlocked(true);
@@ -438,7 +451,19 @@ function App() {
       await saveSession(nextSession);
       await persistCredentialsFromAuth(session.email, response);
       setSession(nextSession);
-      await unlockVaultForUser(session.email, password, response.master_password_hash);
+      await unlockVaultForUser(
+        session.email,
+        password,
+        response.master_password_hash,
+        response.wrapped_dek as Record<string, unknown> | undefined,
+      );
+
+      try {
+        await syncLocalWrappedDekToServer(session.email, nextSession.accessToken);
+      } catch (e) {
+        console.warn("Failed to sync wrapped_dek to server after unlock (non-fatal)", e);
+      }
+
       await recordMasterPasswordUnlock(session.email);
 
       setIsVaultCreateOpen(false);

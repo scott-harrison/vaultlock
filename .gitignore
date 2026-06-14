@@ -48,6 +48,8 @@ web-build/
 
 # Plasmo (browser extension)
 .plasmo/
+extension/test-results/
+extension/playwright-report/
 
 # Logs and temp
 *.log

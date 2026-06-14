@@ -6,8 +6,14 @@
 
 import { VaultlockApiClient } from "@vaultlock/shared/api";
 import { createTimedFetch } from "./serverSettings";
-import { getServerSettings } from "./storage";
-import { unlockVault } from "./vaultSession";
+import {
+  clearAuthSession,
+  clearVaultOfflineData,
+  clearWrappedDek,
+  getServerSettings,
+  saveAuthSession,
+} from "./storage";
+import { lockVault, unlockVault } from "./vaultSession";
 
 export interface LoginCredentials {
   email: string;
@@ -38,19 +44,35 @@ export async function loginAndUnlock(credentials: LoginCredentials): Promise<voi
     refreshToken: response.refresh_token,
   });
 
-  // Unlock the vault using the master password + hash from server
-  await unlockVault({
+  const unlockResult = await unlockVault({
     email: credentials.email,
     masterPassword: credentials.masterPassword,
     masterPasswordHash: response.master_password_hash,
+    wrappedDekFromServer: response.wrapped_dek as Record<string, unknown> | undefined,
   });
+
+  // Only upload if we generated a fresh DEK on this device (first device responsibility).
+  if (unlockResult.generatedNewDek) {
+    try {
+      const { getCurrentWrappedDek } = await import("./vaultSession");
+      const wrapped = await getCurrentWrappedDek(credentials.email);
+      if (wrapped) {
+        await client.saveWrappedDek(response.access_token, {
+          nonce: wrapped.nonce,
+          ciphertext: wrapped.ciphertext,
+        });
+      }
+    } catch (e) {
+      console.warn("[Auth] Failed to upload wrapped_dek (non-fatal)", e);
+    }
+  }
 }
 
 export async function logout(): Promise<void> {
-  // Clear auth + lock vault
-  await clearAuthSession();
-  await clearWrappedDek(); // from storage
   lockVault();
+  await clearAuthSession();
+  await clearWrappedDek();
+  await clearVaultOfflineData();
 }
 
 // Re-exports for convenience

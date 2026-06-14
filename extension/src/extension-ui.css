@@ -1,0 +1,30 @@
+@import "../../ui/src/styles/modern-minimal.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    color-scheme: dark;
+  }
+
+  html,
+  body,
+  #__plasmo {
+    @apply bg-background font-sans text-foreground antialiased;
+    margin: 0;
+  }
+
+  input,
+  textarea,
+  select,
+  [contenteditable="true"] {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+}

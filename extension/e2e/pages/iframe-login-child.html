@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>VaultLock E2E Iframe Login</title>
+  </head>
+  <body>
+    <main>
+      <h1>Embedded sign in</h1>
+      <form id="login-form" method="post">
+        <label>
+          Email
+          <input id="username" name="email" type="email" autocomplete="username" />
+        </label>
+        <label>
+          Password
+          <input id="password" name="password" type="password" autocomplete="current-password" />
+        </label>
+        <button type="submit">Sign in</button>
+      </form>
+    </main>
+    <script>
+      document.getElementById("login-form").addEventListener("submit", (event) => {
+        event.preventDefault();
+      });
+    </script>
+  </body>
+</html>

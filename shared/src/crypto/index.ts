@@ -2,6 +2,7 @@ import { decrypt, encrypt, fromBase64, toBase64 } from "./aes_gcm";
 
 export * from "./aes_gcm";
 export * from "./argon2";
+export * from "./wrapped_dek";
 
 export interface EncryptedVaultBlob {
   encryptedData: Uint8Array;

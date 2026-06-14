@@ -24,7 +24,7 @@ Install these once on your machine.
 | Tool | Version | Install |
 |------|---------|---------|
 | **Git** | latest | [git-scm.com](https://git-scm.com/) |
-| **Node.js** | 22 LTS | [nodejs.org](https://nodejs.org/) or `nvm install 22` |
+| **Node.js** | 24 LTS (Active) | [nodejs.org](https://nodejs.org/) or `nvm install` (uses `.nvmrc`) |
 | **pnpm** | 11.x | `npm install -g pnpm@11` |
 | **Rust** | stable | `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \| sh` |
 | **Docker** | latest | [docker.com](https://www.docker.com/products/docker-desktop/) |
@@ -32,7 +32,7 @@ Install these once on your machine.
 Verify:
 
 ```bash
-node --version    # v22.x
+node --version    # v24.x
 pnpm --version    # 11.x
 rustc --version
 cargo --version
@@ -157,7 +157,7 @@ pnpm test            # Backend tests + @vaultlock/shared Vitest
 pnpm exec biome check .
 ```
 
-Pre-push hooks run Biome, `cargo fmt --check`, clippy, and backend tests.
+Pre-push hooks run Biome, `cargo fmt --check`, clippy, and backend tests (now with reliable Postgres startup via healthcheck + `--wait`).
 
 ---
 
@@ -207,9 +207,34 @@ To install only desktop + shared without pulling mobile:
 pnpm install --filter @vaultlock/desktop --filter @vaultlock/shared
 ```
 
-### Port 5432 already in use
+### Port 5432 already in use (or Postgres not ready)
 
-Stop the conflicting Postgres instance or change the host port in `docker-compose.yml`.
+Multiple dev sessions, stale containers, or the pre-push hook can leave Postgres instances
+running under different compose project names (e.g. `vaultlock-postgres-1`, `extension-postgres-1`).
+
+**Quick recovery:**
+
+```bash
+# Stop anything listening on 5432
+docker ps --filter "publish=5432" --format "{{.Names}}" | xargs -r docker stop
+docker ps --filter "publish=5432" --format "{{.Names}}" | xargs -r docker rm -f
+
+# Clean start
+docker compose down postgres
+docker compose up postgres -d
+```
+
+**Root cause of hook failures ("postgres admin connection: PoolTimedOut"):**
+
+The pre-push hook (and `pnpm test`) run `scripts/test-backend.sh`, which starts Postgres
+and then immediately runs the Rust integration tests. Postgres can take 10–20s to become
+ready (especially on macOS + Docker Desktop + volume init).
+
+We fixed this by:
+- Adding a `healthcheck` to the `postgres` service in `docker-compose.yml`.
+- Changing the script to use `docker compose up postgres --wait -d`.
+
+After this change, both the hook and `pnpm test` are much more reliable.
 
 ### Port 8080 already in use
 

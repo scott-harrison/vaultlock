@@ -2,7 +2,7 @@ pub mod jwt;
 pub mod refresh_token;
 
 use axum::{
-    extract::{Query, State},
+    extract::{Extension, Query, State},
     http::StatusCode,
     response::Html,
     Json,
@@ -19,6 +19,7 @@ use crate::{
     crypto::argon2::{
         validate_master_password_hash, verify_login_password, verify_master_password_hash,
     },
+    middleware::jwt_auth::AuthenticatedUser,
     models::{refresh_token::CreateRefreshToken, user::CreateUser},
     repositories::{
         refresh_token_repository::RefreshTokenRepository, user_repository::UserRepository,
@@ -61,6 +62,11 @@ pub struct RefreshRequest {
     pub refresh_token: String,
 }
 
+#[derive(Deserialize)]
+pub struct SaveWrappedDekRequest {
+    pub wrapped_dek: serde_json::Value,
+}
+
 #[derive(Serialize)]
 pub struct RegisterResponse {
     pub message: String,
@@ -74,9 +80,10 @@ pub struct AuthResponse {
     pub token: String,
     pub refresh_token: String,
     pub message: String,
-    /// Stored Argon2 PHC — lets clients cache for offline unlock verification.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub master_password_hash: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub wrapped_dek: Option<serde_json::Value>,
 }
 
 impl AuthResponse {
@@ -85,6 +92,7 @@ impl AuthResponse {
         refresh_token: String,
         message: String,
         master_password_hash: Option<String>,
+        wrapped_dek: Option<serde_json::Value>,
     ) -> Self {
         Self {
             token: access_token.clone(),
@@ -92,6 +100,7 @@ impl AuthResponse {
             refresh_token,
             message,
             master_password_hash,
+            wrapped_dek,
         }
     }
 
@@ -103,6 +112,7 @@ impl AuthResponse {
             refresh_token: String::new(),
             message,
             master_password_hash: None,
+            wrapped_dek: None,
         }
     }
 }
@@ -323,6 +333,19 @@ pub async fn login(
 
     if is_valid {
         state.login_delay.clear(&payload.email).await;
+
+        // Orphan cleanup per design decision:
+        // If the user has vault items but no wrapped_dek on record, the items
+        // were encrypted with a DEK that no longer exists for this account.
+        // Delete them to keep the system in a consistent state.
+        if user.wrapped_dek.is_none() {
+            let vault_repo = crate::repositories::vault_item_repository::VaultItemRepository::new(
+                state.db.clone(),
+            );
+            // Best effort — we don't want to fail login because of cleanup
+            let _ = vault_repo.delete_all_for_user(user.id).await;
+        }
+
         match issue_auth_success(&state, &user, "Login successful".to_string()).await {
             Ok(response) => (StatusCode::OK, Json(response)),
             Err(e) => {
@@ -453,6 +476,7 @@ pub async fn refresh(
                 refresh_token,
                 "Token refreshed".to_string(),
                 None,
+                None,
             )),
         ),
         Err(error) => {
@@ -476,7 +500,30 @@ async fn issue_auth_success(
         refresh_token,
         message,
         Some(user.master_password_hash.clone()),
+        user.wrapped_dek.clone(),
     ))
+}
+
+pub async fn save_wrapped_dek(
+    State(state): State<AppState>,
+    Extension(user): Extension<AuthenticatedUser>,
+    Json(payload): Json<SaveWrappedDekRequest>,
+) -> (StatusCode, Json<serde_json::Value>) {
+    let repo = UserRepository::new(state.db);
+
+    match repo.save_wrapped_dek(user.0, payload.wrapped_dek).await {
+        Ok(()) => (
+            StatusCode::OK,
+            Json(serde_json::json!({ "message": "wrapped_dek saved" })),
+        ),
+        Err(e) => {
+            tracing::error!(?e, user_id = %user.0, "failed to save wrapped_dek");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "message": "failed to save wrapped_dek" })),
+            )
+        }
+    }
 }
 
 async fn rotate_tokens(
@@ -689,6 +736,7 @@ mod tests {
             "access.jwt".to_string(),
             "refresh.jwt".to_string(),
             "ok".to_string(),
+            None,
             None,
         );
         assert_eq!(response.token, response.access_token);

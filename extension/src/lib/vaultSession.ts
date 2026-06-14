@@ -9,8 +9,10 @@
  */
 
 import {
+  type WrappedDekBlob,
   deriveMasterKey,
   fromBase64,
+  parseWrappedDekJson,
   toBase64,
   unwrapDek,
   verifyMasterPasswordAuth,
@@ -18,45 +20,36 @@ import {
 } from "@vaultlock/shared/crypto";
 
 import { clearWrappedDek, loadWrappedDek, saveWrappedDek } from "./storage";
+import { applyUnlockedDek, clearUnlockedDek } from "./vaultDekLifecycle";
+import { getDataEncryptionKey, isVaultUnlocked } from "./vaultDekState";
 
-let dataEncryptionKey: Uint8Array | null = null;
-
-/**
- * Returns whether the vault is currently unlocked (DEK is in memory).
- */
-export function isVaultUnlocked(): boolean {
-  return dataEncryptionKey !== null;
-}
-
-/**
- * Gets the current Data Encryption Key.
- * Throws if the vault is locked.
- */
-export function getDataEncryptionKey(): Uint8Array {
-  if (!dataEncryptionKey) {
-    throw new Error("Vault is locked. Master password unlock required.");
-  }
-  return dataEncryptionKey;
-}
+export { getDataEncryptionKey, isVaultUnlocked };
 
 /**
  * Sets the Data Encryption Key after successful unlock / derivation.
  */
 export function setDataEncryptionKey(dek: Uint8Array): void {
-  lockVault();
-  dataEncryptionKey = new Uint8Array(dek);
+  clearUnlockedDek();
+  applyUnlockedDek(dek);
 }
 
-/**
- * Main unlock function.
- * Verifies the master password, derives the master key, unwraps (or creates) the DEK,
- * and keeps the DEK in memory.
- */
+async function tryUnwrapWrappedDek(
+  blob: WrappedDekBlob,
+  masterKey: Uint8Array,
+): Promise<Uint8Array | null> {
+  try {
+    return await unwrapDek(fromBase64(blob.nonce), fromBase64(blob.ciphertext), masterKey);
+  } catch {
+    return null;
+  }
+}
+
 export async function unlockVault(params: {
   email: string;
   masterPassword: string;
   masterPasswordHash: string;
-}): Promise<void> {
+  wrappedDekFromServer?: Record<string, unknown>;
+}): Promise<{ generatedNewDek: boolean }> {
   const passwordValid = await verifyMasterPasswordAuth(
     params.masterPassword,
     params.masterPasswordHash,
@@ -70,50 +63,70 @@ export async function unlockVault(params: {
   const masterKey = await deriveMasterKey(params.masterPassword, normalizedEmail);
 
   try {
-    const existing = await loadWrappedDek(normalizedEmail);
-    let dek: Uint8Array;
+    const serverBlob = parseWrappedDekJson(params.wrappedDekFromServer);
+    const localRecord = await loadWrappedDek(normalizedEmail);
+    const localBlob = localRecord
+      ? { nonce: localRecord.nonce, ciphertext: localRecord.ciphertext }
+      : null;
 
-    if (existing) {
-      try {
-        dek = await unwrapDek(
-          fromBase64(existing.nonce),
-          fromBase64(existing.ciphertext),
-          masterKey,
-        );
-      } catch {
-        throw new Error("Local vault keys could not be decrypted. Sign out and sign in again.");
-      }
-    } else {
-      // First time unlock on this device — generate a new DEK
-      dek = crypto.getRandomValues(new Uint8Array(32));
-      const { nonce, ciphertext } = await wrapDek(dek, masterKey);
-      await saveWrappedDek(normalizedEmail, toBase64(nonce), toBase64(ciphertext));
+    const candidates: { source: "server" | "local"; blob: WrappedDekBlob }[] = [];
+    if (serverBlob) {
+      candidates.push({ source: "server", blob: serverBlob });
+    }
+    if (
+      localBlob &&
+      (!serverBlob ||
+        localBlob.nonce !== serverBlob.nonce ||
+        localBlob.ciphertext !== serverBlob.ciphertext)
+    ) {
+      candidates.push({ source: "local", blob: localBlob });
     }
 
-    lockVault();
-    dataEncryptionKey = dek;
+    for (const { source, blob } of candidates) {
+      const dek = await tryUnwrapWrappedDek(blob, masterKey);
+      if (dek) {
+        await saveWrappedDek(normalizedEmail, blob.nonce, blob.ciphertext);
+        applyUnlockedDek(dek);
+        return { generatedNewDek: false };
+      }
+    }
+
+    if (serverBlob) {
+      throw new Error(
+        "Could not unlock your vault encryption key from the server. " +
+          "Open VaultLock on the desktop app, unlock once, then sign out and sign in again here.",
+      );
+    }
+
+    const dek = crypto.getRandomValues(new Uint8Array(32));
+    const { nonce, ciphertext } = await wrapDek(dek, masterKey);
+    await saveWrappedDek(normalizedEmail, toBase64(nonce), toBase64(ciphertext));
+
+    applyUnlockedDek(dek);
+
+    return { generatedNewDek: true };
   } finally {
-    // Always zeroize the master key from memory
     masterKey.fill(0);
   }
 }
 
-/**
- * Locks the vault by clearing the in-memory DEK.
- */
 export function lockVault(): void {
-  if (dataEncryptionKey) {
-    dataEncryptionKey.fill(0);
-  }
-  dataEncryptionKey = null;
+  clearUnlockedDek();
 }
 
 /**
  * Restores a DEK (used for quick unlock / biometric flows later).
  */
 export function restoreUnlockedDek(dek: Uint8Array): void {
-  lockVault();
-  dataEncryptionKey = new Uint8Array(dek);
+  applyUnlockedDek(dek);
+}
+
+/**
+ * Returns the currently wrapped DEK record from local storage for the given email.
+ * Useful for uploading to the server after first unlock on a device.
+ */
+export async function getCurrentWrappedDek(email: string) {
+  return loadWrappedDek(email);
 }
 
 /**

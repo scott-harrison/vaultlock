@@ -1,15 +1,19 @@
-import { Button } from "@/components/ui/button";
+import { LoginPasswordField } from "@/components/vault/LoginPasswordField";
+import {
+  formatRelatedDomainsForInput,
+  parseRelatedDomainsInput,
+} from "@vaultlock/shared/related-domains";
+import type { LoginItemPlaintext, NoteItemPlaintext, VaultItemType } from "@vaultlock/shared/types";
+import { Button } from "@vaultlock/ui/components/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { LoginPasswordField } from "@/components/vault/LoginPasswordField";
-import { cn } from "@/lib/utils";
-import type { LoginItemPlaintext, NoteItemPlaintext, VaultItemType } from "@vaultlock/shared/types";
+} from "@vaultlock/ui/components/ui/dialog";
+import { Input } from "@vaultlock/ui/components/ui/input";
+import { cn } from "@vaultlock/ui/lib/utils";
 import { useId } from "react";
 
 export interface VaultCreateDraft {
@@ -31,6 +35,7 @@ interface VaultCreateDialogProps {
     event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
   ) => void;
   onLoginPasswordChange: (password: string) => void;
+  onLoginRelatedDomainsChange: (domains: string[] | undefined) => void;
   onNoteFieldChange: (
     field: keyof NoteItemPlaintext,
     event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
@@ -59,6 +64,7 @@ export function VaultCreateDialog({
   onCreateTypeChange,
   onLoginFieldChange,
   onLoginPasswordChange,
+  onLoginRelatedDomainsChange,
   onNoteFieldChange,
 }: VaultCreateDialogProps) {
   const formId = useId();
@@ -111,6 +117,23 @@ export function VaultCreateDialog({
                   disabled={isSubmitting}
                   onChange={(event) => onLoginFieldChange("url", event)}
                 />
+              </div>
+              <div className="space-y-2">
+                <FieldLabel htmlFor={`${formId}-related-domains`}>Related sites</FieldLabel>
+                <textarea
+                  id={`${formId}-related-domains`}
+                  className={textareaClassName}
+                  rows={2}
+                  placeholder="example.com, *.example.com"
+                  value={formatRelatedDomainsForInput(draft.loginDraft.relatedDomains)}
+                  disabled={isSubmitting}
+                  onChange={(event) =>
+                    onLoginRelatedDomainsChange(parseRelatedDomainsInput(event.target.value))
+                  }
+                />
+                <p className="text-xs text-muted-foreground">
+                  Optional hostnames or wildcard patterns where this login should also appear.
+                </p>
               </div>
               <div className="space-y-2">
                 <FieldLabel htmlFor={`${formId}-username`}>Username</FieldLabel>

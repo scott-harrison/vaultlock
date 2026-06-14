@@ -1,63 +1,89 @@
 # VaultLock Browser Extension
 
-This is the browser extension for VaultLock (Manifest V3 + Plasmo).
+Manifest V3 extension (Plasmo + React) for VaultLock. Part of **Epic #189** (Browser Extension Redesign 2026); Phase 0 reliability work tracks **#187**.
 
-## Current Status
+## Current capabilities (Phase 0)
 
-This directory is being developed as part of **Epic #12** (see GitHub issue #10).
+- Server URL + connection test (options page)
+- Sign in / unlock with zero-knowledge crypto (`@vaultlock/shared`)
+- Encrypted vault cache in `chrome.storage.local` (background sync, popup decrypts)
+- On-demand sync (login, unlock, empty cache, manual ↻ — not on every popup open)
+- Fill-on-click: **VL** indicator on detectable password fields → popup → **Fill**
+- Password generator available in `@vaultlock/shared` (desktop uses it; extension UI in Phase 1)
 
-### Sub-task Progress
+**Limits:** Many sites (Apple ID, iframe OAuth, shadow DOM) do not show indicators yet. Use copy-from-popup or wait for Phase 2 detection work (#190).
 
-- [x] **Plasmo scaffold** — Structure, `plasmo dev/build`, TypeScript, `@vaultlock/shared` integration, basic storage layer, multi-browser support
-- [ ] Server connection settings + health check
-- [ ] Shared crypto integration
-- [ ] Auth + master password unlock
-- [ ] ... (see issue #10 for full list)
+## Prerequisites
 
-## Running the Extension
+- Node 22+ and pnpm 11 (see repo root `.nvmrc`)
+- VaultLock backend running (see `DEV_ENVIRONMENT.md`)
+- From repo root: `pnpm install`
 
-From the repository root:
+## Development
 
 ```bash
-# One-time
-pnpm install
-
-# Development (Chrome)
-cd extension
-pnpm dev
-
-# Production build
-pnpm build
+# From repo root
+pnpm extension:dev          # Chrome
+pnpm extension:dev:brave    # Brave (recommended if you use Brave daily)
 ```
 
-The `plasmo dev` command will open a new Chrome window with the extension loaded in development mode (hot reloading).
+The dev runner (`extension/scripts/plasmo-dev.mjs`) patches the dev manifest every ~1.5s so it keeps:
 
-## Folder Structure
+- `permissions`: `storage`, `tabs`
+- `host_permissions`: `<all_urls>`
+- CSP `wasm-unsafe-eval` for Argon2 in the popup
+
+**After starting dev:** open `brave://extensions` (or `chrome://extensions`) and **Reload** the extension if you change permissions or see `chrome.storage.local` undefined on login.
+
+### Dev vs production builds
+
+| Use case | Command | Load unpacked from |
+|----------|---------|-------------------|
+| Active coding / HMR | `pnpm extension:dev:brave` | `extension/build/brave-mv3-dev` |
+| Testing fill, sync, reload stability | `pnpm extension:build:brave` | `extension/build/brave-mv3-prod` |
+
+Prefer **prod build** when testing autofill or avoiding Plasmo HMR noise (“Context invalidated”, extra localhost prompts).
+
+```bash
+pnpm extension:build:brave   # or pnpm extension:build for Chrome
+```
+
+## Manual test checklist (Phase 0)
+
+1. **Options:** set server URL, test connection, save.
+2. **Sign in / unlock** in popup — no `storage.local` errors (reload extension if you see them).
+3. **Sync:** open popup with cached items — Network tab should not spam `GET /vault/items` on every open; use ↻ to refresh.
+4. **Fill-on-click:** on a page with a normal `input[type="password"]` (http/https):
+   - Blue **VL** badge on the field
+   - Click **VL** → unlock if needed → **Fill** on a matching login
+   - Username and password appear in the page
+5. **Reload stress:** reload extension 5× in `brave://extensions` — no `MAX_WRITE_OPERATIONS_PER_MINUTE` in service worker console (migration must not touch `chrome.storage.sync` after first run; see #191).
+
+## Project layout
 
 ```
 extension/
 ├── src/
-│   ├── lib/
-│   │   └── storage.ts      # Typed chrome.storage helpers (foundation for server settings, auth, and vault data)
-│   ├── popup.tsx           # Extension popup UI
-│   ├── options.tsx         # Options page (opens in tab)
-│   ├── background.ts       # Service worker
-│   └── content.ts          # (Future) Content script for autofill
-├── plasmo.config.ts        # Plasmo + Manifest V3 configuration
-├── tsconfig.json
-├── biome.json              # Extends root config
-└── package.json
+│   ├── background.ts              # Sync, fill relay, message validation
+│   ├── popup.tsx / options.tsx
+│   ├── contents/
+│   │   └── password-field-detector.ts
+│   └── lib/                       # storage, auth, vaultSession, form fill, etc.
+├── scripts/
+│   ├── plasmo-dev.mjs             # Dev runner + manifest patch
+│   └── patch-extension-csp.mjs
+└── plasmo.config.ts
 ```
 
-## Important Notes
+## Security notes
 
-- We consume `@vaultlock/shared` via pnpm workspaces (`workspace:*`).
-- All encryption/decryption happens client-side using code from `@vaultlock/shared`.
-- The server never sees plaintext or keys.
-- Follow the patterns established in the desktop app (`desktop/src/lib/`) where possible.
+- Encryption and key derivation use `@vaultlock/shared` only in extension pages (popup/options), not in the page DOM.
+- Background stores **ciphertext** only; DEK stays in popup memory while unlocked.
+- `host_permissions: <all_urls>` is required for content scripts today; narrowing is tracked in **#180**.
 
 ## References
 
-- Main epic: https://github.com/scott-harrison/vaultlock/issues/10
+- Redesign plan: `docs/plans/browser-extension-redesign-2026.md`
+- Parent epic: https://github.com/scott-harrison/vaultlock/issues/189
+- Phase 0 umbrella: https://github.com/scott-harrison/vaultlock/issues/187
 - Shared package: `../shared/`
-- Desktop implementation (for reference): `../desktop/`

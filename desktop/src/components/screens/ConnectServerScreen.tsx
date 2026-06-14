@@ -1,12 +1,12 @@
 import { AuthFeedback } from "@/components/auth/AuthFeedback";
 import { AuthField } from "@/components/auth/AuthField";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   DEFAULT_SERVER_ADVANCED,
   type ServerAdvancedOptions,
   shouldWarnInsecureHttp,
 } from "@/lib/serverSettings";
+import { Button } from "@vaultlock/ui/components/ui/button";
+import { Input } from "@vaultlock/ui/components/ui/input";
 import { useId, useState } from "react";
 
 interface ConnectServerScreenProps {

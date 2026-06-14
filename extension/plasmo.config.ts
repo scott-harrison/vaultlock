@@ -16,6 +16,7 @@ export default defineConfig({
     // Core permissions needed from the start
     permissions: [
       "storage", // For server URL, tokens, encrypted vault cache, etc.
+      "tabs", // Relay fill commands to the tab where the user clicked the indicator
     ],
 
     // SECURITY NOTE
@@ -32,7 +33,6 @@ export default defineConfig({
     action: {
       default_popup: "popup.html",
       default_title: "VaultLock",
-      // default_icon will be added when we have proper icons.
     },
 
     options_ui: {
@@ -48,12 +48,20 @@ export default defineConfig({
       },
     },
 
-    // Content scripts for field detection and future autofill features.
+    // Argon2 (hash-wasm) requires WASM compilation in popup/options (extension_pages only).
+    content_security_policy: {
+      extension_pages: "script-src 'self' 'wasm-unsafe-eval'; object-src 'self';",
+    },
+
+    // Content script match/run_at/all_frames are defined per file via exported `config`.
     content_scripts: [
       {
         matches: ["<all_urls>"],
+        js: ["src/contents/extension-context-guard.ts"],
+      },
+      {
+        matches: ["<all_urls>"],
         js: ["src/contents/password-field-detector.ts"],
-        run_at: "document_idle",
       },
     ],
   },

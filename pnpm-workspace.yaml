@@ -4,11 +4,56 @@ packages:
   - 'extension'
   - 'shared'
   - 'desktop'
+  - 'ui'
 
 # Supply chain: https://pnpm.io/supply-chain-security
 blockExoticSubdeps: true
-minimumReleaseAge: 1440
+minimumReleaseAge: 10080
+minimumReleaseAgeExclude:
+  - "plasmo@0.90.5"
+  - "@plasmohq/parcel-config@0.42.0"
+  - "graphql@15.10.2"
+  # GHSA-gv7w-rqvm-qjhr: patched esbuild; advisory published before minimumReleaseAge elapsed.
+  - "esbuild@0.28.1"
+  - "@esbuild/aix-ppc64@0.28.1"
+  - "@esbuild/android-arm@0.28.1"
+  - "@esbuild/android-arm64@0.28.1"
+  - "@esbuild/android-x64@0.28.1"
+  - "@esbuild/darwin-arm64@0.28.1"
+  - "@esbuild/darwin-x64@0.28.1"
+  - "@esbuild/freebsd-arm64@0.28.1"
+  - "@esbuild/freebsd-x64@0.28.1"
+  - "@esbuild/linux-arm@0.28.1"
+  - "@esbuild/linux-arm64@0.28.1"
+  - "@esbuild/linux-ia32@0.28.1"
+  - "@esbuild/linux-loong64@0.28.1"
+  - "@esbuild/linux-mips64el@0.28.1"
+  - "@esbuild/linux-ppc64@0.28.1"
+  - "@esbuild/linux-riscv64@0.28.1"
+  - "@esbuild/linux-s390x@0.28.1"
+  - "@esbuild/linux-x64@0.28.1"
+  - "@esbuild/netbsd-arm64@0.28.1"
+  - "@esbuild/netbsd-x64@0.28.1"
+  - "@esbuild/openbsd-arm64@0.28.1"
+  - "@esbuild/openbsd-x64@0.28.1"
+  - "@esbuild/openharmony-arm64@0.28.1"
+  - "@esbuild/sunos-x64@0.28.1"
+  - "@esbuild/win32-arm64@0.28.1"
+  - "@esbuild/win32-ia32@0.28.1"
+  - "@esbuild/win32-x64@0.28.1"
+
 trustPolicy: no-downgrade
+trustPolicyExclude:
+  - graphql
+  - chokidar
+peerDependencyRules:
+  allowedVersions:
+    vite: "7"
+    esbuild: "0.28"
+    svgo: "2"
+# Recommended dev pin (.nvmrc); engines allow any 24.x LTS patch.
+nodeVersion: 24.15.0
+engineStrict: true
 
 allowBuilds:
   '@biomejs/biome': true
@@ -21,11 +66,12 @@ allowBuilds:
 overrides:
   # Exact targets match pnpm-lock.yaml resolutions (security floors from prior ^ overrides).
   semver@<7: 7.8.0
-  '@parcel/reporter-dev-server@>=1.6.1 <=2.16.3': 2.16.4
+  # Security floor for 2.16.x only; do not bump Plasmo's Parcel 2.9.3 stack (2.9.3 < 2.16.0).
+  '@parcel/reporter-dev-server@>=2.16.0 <2.16.4': 2.16.4
   '@xmldom/xmldom@<0.8.12': 0.8.13
   '@xmldom/xmldom@<0.8.13': 0.8.13
   content-security-policy-parser@<0.6.0: 0.6.0
-  esbuild@<=0.24.2: 0.25.12
+  esbuild@<0.28.1: 0.28.1
   fast-xml-parser@<5.7.0: 5.8.0
   msgpackr@<1.10.1: 1.11.12
   postcss@<8.5.10: 8.5.14
@@ -43,6 +89,8 @@ overrides:
   tar@<=7.5.9: 7.5.15
   tmp@<0.2.6: 0.2.6
   uuid@<11.1.1: 11.1.1
+  # fbjs (expo mobile) requests 1.0.41; pnpm trust policy rejects it (no provenance vs 1.0.39).
+  ua-parser-js@1.0.41: 1.0.39
   vitest@<4.1.0: 4.1.0
   tsup@<=8.3.4: 8.5.1
   vite@<=6.4.1: 6.4.2
